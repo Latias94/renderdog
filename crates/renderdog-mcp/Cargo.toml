@@ -7,7 +7,7 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 description = "MCP server exposing RenderDoc automation workflows (capture/export/diagnostics)."
-readme = "../../README.md"
+readme = "README.md"
 
 [dependencies]
 renderdog-automation = { version = "0.1.0", path = "../renderdog-automation" }

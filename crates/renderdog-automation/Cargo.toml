@@ -7,7 +7,7 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 description = "Out-of-process automation helpers for RenderDoc (renderdoccmd/qrenderdoc --python workflows)."
-readme = "../../README.md"
+readme = "README.md"
 
 [dependencies]
 thiserror = "2"

@@ -7,7 +7,7 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 description = "Low-level RenderDoc in-application API FFI bindings (pregenerated, optional bindgen regen)."
-readme = "../../README.md"
+readme = "README.md"
 
 [lib]
 path = "src/lib.rs"

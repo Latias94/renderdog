@@ -7,7 +7,7 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 description = "Optional winit helpers for renderdog (key mapping + window handle helpers)."
-readme = "../../README.md"
+readme = "README.md"
 
 [dependencies]
 renderdog = { version = "0.1.0", path = "../renderdog" }
