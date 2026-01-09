@@ -124,7 +124,11 @@ impl RenderDocInApp {
 
         #[cfg(unix)]
         {
-            let lib = Library::new(dll_path_or_name)
+            // SAFETY: Dynamically loading a library is inherently unsafe. We only use this handle
+            // to resolve RenderDoc's documented `RENDERDOC_GetAPI` symbol and then negotiate a
+            // supported API version. Callers must ensure the path/name points to a compatible
+            // RenderDoc library.
+            let lib = unsafe { Library::new(dll_path_or_name) }
                 .map_err(|e| InAppError::DynamicLoadFailed(e.to_string()))?;
             Self::connect_from_unix_library(lib)
         }
