@@ -9,5 +9,4 @@ This crate drives:
 - `renderdoccmd capture` (injection-based capture)
 - `qrenderdoc --python` (replay/export)
 
-See the workspace `README.md` for example commands and MCP workflows.
-
+See the [workspace README](../../README.md) for example commands and MCP workflows.
