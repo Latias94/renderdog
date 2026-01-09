@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "crates/renderdog",
+    "crates/renderdog-automation",
+    "crates/renderdog-mcp",
+    "crates/renderdog-sys",
+    "crates/renderdog-winit",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+repository = "https://github.com/Latias94/renderdog"
+homepage = "https://github.com/Latias94/renderdog"
+readme = "README.md"
+authors = ["Latias94"]
+

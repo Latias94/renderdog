@@ -1,0 +1,18 @@
+/target
+
+# IDEs / editors
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local artifacts
+/artifacts/
+*.rdc
+*.jsonl
+
+# Reference checkouts (not shipped/published)
+/repo-ref/

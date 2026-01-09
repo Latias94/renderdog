@@ -1,0 +1,22 @@
+[package]
+name = "renderdog-sys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Low-level RenderDoc in-application API FFI bindings (pregenerated, optional bindgen regen)."
+readme = "../../README.md"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+bindgen = ["dep:bindgen"]
+
+[dependencies]
+
+[build-dependencies]
+bindgen = { version = "0.72", optional = true }

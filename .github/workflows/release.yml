@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (fmt + tests + package)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt
+        run: cargo fmt --check
+      - name: cargo test
+        run: cargo test --workspace
+      - name: cargo package (no-verify)
+        run: |
+          cargo package -p renderdog --no-verify
+          cargo package -p renderdog-sys --no-verify
+          cargo package -p renderdog-automation --no-verify
+          cargo package -p renderdog-winit --no-verify
+          cargo package -p renderdog-mcp --no-verify
+
+  artifacts:
+    name: Build artifacts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: renderdog-mcp
+            archive: renderdog-mcp-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: renderdog-mcp.exe
+            archive: renderdog-mcp-${{ github.ref_name }}-x86_64-pc-windows-msvc.zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo build
+        run: cargo build -p renderdog-mcp --release
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          tar -C target/release -czf "${{ matrix.archive }}" "${{ matrix.bin }}"
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "target/release/${{ matrix.bin }}" -DestinationPath "${{ matrix.archive }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
