@@ -16,3 +16,8 @@ repository = "https://github.com/Latias94/renderdog"
 homepage = "https://github.com/Latias94/renderdog"
 readme = "README.md"
 authors = ["Mingzhen Zhuang <superfrankie621@gmail.com>"]
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

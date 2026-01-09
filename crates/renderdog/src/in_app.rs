@@ -35,6 +35,7 @@ enum LibraryGuard {
     #[cfg(windows)]
     WindowsOwned(isize),
     #[cfg(unix)]
+    #[allow(dead_code)]
     Unix(Library),
 }
 
