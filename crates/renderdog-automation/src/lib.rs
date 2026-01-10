@@ -13,6 +13,7 @@
 mod command;
 mod diagnostics;
 mod renderdoccmd;
+mod replay;
 mod scripting;
 mod toolchain;
 mod ui;
@@ -21,6 +22,7 @@ mod workflows;
 pub use command::*;
 pub use diagnostics::*;
 pub use renderdoccmd::*;
+pub use replay::*;
 pub use scripting::*;
 pub use toolchain::*;
 pub use ui::*;

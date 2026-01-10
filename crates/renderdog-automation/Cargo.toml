@@ -15,5 +15,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 schemars = "1.0"
 
+[dev-dependencies]
+anyhow = "1.0"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading"] }
