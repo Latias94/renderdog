@@ -69,6 +69,15 @@ fn generate_bindings(manifest_dir: &Path, out: &Path) {
     let bindings = bindgen::Builder::default()
         .header(header.to_string_lossy())
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        // Keep enums "safe-ish" for FFI (as integer newtypes) while still providing ergonomic
+        // associated constants (e.g. `RENDERDOC_InputButton::eRENDERDOC_Key_F12`).
+        //
+        // The default enum style in bindgen is `Consts`, which can change the emitted symbol
+        // names depending on bindgen versions/config, and would break downstream crates.
+        .default_enum_style(bindgen::EnumVariation::NewType {
+            is_bitfield: false,
+            is_global: false,
+        })
         .allowlist_type("RENDERDOC_.*")
         .allowlist_var("eRENDERDOC_.*")
         .allowlist_function("RENDERDOC_GetAPI")
