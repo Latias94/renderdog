@@ -10,7 +10,7 @@ description = "MCP server exposing RenderDoc automation workflows (capture/expor
 readme = "README.md"
 
 [dependencies]
-renderdog-automation = { version = "0.1.0", path = "../renderdog-automation" }
+renderdog-automation = { version = "0.2.0", path = "../renderdog-automation" }
 rmcp = { version = "0.12.0", features = ["server", "macros", "transport-io", "schemars"] }
 schemars = "1.0"
 serde = { version = "1.0", features = ["derive"] }

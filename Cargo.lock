@@ -1397,7 +1397,7 @@ checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
 name = "renderdog"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitflags 2.10.0",
  "libc",
@@ -1409,7 +1409,7 @@ dependencies = [
 
 [[package]]
 name = "renderdog-automation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "schemars",
@@ -1421,7 +1421,7 @@ dependencies = [
 
 [[package]]
 name = "renderdog-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "renderdog-automation",
@@ -1436,7 +1436,7 @@ dependencies = [
 
 [[package]]
 name = "renderdog-replay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "cxx",
@@ -1446,14 +1446,14 @@ dependencies = [
 
 [[package]]
 name = "renderdog-sys"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bindgen",
 ]
 
 [[package]]
 name = "renderdog-winit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "raw-window-handle",
  "renderdog",

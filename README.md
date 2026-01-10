@@ -102,6 +102,21 @@ Practical checklists for validating real-world rendering issues:
 
 - Clip-mask mapping (fret): `docs/playbooks/fret-clip-mask.md`
 
+## Adopting in your renderer (recommended workflow)
+
+If you want an AI agent (or a human) to debug a renderer effectively with RenderDoc, aim for a
+workflow that is *repeatable and searchable*:
+
+1) Capture a frame (`.rdc`)
+   - In-app control: integrate `renderdog` and trigger captures programmatically (or via hotkeys).
+   - Injection-based: use `renderdog-automation` / `renderdog-mcp` (wraps `renderdoccmd capture`).
+2) Make passes easy to find
+   - Emit stable GPU markers / debug labels for key passes (RenderDoc Event Browser search relies on these).
+3) Inspect in `qrenderdoc` UI, then automate exports
+   - Use the playbooks for step-by-step validation (e.g. `docs/playbooks/fret-clip-mask.md`).
+   - Export actions/bindings to JSONL for grep-friendly queries.
+   - Use headless replay helpers (`qrenderdoc --python`) to list textures / pick pixels / save PNGs.
+
 ## Headless replay helpers (qrenderdoc --python)
 
 In addition to exporting actions/bindings, `renderdog-automation` and `renderdog-mcp` provide
