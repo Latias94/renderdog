@@ -9,6 +9,13 @@ use thiserror::Error;
 use crate::RenderDocInstallation;
 use crate::{CommandError, CommandSpec, run_command_expect_success};
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct QRenderDocJsonEnvelope<T> {
+    pub ok: bool,
+    pub result: Option<T>,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct QRenderDocPythonRequest {
     pub script_path: PathBuf,

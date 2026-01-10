@@ -1,14 +1,15 @@
-use std::{ffi::OsString, path::Path};
+use std::path::Path;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::scripting::QRenderDocJsonEnvelope;
 use crate::{
     QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureRequest {
     pub host: String,
     pub target_ident: u32,
@@ -23,7 +24,7 @@ pub struct TriggerCaptureResponse {
     pub api: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportActionsRequest {
     pub capture_path: String,
     pub output_dir: String,
@@ -46,7 +47,7 @@ pub struct ExportActionsResponse {
     pub drawcall_actions: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportBindingsIndexRequest {
     pub capture_path: String,
     pub output_dir: String,
@@ -75,12 +76,16 @@ pub enum TriggerCaptureError {
     CreateArtifactsDir(std::io::Error),
     #[error("failed to write python script: {0}")]
     WriteScript(std::io::Error),
+    #[error("failed to write request JSON: {0}")]
+    WriteRequest(std::io::Error),
     #[error("qrenderdoc python failed: {0}")]
     QRenderDocPython(Box<crate::QRenderDocPythonError>),
     #[error("failed to parse capture JSON: {0}")]
     ParseJson(serde_json::Error),
-    #[error("missing capture_path in script output")]
-    MissingCapturePath,
+    #[error("failed to read response JSON: {0}")]
+    ReadResponse(std::io::Error),
+    #[error("qrenderdoc script error: {0}")]
+    ScriptError(String),
 }
 
 impl From<crate::QRenderDocPythonError> for TriggerCaptureError {
@@ -95,10 +100,16 @@ pub enum ExportActionsError {
     CreateOutputDir(std::io::Error),
     #[error("failed to write python script: {0}")]
     WriteScript(std::io::Error),
+    #[error("failed to write request JSON: {0}")]
+    WriteRequest(std::io::Error),
     #[error("qrenderdoc python failed: {0}")]
     QRenderDocPython(Box<crate::QRenderDocPythonError>),
     #[error("failed to parse export JSON: {0}")]
     ParseJson(serde_json::Error),
+    #[error("failed to read response JSON: {0}")]
+    ReadResponse(std::io::Error),
+    #[error("qrenderdoc script error: {0}")]
+    ScriptError(String),
 }
 
 impl From<crate::QRenderDocPythonError> for ExportActionsError {
@@ -113,10 +124,24 @@ pub enum ExportBindingsIndexError {
     CreateOutputDir(std::io::Error),
     #[error("failed to write python script: {0}")]
     WriteScript(std::io::Error),
+    #[error("failed to write request JSON: {0}")]
+    WriteRequest(std::io::Error),
     #[error("qrenderdoc python failed: {0}")]
     QRenderDocPython(Box<crate::QRenderDocPythonError>),
     #[error("failed to parse export JSON: {0}")]
     ParseJson(serde_json::Error),
+    #[error("failed to read response JSON: {0}")]
+    ReadResponse(std::io::Error),
+    #[error("qrenderdoc script error: {0}")]
+    ScriptError(String),
+}
+
+fn remove_if_exists(path: &Path) -> Result<(), std::io::Error> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 impl From<crate::QRenderDocPythonError> for ExportBindingsIndexError {
@@ -138,38 +163,32 @@ impl RenderDocInstallation {
         write_script_file(&script_path, TRIGGER_CAPTURE_PY)
             .map_err(TriggerCaptureError::WriteScript)?;
 
-        let args: Vec<OsString> = vec![
-            OsString::from("--host"),
-            OsString::from(req.host.clone()),
-            OsString::from("--ident"),
-            OsString::from(req.target_ident.to_string()),
-            OsString::from("--frames"),
-            OsString::from(req.num_frames.to_string()),
-            OsString::from("--timeout-s"),
-            OsString::from(req.timeout_s.to_string()),
-        ];
+        let request_path = scripts_dir.join("trigger_capture.request.json");
+        let response_path = scripts_dir.join("trigger_capture.response.json");
+        remove_if_exists(&response_path).map_err(TriggerCaptureError::WriteRequest)?;
+        std::fs::write(
+            &request_path,
+            serde_json::to_vec(req).map_err(TriggerCaptureError::ParseJson)?,
+        )
+        .map_err(TriggerCaptureError::WriteRequest)?;
 
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
-            args,
-            working_dir: Some(cwd.to_path_buf()),
+            args: Vec::new(),
+            working_dir: Some(scripts_dir.clone()),
         })?;
-
-        let line = result
-            .stdout
-            .lines()
-            .rev()
-            .find(|l| !l.trim().is_empty())
-            .unwrap_or("");
-
-        let parsed: TriggerCaptureResponse =
-            serde_json::from_str(line).map_err(TriggerCaptureError::ParseJson)?;
-
-        if parsed.capture_path.trim().is_empty() {
-            return Err(TriggerCaptureError::MissingCapturePath);
+        let _ = result;
+        let bytes = std::fs::read(&response_path).map_err(TriggerCaptureError::ReadResponse)?;
+        let env: QRenderDocJsonEnvelope<TriggerCaptureResponse> =
+            serde_json::from_slice(&bytes).map_err(TriggerCaptureError::ParseJson)?;
+        if env.ok {
+            env.result
+                .ok_or_else(|| TriggerCaptureError::ScriptError("missing result".into()))
+        } else {
+            Err(TriggerCaptureError::ScriptError(
+                env.error.unwrap_or_else(|| "unknown error".into()),
+            ))
         }
-
-        Ok(parsed)
     }
 
     pub fn export_actions_jsonl(
@@ -184,55 +203,32 @@ impl RenderDocInstallation {
         write_script_file(&script_path, EXPORT_ACTIONS_JSONL_PY)
             .map_err(ExportActionsError::WriteScript)?;
 
-        let mut args: Vec<OsString> = vec![
-            OsString::from("--capture"),
-            OsString::from(req.capture_path.clone()),
-            OsString::from("--out-dir"),
-            OsString::from(req.output_dir.clone()),
-            OsString::from("--basename"),
-            OsString::from(req.basename.clone()),
-        ];
-        if req.only_drawcalls {
-            args.push(OsString::from("--only-drawcalls"));
-        }
-        if let Some(prefix) = &req.marker_prefix {
-            args.push(OsString::from("--marker-prefix"));
-            args.push(OsString::from(prefix.clone()));
-        }
-        if let Some(v) = req.event_id_min {
-            args.push(OsString::from("--event-min"));
-            args.push(OsString::from(v.to_string()));
-        }
-        if let Some(v) = req.event_id_max {
-            args.push(OsString::from("--event-max"));
-            args.push(OsString::from(v.to_string()));
-        }
-        if let Some(q) = &req.name_contains {
-            args.push(OsString::from("--name-contains"));
-            args.push(OsString::from(q.clone()));
-        }
-        if let Some(q) = &req.marker_contains {
-            args.push(OsString::from("--marker-contains"));
-            args.push(OsString::from(q.clone()));
-        }
-        if req.case_sensitive {
-            args.push(OsString::from("--case-sensitive"));
-        }
+        let request_path = scripts_dir.join("export_actions_jsonl.request.json");
+        let response_path = scripts_dir.join("export_actions_jsonl.response.json");
+        remove_if_exists(&response_path).map_err(ExportActionsError::WriteRequest)?;
+        std::fs::write(
+            &request_path,
+            serde_json::to_vec(req).map_err(ExportActionsError::ParseJson)?,
+        )
+        .map_err(ExportActionsError::WriteRequest)?;
 
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
-            args,
-            working_dir: Some(cwd.to_path_buf()),
+            args: Vec::new(),
+            working_dir: Some(scripts_dir.clone()),
         })?;
-
-        let line = result
-            .stdout
-            .lines()
-            .rev()
-            .find(|l| !l.trim().is_empty())
-            .unwrap_or("");
-
-        serde_json::from_str(line).map_err(ExportActionsError::ParseJson)
+        let _ = result;
+        let bytes = std::fs::read(&response_path).map_err(ExportActionsError::ReadResponse)?;
+        let env: QRenderDocJsonEnvelope<ExportActionsResponse> =
+            serde_json::from_slice(&bytes).map_err(ExportActionsError::ParseJson)?;
+        if env.ok {
+            env.result
+                .ok_or_else(|| ExportActionsError::ScriptError("missing result".into()))
+        } else {
+            Err(ExportActionsError::ScriptError(
+                env.error.unwrap_or_else(|| "unknown error".into()),
+            ))
+        }
     }
 
     pub fn export_bindings_index_jsonl(
@@ -247,103 +243,87 @@ impl RenderDocInstallation {
         write_script_file(&script_path, EXPORT_BINDINGS_INDEX_JSONL_PY)
             .map_err(ExportBindingsIndexError::WriteScript)?;
 
-        let mut args: Vec<OsString> = vec![
-            OsString::from("--capture"),
-            OsString::from(req.capture_path.clone()),
-            OsString::from("--out-dir"),
-            OsString::from(req.output_dir.clone()),
-            OsString::from("--basename"),
-            OsString::from(req.basename.clone()),
-        ];
-        if let Some(prefix) = &req.marker_prefix {
-            args.push(OsString::from("--marker-prefix"));
-            args.push(OsString::from(prefix.clone()));
-        }
-        if let Some(v) = req.event_id_min {
-            args.push(OsString::from("--event-min"));
-            args.push(OsString::from(v.to_string()));
-        }
-        if let Some(v) = req.event_id_max {
-            args.push(OsString::from("--event-max"));
-            args.push(OsString::from(v.to_string()));
-        }
-        if let Some(q) = &req.name_contains {
-            args.push(OsString::from("--name-contains"));
-            args.push(OsString::from(q.clone()));
-        }
-        if let Some(q) = &req.marker_contains {
-            args.push(OsString::from("--marker-contains"));
-            args.push(OsString::from(q.clone()));
-        }
-        if req.case_sensitive {
-            args.push(OsString::from("--case-sensitive"));
-        }
-        if req.include_cbuffers {
-            args.push(OsString::from("--include-cbuffers"));
-        }
-        if req.include_outputs {
-            args.push(OsString::from("--include-outputs"));
-        }
+        let request_path = scripts_dir.join("export_bindings_index_jsonl.request.json");
+        let response_path = scripts_dir.join("export_bindings_index_jsonl.response.json");
+        remove_if_exists(&response_path).map_err(ExportBindingsIndexError::WriteRequest)?;
+        std::fs::write(
+            &request_path,
+            serde_json::to_vec(req).map_err(ExportBindingsIndexError::ParseJson)?,
+        )
+        .map_err(ExportBindingsIndexError::WriteRequest)?;
 
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
-            args,
-            working_dir: Some(cwd.to_path_buf()),
+            args: Vec::new(),
+            working_dir: Some(scripts_dir.clone()),
         })?;
-
-        let line = result
-            .stdout
-            .lines()
-            .rev()
-            .find(|l| !l.trim().is_empty())
-            .unwrap_or("");
-
-        serde_json::from_str(line).map_err(ExportBindingsIndexError::ParseJson)
+        let _ = result;
+        let bytes =
+            std::fs::read(&response_path).map_err(ExportBindingsIndexError::ReadResponse)?;
+        let env: QRenderDocJsonEnvelope<ExportBindingsIndexResponse> =
+            serde_json::from_slice(&bytes).map_err(ExportBindingsIndexError::ParseJson)?;
+        if env.ok {
+            env.result
+                .ok_or_else(|| ExportBindingsIndexError::ScriptError("missing result".into()))
+        } else {
+            Err(ExportBindingsIndexError::ScriptError(
+                env.error.unwrap_or_else(|| "unknown error".into()),
+            ))
+        }
     }
 }
 
 const TRIGGER_CAPTURE_PY: &str = r#"
-import argparse
 import json
+import os
 import time
+import traceback
 
 import renderdoc as rd
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", required=True)
-    parser.add_argument("--ident", required=True, type=int)
-    parser.add_argument("--frames", required=True, type=int)
-    parser.add_argument("--timeout-s", required=True, type=int)
-    args = parser.parse_args()
+REQ_PATH = "trigger_capture.request.json"
+RESP_PATH = "trigger_capture.response.json"
+
+
+def write_envelope(ok: bool, result=None, error: str = None) -> None:
+    with open(RESP_PATH, "w", encoding="utf-8") as f:
+        json.dump({"ok": ok, "result": result, "error": error}, f, ensure_ascii=False)
+
+
+def main() -> None:
+    with open(REQ_PATH, "r", encoding="utf-8") as f:
+        req = json.load(f)
 
     rd.InitialiseReplay(rd.GlobalEnvironment(), [])
 
     # Create a target control connection to an already-injected process (started via renderdoccmd capture).
-    target = rd.CreateTargetControl(args.host, args.ident, "renderdog", True)
+    target = rd.CreateTargetControl(req["host"], int(req["target_ident"]), "renderdog", True)
     if target is None:
-        raise RuntimeError(f\"CreateTargetControl failed for {args.host}:{args.ident}\")
+        raise RuntimeError(
+            f"CreateTargetControl failed for {req['host']}:{int(req['target_ident'])}"
+        )
 
     try:
-        target.TriggerCapture(args.frames)
+        target.TriggerCapture(int(req["num_frames"]))
 
         # Wait for NewCapture message(s)
-        msg = None
-        deadline = time.time() + float(args.timeout_s)
+        deadline = time.time() + float(req["timeout_s"])
         while time.time() < deadline:
             msg = target.ReceiveMessage(None)
             if msg is None:
                 continue
             if msg.type == rd.TargetControlMessageType.NewCapture:
                 cap = msg.newCapture
-                out = {
-                    "capture_path": cap.path,
-                    "frame_number": int(cap.frameNumber),
-                    "api": str(cap.api),
-                }
-                print(json.dumps(out))
-                return 0
+                write_envelope(
+                    True,
+                    result={
+                        "capture_path": cap.path,
+                        "frame_number": int(cap.frameNumber),
+                        "api": str(cap.api),
+                    },
+                )
+                return
 
         raise RuntimeError("Timed out waiting for NewCapture message")
     finally:
@@ -355,15 +335,28 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        main()
+    except Exception:
+        write_envelope(False, error=traceback.format_exc())
+    raise SystemExit(0)
 "#;
 
 const EXPORT_ACTIONS_JSONL_PY: &str = r#"
-import argparse
 import json
 import os
+import traceback
 
 import renderdoc as rd
+
+
+REQ_PATH = "export_actions_jsonl.request.json"
+RESP_PATH = "export_actions_jsonl.response.json"
+
+
+def write_envelope(ok: bool, result=None, error: str = None) -> None:
+    with open(RESP_PATH, "w", encoding="utf-8") as f:
+        json.dump({"ok": ok, "result": result, "error": error}, f, ensure_ascii=False)
 
 
 FLAG_NAMES = [
@@ -500,30 +493,20 @@ def iter_actions(structured_file, actions, marker_stack, parent_event_id, depth,
         recurse()
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--capture", required=True)
-    parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--basename", required=True)
-    parser.add_argument("--only-drawcalls", action="store_true")
-    parser.add_argument("--marker-prefix", default="")
-    parser.add_argument("--event-min", type=int, default=None)
-    parser.add_argument("--event-max", type=int, default=None)
-    parser.add_argument("--name-contains", default="")
-    parser.add_argument("--marker-contains", default="")
-    parser.add_argument("--case-sensitive", action="store_true")
-    args = parser.parse_args()
+def main() -> None:
+    with open(REQ_PATH, "r", encoding="utf-8") as f:
+        req = json.load(f)
 
     rd.InitialiseReplay(rd.GlobalEnvironment(), [])
 
-    os.makedirs(args.out_dir, exist_ok=True)
+    os.makedirs(req["output_dir"], exist_ok=True)
 
-    actions_path = os.path.join(args.out_dir, f"{args.basename}.actions.jsonl")
-    summary_path = os.path.join(args.out_dir, f"{args.basename}.summary.json")
+    actions_path = os.path.join(req["output_dir"], f"{req['basename']}.actions.jsonl")
+    summary_path = os.path.join(req["output_dir"], f"{req['basename']}.summary.json")
 
     cap = rd.OpenCaptureFile()
     try:
-        result = cap.OpenFile(args.capture, "", None)
+        result = cap.OpenFile(req["capture_path"], "", None)
         if result != rd.ResultCode.Succeeded:
             raise RuntimeError("Couldn't open file: " + str(result))
 
@@ -541,16 +524,18 @@ def main() -> int:
             counters = {"total_actions": 0, "drawcall_actions": 0}
             with open(actions_path, "w", encoding="utf-8") as fp:
                 iter_actions(structured_file, roots, [], None, 0, fp, counters,
-                             args.only_drawcalls, args.marker_prefix,
-                             args.event_min, args.event_max,
-                             normalize(args.name_contains, args.case_sensitive),
-                             normalize(args.marker_contains, args.case_sensitive),
-                             args.case_sensitive)
+                             bool(req.get("only_drawcalls", False)),
+                             str(req.get("marker_prefix") or ""),
+                             req.get("event_id_min", None),
+                             req.get("event_id_max", None),
+                             normalize(req.get("name_contains") or "", bool(req.get("case_sensitive", False))),
+                             normalize(req.get("marker_contains") or "", bool(req.get("case_sensitive", False))),
+                             bool(req.get("case_sensitive", False)))
 
             api = str(controller.GetAPIProperties().pipelineType)
 
             summary = {
-                "capture_path": args.capture,
+                "capture_path": req["capture_path"],
                 "api": api,
                 "total_actions": int(counters["total_actions"]),
                 "drawcall_actions": int(counters["drawcall_actions"]),
@@ -560,14 +545,17 @@ def main() -> int:
             with open(summary_path, "w", encoding="utf-8") as fp:
                 json.dump(summary, fp, ensure_ascii=False, indent=2)
 
-            print(json.dumps({
-                "capture_path": args.capture,
-                "actions_jsonl_path": actions_path,
-                "summary_json_path": summary_path,
-                "total_actions": int(counters["total_actions"]),
-                "drawcall_actions": int(counters["drawcall_actions"]),
-            }, ensure_ascii=False))
-            return 0
+            write_envelope(
+                True,
+                result={
+                    "capture_path": req["capture_path"],
+                    "actions_jsonl_path": actions_path,
+                    "summary_json_path": summary_path,
+                    "total_actions": int(counters["total_actions"]),
+                    "drawcall_actions": int(counters["drawcall_actions"]),
+                },
+            )
+            return
         finally:
             try:
                 controller.Shutdown()
@@ -582,15 +570,28 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        main()
+    except Exception:
+        write_envelope(False, error=traceback.format_exc())
+    raise SystemExit(0)
 "#;
 
 const EXPORT_BINDINGS_INDEX_JSONL_PY: &str = r#"
-import argparse
 import json
 import os
+import traceback
 
 import renderdoc as rd
+
+
+REQ_PATH = "export_bindings_index_jsonl.request.json"
+RESP_PATH = "export_bindings_index_jsonl.response.json"
+
+
+def write_envelope(ok: bool, result=None, error: str = None) -> None:
+    with open(RESP_PATH, "w", encoding="utf-8") as f:
+        json.dump({"ok": ok, "result": result, "error": error}, f, ensure_ascii=False)
 
 
 def normalize(s: str, case_sensitive: bool) -> str:
@@ -895,31 +896,20 @@ def iter_actions(structured_file, controller, actions, marker_stack, depth,
         recurse()
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--capture", required=True)
-    parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--basename", required=True)
-    parser.add_argument("--marker-prefix", default="")
-    parser.add_argument("--event-min", type=int, default=None)
-    parser.add_argument("--event-max", type=int, default=None)
-    parser.add_argument("--name-contains", default="")
-    parser.add_argument("--marker-contains", default="")
-    parser.add_argument("--case-sensitive", action="store_true")
-    parser.add_argument("--include-cbuffers", action="store_true")
-    parser.add_argument("--include-outputs", action="store_true")
-    args = parser.parse_args()
+def main() -> None:
+    with open(REQ_PATH, "r", encoding="utf-8") as f:
+        req = json.load(f)
 
     rd.InitialiseReplay(rd.GlobalEnvironment(), [])
 
-    os.makedirs(args.out_dir, exist_ok=True)
+    os.makedirs(req["output_dir"], exist_ok=True)
 
-    bindings_path = os.path.join(args.out_dir, f"{args.basename}.bindings.jsonl")
-    summary_path = os.path.join(args.out_dir, f"{args.basename}.bindings_summary.json")
+    bindings_path = os.path.join(req["output_dir"], f"{req['basename']}.bindings.jsonl")
+    summary_path = os.path.join(req["output_dir"], f"{req['basename']}.bindings_summary.json")
 
     cap = rd.OpenCaptureFile()
     try:
-        result = cap.OpenFile(args.capture, "", None)
+        result = cap.OpenFile(req["capture_path"], "", None)
         if result != rd.ResultCode.Succeeded:
             raise RuntimeError("Couldn't open file: " + str(result))
 
@@ -944,20 +934,20 @@ def main() -> int:
                     0,
                     fp,
                     counters,
-                    args.marker_prefix,
-                    args.event_min,
-                    args.event_max,
-                    normalize(args.name_contains, args.case_sensitive),
-                    normalize(args.marker_contains, args.case_sensitive),
-                    args.case_sensitive,
-                    args.include_cbuffers,
-                    args.include_outputs,
+                    str(req.get("marker_prefix") or ""),
+                    req.get("event_id_min", None),
+                    req.get("event_id_max", None),
+                    normalize(req.get("name_contains") or "", bool(req.get("case_sensitive", False))),
+                    normalize(req.get("marker_contains") or "", bool(req.get("case_sensitive", False))),
+                    bool(req.get("case_sensitive", False)),
+                    bool(req.get("include_cbuffers", False)),
+                    bool(req.get("include_outputs", False)),
                 )
 
             api = str(controller.GetAPIProperties().pipelineType)
 
             summary = {
-                "capture_path": args.capture,
+                "capture_path": req["capture_path"],
                 "api": api,
                 "total_drawcalls": int(counters["total_drawcalls"]),
                 "bindings_jsonl_path": bindings_path,
@@ -966,18 +956,16 @@ def main() -> int:
             with open(summary_path, "w", encoding="utf-8") as fp:
                 json.dump(summary, fp, ensure_ascii=False, indent=2)
 
-            print(
-                json.dumps(
-                    {
-                        "capture_path": args.capture,
-                        "bindings_jsonl_path": bindings_path,
-                        "summary_json_path": summary_path,
-                        "total_drawcalls": int(counters["total_drawcalls"]),
-                    },
-                    ensure_ascii=False,
-                )
+            write_envelope(
+                True,
+                result={
+                    "capture_path": req["capture_path"],
+                    "bindings_jsonl_path": bindings_path,
+                    "summary_json_path": summary_path,
+                    "total_drawcalls": int(counters["total_drawcalls"]),
+                },
             )
-            return 0
+            return
         finally:
             try:
                 controller.Shutdown()
@@ -992,5 +980,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        main()
+    except Exception:
+        write_envelope(False, error=traceback.format_exc())
+    raise SystemExit(0)
 "#;
