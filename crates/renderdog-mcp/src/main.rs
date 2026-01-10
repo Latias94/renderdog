@@ -34,6 +34,8 @@ struct DetectInstallationResponse {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct LaunchCaptureRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     executable: String,
     #[serde(default)]
     args: Vec<String>,
@@ -55,6 +57,8 @@ struct LaunchCaptureResponse {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct SaveThumbnailRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     output_path: String,
 }
@@ -66,6 +70,8 @@ struct SaveThumbnailResponse {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct OpenCaptureUiRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
 }
 
@@ -77,6 +83,8 @@ struct OpenCaptureUiResponse {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ReplayListTexturesRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     #[serde(default)]
     event_id: Option<u32>,
@@ -84,6 +92,8 @@ struct ReplayListTexturesRequest {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ReplayPickPixelRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     #[serde(default)]
     event_id: Option<u32>,
@@ -94,6 +104,8 @@ struct ReplayPickPixelRequest {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ReplaySaveTexturePngRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     #[serde(default)]
     event_id: Option<u32>,
@@ -103,6 +115,8 @@ struct ReplaySaveTexturePngRequest {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ReplaySaveOutputsPngRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     #[serde(default)]
     event_id: Option<u32>,
@@ -116,6 +130,8 @@ struct ReplaySaveOutputsPngRequest {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CaptureAndExportActionsRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     executable: String,
     #[serde(default)]
     args: Vec<String>,
@@ -155,6 +171,8 @@ struct CaptureAndExportActionsRequest {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CaptureAndExportBindingsIndexRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     executable: String,
     #[serde(default)]
     args: Vec<String>,
@@ -209,6 +227,8 @@ struct CaptureAndExportBindingsIndexResponse {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CaptureAndExportBundleRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     executable: String,
     #[serde(default)]
     args: Vec<String>,
@@ -298,6 +318,8 @@ struct CaptureAndExportActionsResponse {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct TriggerCaptureRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     #[serde(default = "default_host")]
     host: String,
     target_ident: u32,
@@ -319,8 +341,29 @@ fn default_timeout_s() -> u32 {
     60
 }
 
+fn resolve_base_cwd(cwd: Option<String>) -> Result<PathBuf, String> {
+    let current = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+    let Some(cwd) = cwd else {
+        return Ok(current);
+    };
+
+    let p = PathBuf::from(cwd);
+    if p.is_absolute() {
+        Ok(p)
+    } else {
+        Ok(current.join(p))
+    }
+}
+
+fn resolve_path_from_base(base: &Path, value: &str) -> PathBuf {
+    let p = PathBuf::from(value);
+    if p.is_absolute() { p } else { base.join(p) }
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ExportActionsRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     #[serde(default)]
     output_dir: Option<String>,
@@ -344,6 +387,8 @@ struct ExportActionsRequest {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ExportBindingsIndexRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     #[serde(default)]
     output_dir: Option<String>,
@@ -369,6 +414,8 @@ struct ExportBindingsIndexRequest {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ExportBundleRequest {
+    #[serde(default)]
+    cwd: Option<String>,
     capture_path: String,
     #[serde(default)]
     output_dir: Option<String>,
@@ -410,6 +457,29 @@ struct ExportBundleResponse {
     thumbnail_output_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     ui_pid: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FindEventsRequest {
+    #[serde(default)]
+    cwd: Option<String>,
+    capture_path: String,
+    #[serde(default)]
+    only_drawcalls: bool,
+    #[serde(default)]
+    marker_prefix: Option<String>,
+    #[serde(default)]
+    event_id_min: Option<u32>,
+    #[serde(default)]
+    event_id_max: Option<u32>,
+    #[serde(default)]
+    name_contains: Option<String>,
+    #[serde(default)]
+    marker_contains: Option<String>,
+    #[serde(default)]
+    case_sensitive: bool,
+    #[serde(default)]
+    max_results: Option<u32>,
 }
 
 #[derive(Clone)]
@@ -529,12 +599,12 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let artifacts_dir = req
             .artifacts_dir
             .as_deref()
-            .map(PathBuf::from)
+            .map(|p| resolve_path_from_base(&cwd, p))
             .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
 
         std::fs::create_dir_all(&artifacts_dir)
@@ -593,8 +663,9 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let capture_path = Path::new(&req.capture_path);
-        let output_path = Path::new(&req.output_path);
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
+        let output_path = resolve_path_from_base(&cwd, &req.output_path);
 
         if let Some(parent) = output_path.parent() {
             std::fs::create_dir_all(parent)
@@ -602,7 +673,7 @@ impl RenderdogMcpServer {
         }
 
         install
-            .save_thumbnail(capture_path, output_path)
+            .save_thumbnail(&capture_path, &output_path)
             .map_err(|e| {
                 tracing::error!(tool = "renderdoc_save_thumbnail", "failed");
                 tracing::debug!(tool = "renderdoc_save_thumbnail", err = %e, "details");
@@ -642,7 +713,7 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let res = install
             .trigger_capture_via_target_control(
@@ -690,10 +761,11 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let output_dir = req
             .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
             .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
 
         std::fs::create_dir_all(&output_dir)
@@ -762,10 +834,11 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let output_dir = req
             .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
             .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
 
         std::fs::create_dir_all(&output_dir)
@@ -839,12 +912,13 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
-        let capture_path = Path::new(&req.capture_path);
+        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
 
         let output_dir = req
             .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
             .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
 
         std::fs::create_dir_all(&output_dir)
@@ -860,18 +934,21 @@ impl RenderdogMcpServer {
 
         let mut thumbnail_output_path: Option<String> = None;
         if req.save_thumbnail {
-            let thumb_path = req.thumbnail_output_path.unwrap_or_else(|| {
-                Path::new(&output_dir)
-                    .join(format!("{basename}.thumb.png"))
-                    .display()
-                    .to_string()
-            });
+            let thumb_path = req
+                .thumbnail_output_path
+                .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
+                .unwrap_or_else(|| {
+                    Path::new(&output_dir)
+                        .join(format!("{basename}.thumb.png"))
+                        .display()
+                        .to_string()
+                });
             if let Some(parent) = Path::new(&thumb_path).parent() {
                 std::fs::create_dir_all(parent)
                     .map_err(|e| format!("create thumbnail output dir failed: {e}"))?;
             }
             install
-                .save_thumbnail(capture_path, Path::new(&thumb_path))
+                .save_thumbnail(&capture_path, Path::new(&thumb_path))
                 .map_err(|e| format!("save thumbnail failed: {e}"))?;
             thumbnail_output_path = Some(thumb_path);
         }
@@ -903,7 +980,7 @@ impl RenderdogMcpServer {
         let mut ui_pid: Option<u32> = None;
         if req.open_capture_ui {
             let child = install
-                .open_capture_in_ui(capture_path)
+                .open_capture_in_ui(&capture_path)
                 .map_err(|e| format!("open capture UI failed: {e}"))?;
             ui_pid = Some(child.id());
         }
@@ -926,6 +1003,61 @@ impl RenderdogMcpServer {
     }
 
     #[tool(
+        name = "renderdoc_find_events",
+        description = "Find matching action events (event_id + marker_path) in a .rdc capture via `qrenderdoc --python`. Useful for quickly locating event IDs for later replay tools."
+    )]
+    async fn find_events(
+        &self,
+        Parameters(req): Parameters<FindEventsRequest>,
+    ) -> Result<Json<renderdog::FindEventsResponse>, String> {
+        let start = Instant::now();
+        tracing::info!(
+            tool = "renderdoc_find_events",
+            capture_path = %req.capture_path,
+            only_drawcalls = req.only_drawcalls,
+            "start"
+        );
+
+        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
+            tracing::error!(tool = "renderdoc_find_events", "failed");
+            tracing::debug!(tool = "renderdoc_find_events", err = %e, "details");
+            format!("detect installation failed: {e}")
+        })?;
+
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
+
+        let res = install
+            .find_events(
+                &cwd,
+                &renderdog::FindEventsRequest {
+                    capture_path: req.capture_path,
+                    only_drawcalls: req.only_drawcalls,
+                    marker_prefix: req.marker_prefix,
+                    event_id_min: req.event_id_min,
+                    event_id_max: req.event_id_max,
+                    name_contains: req.name_contains,
+                    marker_contains: req.marker_contains,
+                    case_sensitive: req.case_sensitive,
+                    max_results: req.max_results,
+                },
+            )
+            .map_err(|e| {
+                tracing::error!(tool = "renderdoc_find_events", "failed");
+                tracing::debug!(tool = "renderdoc_find_events", err = %e, "details");
+                format!("find events failed: {e}")
+            })?;
+
+        tracing::info!(
+            tool = "renderdoc_find_events",
+            elapsed_ms = start.elapsed().as_millis(),
+            matches = res.matches.len(),
+            truncated = res.truncated,
+            "ok"
+        );
+        Ok(Json(res))
+    }
+
+    #[tool(
         name = "renderdoc_open_capture_ui",
         description = "Open a .rdc capture in qrenderdoc UI."
     )]
@@ -945,13 +1077,14 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let child = install
-            .open_capture_in_ui(Path::new(&req.capture_path))
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_open_capture_ui", "failed");
-                tracing::debug!(tool = "renderdoc_open_capture_ui", err = %e, "details");
-                format!("open capture UI failed: {e}")
-            })?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
+
+        let child = install.open_capture_in_ui(&capture_path).map_err(|e| {
+            tracing::error!(tool = "renderdoc_open_capture_ui", "failed");
+            tracing::debug!(tool = "renderdoc_open_capture_ui", err = %e, "details");
+            format!("open capture UI failed: {e}")
+        })?;
 
         let pid = child.id();
 
@@ -962,7 +1095,7 @@ impl RenderdogMcpServer {
             "ok"
         );
         Ok(Json(OpenCaptureUiResponse {
-            capture_path: req.capture_path,
+            capture_path: capture_path.display().to_string(),
             pid,
         }))
     }
@@ -988,7 +1121,7 @@ impl RenderdogMcpServer {
             tracing::debug!(tool = "renderdoc_replay_list_textures", err = %e, "details");
             format!("detect installation failed: {e}")
         })?;
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let res = install
             .replay_list_textures(
@@ -1037,7 +1170,7 @@ impl RenderdogMcpServer {
             tracing::debug!(tool = "renderdoc_replay_pick_pixel", err = %e, "details");
             format!("detect installation failed: {e}")
         })?;
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let res = install
             .replay_pick_pixel(
@@ -1091,7 +1224,7 @@ impl RenderdogMcpServer {
             );
             format!("detect installation failed: {e}")
         })?;
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let res = install
             .replay_save_texture_png(
@@ -1148,14 +1281,17 @@ impl RenderdogMcpServer {
             );
             format!("detect installation failed: {e}")
         })?;
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
-        let output_dir = req.output_dir.unwrap_or_else(|| {
-            renderdog::default_exports_dir(&cwd)
-                .join("replay")
-                .display()
-                .to_string()
-        });
+        let output_dir = req
+            .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
+            .unwrap_or_else(|| {
+                renderdog::default_exports_dir(&cwd)
+                    .join("replay")
+                    .display()
+                    .to_string()
+            });
         std::fs::create_dir_all(&output_dir)
             .map_err(|e| format!("create output_dir failed: {e}"))?;
 
@@ -1226,12 +1362,12 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let artifacts_dir = req
             .artifacts_dir
             .as_deref()
-            .map(PathBuf::from)
+            .map(|p| resolve_path_from_base(&cwd, p))
             .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
 
         std::fs::create_dir_all(&artifacts_dir)
@@ -1287,6 +1423,7 @@ impl RenderdogMcpServer {
 
         let output_dir = req
             .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
             .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
 
         std::fs::create_dir_all(&output_dir)
@@ -1382,12 +1519,12 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let artifacts_dir = req
             .artifacts_dir
             .as_deref()
-            .map(PathBuf::from)
+            .map(|p| resolve_path_from_base(&cwd, p))
             .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
 
         std::fs::create_dir_all(&artifacts_dir)
@@ -1443,6 +1580,7 @@ impl RenderdogMcpServer {
 
         let output_dir = req
             .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
             .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
 
         std::fs::create_dir_all(&output_dir)
@@ -1539,12 +1677,12 @@ impl RenderdogMcpServer {
             format!("detect installation failed: {e}")
         })?;
 
-        let cwd = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
 
         let artifacts_dir = req
             .artifacts_dir
             .as_deref()
-            .map(PathBuf::from)
+            .map(|p| resolve_path_from_base(&cwd, p))
             .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
 
         std::fs::create_dir_all(&artifacts_dir)
@@ -1594,6 +1732,7 @@ impl RenderdogMcpServer {
 
         let output_dir = req
             .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
             .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
 
         std::fs::create_dir_all(&output_dir)
@@ -1637,12 +1776,15 @@ impl RenderdogMcpServer {
 
         let mut thumbnail_output_path: Option<String> = None;
         if req.save_thumbnail {
-            let thumb_path = req.thumbnail_output_path.unwrap_or_else(|| {
-                Path::new(&output_dir)
-                    .join(format!("{basename}.thumb.png"))
-                    .display()
-                    .to_string()
-            });
+            let thumb_path = req
+                .thumbnail_output_path
+                .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
+                .unwrap_or_else(|| {
+                    Path::new(&output_dir)
+                        .join(format!("{basename}.thumb.png"))
+                        .display()
+                        .to_string()
+                });
             if let Some(parent) = Path::new(&thumb_path).parent() {
                 std::fs::create_dir_all(parent)
                     .map_err(|e| format!("create thumbnail output dir failed: {e}"))?;
