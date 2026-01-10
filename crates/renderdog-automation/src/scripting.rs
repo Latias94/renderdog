@@ -16,6 +16,30 @@ pub(crate) struct QRenderDocJsonEnvelope<T> {
     pub error: Option<String>,
 }
 
+pub(crate) fn create_qrenderdoc_run_dir(
+    scripts_dir: &Path,
+    prefix: &str,
+) -> Result<PathBuf, std::io::Error> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let pid = std::process::id();
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+
+    let runs_dir = scripts_dir.join("runs");
+    std::fs::create_dir_all(&runs_dir)?;
+
+    let run_dir = runs_dir.join(format!("{prefix}-{nanos}-{pid}-{seq}"));
+    std::fs::create_dir_all(&run_dir)?;
+    Ok(run_dir)
+}
+
 #[derive(Debug, Clone)]
 pub struct QRenderDocPythonRequest {
     pub script_path: PathBuf,

@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::scripting::QRenderDocJsonEnvelope;
+use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
 use crate::{
     QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
 };
@@ -164,8 +164,10 @@ impl RenderDocInstallation {
         write_script_file(&script_path, REPLAY_LIST_TEXTURES_JSON_PY)
             .map_err(ReplayListTexturesError::WriteScript)?;
 
-        let request_path = scripts_dir.join("replay_list_textures_json.request.json");
-        let response_path = scripts_dir.join("replay_list_textures_json.response.json");
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "replay_list_textures")
+            .map_err(ReplayListTexturesError::CreateScriptsDir)?;
+        let request_path = run_dir.join("replay_list_textures_json.request.json");
+        let response_path = run_dir.join("replay_list_textures_json.response.json");
         remove_if_exists(&response_path).map_err(ReplayListTexturesError::WriteRequest)?;
         std::fs::write(
             &request_path,
@@ -176,7 +178,7 @@ impl RenderDocInstallation {
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
             args: Vec::new(),
-            working_dir: Some(scripts_dir.clone()),
+            working_dir: Some(run_dir.clone()),
         })?;
 
         let _ = result;
@@ -205,8 +207,10 @@ impl RenderDocInstallation {
         write_script_file(&script_path, REPLAY_PICK_PIXEL_JSON_PY)
             .map_err(ReplayPickPixelError::WriteScript)?;
 
-        let request_path = scripts_dir.join("replay_pick_pixel_json.request.json");
-        let response_path = scripts_dir.join("replay_pick_pixel_json.response.json");
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "replay_pick_pixel")
+            .map_err(ReplayPickPixelError::CreateScriptsDir)?;
+        let request_path = run_dir.join("replay_pick_pixel_json.request.json");
+        let response_path = run_dir.join("replay_pick_pixel_json.response.json");
         remove_if_exists(&response_path).map_err(ReplayPickPixelError::WriteRequest)?;
         std::fs::write(
             &request_path,
@@ -217,7 +221,7 @@ impl RenderDocInstallation {
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
             args: Vec::new(),
-            working_dir: Some(scripts_dir.clone()),
+            working_dir: Some(run_dir.clone()),
         })?;
 
         let _ = result;
@@ -247,8 +251,10 @@ impl RenderDocInstallation {
         write_script_file(&script_path, REPLAY_SAVE_TEXTURE_PNG_JSON_PY)
             .map_err(ReplaySaveTexturePngError::WriteScript)?;
 
-        let request_path = scripts_dir.join("replay_save_texture_png_json.request.json");
-        let response_path = scripts_dir.join("replay_save_texture_png_json.response.json");
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "replay_save_texture_png")
+            .map_err(ReplaySaveTexturePngError::CreateScriptsDir)?;
+        let request_path = run_dir.join("replay_save_texture_png_json.request.json");
+        let response_path = run_dir.join("replay_save_texture_png_json.response.json");
         remove_if_exists(&response_path).map_err(ReplaySaveTexturePngError::WriteRequest)?;
         std::fs::write(
             &request_path,
@@ -259,7 +265,7 @@ impl RenderDocInstallation {
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
             args: Vec::new(),
-            working_dir: Some(scripts_dir.clone()),
+            working_dir: Some(run_dir.clone()),
         })?;
 
         let _ = result;

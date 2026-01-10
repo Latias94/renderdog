@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::scripting::QRenderDocJsonEnvelope;
+use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
 use crate::{
     QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
 };
@@ -163,8 +163,10 @@ impl RenderDocInstallation {
         write_script_file(&script_path, TRIGGER_CAPTURE_PY)
             .map_err(TriggerCaptureError::WriteScript)?;
 
-        let request_path = scripts_dir.join("trigger_capture.request.json");
-        let response_path = scripts_dir.join("trigger_capture.response.json");
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "trigger_capture")
+            .map_err(TriggerCaptureError::CreateArtifactsDir)?;
+        let request_path = run_dir.join("trigger_capture.request.json");
+        let response_path = run_dir.join("trigger_capture.response.json");
         remove_if_exists(&response_path).map_err(TriggerCaptureError::WriteRequest)?;
         std::fs::write(
             &request_path,
@@ -175,7 +177,7 @@ impl RenderDocInstallation {
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
             args: Vec::new(),
-            working_dir: Some(scripts_dir.clone()),
+            working_dir: Some(run_dir.clone()),
         })?;
         let _ = result;
         let bytes = std::fs::read(&response_path).map_err(TriggerCaptureError::ReadResponse)?;
@@ -203,8 +205,10 @@ impl RenderDocInstallation {
         write_script_file(&script_path, EXPORT_ACTIONS_JSONL_PY)
             .map_err(ExportActionsError::WriteScript)?;
 
-        let request_path = scripts_dir.join("export_actions_jsonl.request.json");
-        let response_path = scripts_dir.join("export_actions_jsonl.response.json");
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "export_actions_jsonl")
+            .map_err(ExportActionsError::CreateOutputDir)?;
+        let request_path = run_dir.join("export_actions_jsonl.request.json");
+        let response_path = run_dir.join("export_actions_jsonl.response.json");
         remove_if_exists(&response_path).map_err(ExportActionsError::WriteRequest)?;
         std::fs::write(
             &request_path,
@@ -215,7 +219,7 @@ impl RenderDocInstallation {
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
             args: Vec::new(),
-            working_dir: Some(scripts_dir.clone()),
+            working_dir: Some(run_dir.clone()),
         })?;
         let _ = result;
         let bytes = std::fs::read(&response_path).map_err(ExportActionsError::ReadResponse)?;
@@ -243,8 +247,10 @@ impl RenderDocInstallation {
         write_script_file(&script_path, EXPORT_BINDINGS_INDEX_JSONL_PY)
             .map_err(ExportBindingsIndexError::WriteScript)?;
 
-        let request_path = scripts_dir.join("export_bindings_index_jsonl.request.json");
-        let response_path = scripts_dir.join("export_bindings_index_jsonl.response.json");
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "export_bindings_index_jsonl")
+            .map_err(ExportBindingsIndexError::CreateOutputDir)?;
+        let request_path = run_dir.join("export_bindings_index_jsonl.request.json");
+        let response_path = run_dir.join("export_bindings_index_jsonl.response.json");
         remove_if_exists(&response_path).map_err(ExportBindingsIndexError::WriteRequest)?;
         std::fs::write(
             &request_path,
@@ -255,7 +261,7 @@ impl RenderDocInstallation {
         let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path: script_path.clone(),
             args: Vec::new(),
-            working_dir: Some(scripts_dir.clone()),
+            working_dir: Some(run_dir.clone()),
         })?;
         let _ = result;
         let bytes =
