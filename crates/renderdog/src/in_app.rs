@@ -35,8 +35,10 @@ enum LibraryGuard {
     #[cfg(windows)]
     WindowsOwned(isize),
     #[cfg(unix)]
-    #[allow(dead_code)]
-    Unix(Library),
+    Unix {
+        #[allow(dead_code)]
+        _lib: Library,
+    },
 }
 
 #[cfg(windows)]
@@ -273,7 +275,7 @@ impl RenderDocInApp {
 
         Ok(Self {
             api,
-            _guard: LibraryGuard::Unix(lib),
+            _guard: LibraryGuard::Unix { _lib: lib },
             requested_version,
             _not_sync: Cell::new(()),
         })
