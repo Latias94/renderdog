@@ -30,6 +30,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Fixed
 
 - Make `qrenderdoc --python` scripts deterministic and non-interactive by using request/response JSON files and exiting cleanly.
+- Resolve relative `capture_path`/`output_dir`/`output_path` against the caller working directory (so outputs don't end up under the internal run dir).
+- Fix `renderdoc_replay_save_outputs_png` on Vulkan by handling output targets exposed as `renderdoc.Descriptor` objects.
 
 ## [0.1.0] - 2026-01-09
 

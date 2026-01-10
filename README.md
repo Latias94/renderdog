@@ -87,6 +87,7 @@ Use this when you want a local/manual workflow (or your own automation) without 
   - Capture + export: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
   - Export from existing `.rdc`: `cargo run -p renderdog-automation --example export_bundle_from_capture -- <capture.rdc> [out_dir] [basename]`
   - Headless replay outputs: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [event_id] [out_dir] [basename]`
+  - Note: relative paths are resolved against your current working directory.
 
 ### With MCP (AI-friendly)
 

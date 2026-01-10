@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::resolve_path_string_from_cwd;
 use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
 use crate::{
     QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
@@ -217,9 +218,14 @@ impl RenderDocInstallation {
         let request_path = run_dir.join("replay_list_textures_json.request.json");
         let response_path = run_dir.join("replay_list_textures_json.response.json");
         remove_if_exists(&response_path).map_err(ReplayListTexturesError::WriteRequest)?;
+
+        let req = ReplayListTexturesRequest {
+            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            ..req.clone()
+        };
         std::fs::write(
             &request_path,
-            serde_json::to_vec(req).map_err(ReplayListTexturesError::ParseJson)?,
+            serde_json::to_vec(&req).map_err(ReplayListTexturesError::ParseJson)?,
         )
         .map_err(ReplayListTexturesError::WriteRequest)?;
 
@@ -260,9 +266,14 @@ impl RenderDocInstallation {
         let request_path = run_dir.join("replay_pick_pixel_json.request.json");
         let response_path = run_dir.join("replay_pick_pixel_json.response.json");
         remove_if_exists(&response_path).map_err(ReplayPickPixelError::WriteRequest)?;
+
+        let req = ReplayPickPixelRequest {
+            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            ..req.clone()
+        };
         std::fs::write(
             &request_path,
-            serde_json::to_vec(req).map_err(ReplayPickPixelError::ParseJson)?,
+            serde_json::to_vec(&req).map_err(ReplayPickPixelError::ParseJson)?,
         )
         .map_err(ReplayPickPixelError::WriteRequest)?;
 
@@ -304,9 +315,15 @@ impl RenderDocInstallation {
         let request_path = run_dir.join("replay_save_texture_png_json.request.json");
         let response_path = run_dir.join("replay_save_texture_png_json.response.json");
         remove_if_exists(&response_path).map_err(ReplaySaveTexturePngError::WriteRequest)?;
+
+        let req = ReplaySaveTexturePngRequest {
+            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            output_path: resolve_path_string_from_cwd(cwd, &req.output_path),
+            ..req.clone()
+        };
         std::fs::write(
             &request_path,
-            serde_json::to_vec(req).map_err(ReplaySaveTexturePngError::ParseJson)?,
+            serde_json::to_vec(&req).map_err(ReplaySaveTexturePngError::ParseJson)?,
         )
         .map_err(ReplaySaveTexturePngError::WriteRequest)?;
 
@@ -349,9 +366,15 @@ impl RenderDocInstallation {
         let request_path = run_dir.join("replay_save_outputs_png_json.request.json");
         let response_path = run_dir.join("replay_save_outputs_png_json.response.json");
         remove_if_exists(&response_path).map_err(ReplaySaveOutputsPngError::WriteRequest)?;
+
+        let req = ReplaySaveOutputsPngRequest {
+            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
+            ..req.clone()
+        };
         std::fs::write(
             &request_path,
-            serde_json::to_vec(req).map_err(ReplaySaveOutputsPngError::ParseJson)?,
+            serde_json::to_vec(&req).map_err(ReplaySaveOutputsPngError::ParseJson)?,
         )
         .map_err(ReplaySaveOutputsPngError::WriteRequest)?;
 
@@ -718,17 +741,30 @@ def pick_default_event_id(controller) -> int:
     return int(max(a.eventId for a in actions))
 
 
-def bound_resource_id(br) -> int:
-    rid = getattr(br, "resourceId", None)
-    if rid is None:
-        return 0
+def extract_resource_id(obj):
+    if obj is None:
+        return None
+    if hasattr(obj, "resourceId"):
+        return obj.resourceId
+    if hasattr(obj, "resource"):
+        return obj.resource
+    return None
+
+
+def is_null_resource_id(rid) -> bool:
     try:
-        return int(rid)
+        if rid == rd.ResourceId():
+            return True
+    except Exception:
+        pass
+
+    try:
+        return int(rid) == 0
     except Exception:
         try:
-            return int(rid.value)
+            return int(rid.value) == 0
         except Exception:
-            return 0
+            return False
 
 
 def set_save_params_from_bound_resource(save, br):
@@ -783,8 +819,8 @@ def main() -> None:
             outputs = []
 
             for i, br in enumerate(pipe.GetOutputTargets()):
-                rid = bound_resource_id(br)
-                if rid == 0:
+                rid = extract_resource_id(br)
+                if rid is None or is_null_resource_id(rid):
                     continue
 
                 out_path = os.path.join(
@@ -792,7 +828,7 @@ def main() -> None:
                 )
 
                 save = rd.TextureSave()
-                save.resourceId = br.resourceId
+                save.resourceId = rid
                 save.destType = rd.FileType.PNG
                 save.mip = 0
                 set_save_params_from_bound_resource(save, br)
@@ -805,21 +841,21 @@ def main() -> None:
                     {
                         "kind": "color",
                         "index": int(i),
-                        "resource_id": int(br.resourceId),
+                        "resource_id": int(rid),
                         "output_path": out_path,
                     }
                 )
 
             if bool(req.get("include_depth", False)):
                 br = pipe.GetDepthTarget()
-                rid = bound_resource_id(br)
-                if rid != 0:
+                rid = extract_resource_id(br)
+                if rid is not None and not is_null_resource_id(rid):
                     out_path = os.path.join(
                         req["output_dir"], f"{req['basename']}.event{int(event_id)}.depth.png"
                     )
 
                     save = rd.TextureSave()
-                    save.resourceId = br.resourceId
+                    save.resourceId = rid
                     save.destType = rd.FileType.PNG
                     save.mip = 0
                     set_save_params_from_bound_resource(save, br)
@@ -832,7 +868,7 @@ def main() -> None:
                         {
                             "kind": "depth",
                             "index": None,
-                            "resource_id": int(br.resourceId),
+                            "resource_id": int(rid),
                             "output_path": out_path,
                         }
                     )

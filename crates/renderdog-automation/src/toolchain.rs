@@ -123,6 +123,18 @@ pub fn default_exports_dir(cwd: &Path) -> PathBuf {
     cwd.join("artifacts").join("renderdoc").join("exports")
 }
 
+pub(crate) fn resolve_path_from_cwd(cwd: &Path, value: &str) -> PathBuf {
+    if value.trim().is_empty() {
+        return cwd.to_path_buf();
+    }
+    let p = PathBuf::from(value);
+    if p.is_absolute() { p } else { cwd.join(p) }
+}
+
+pub(crate) fn resolve_path_string_from_cwd(cwd: &Path, value: &str) -> String {
+    resolve_path_from_cwd(cwd, value).display().to_string()
+}
+
 fn find_in_path(exe_name: &str) -> Option<PathBuf> {
     let path_env = env::var_os("PATH")?;
     for dir in env::split_paths(&path_env) {

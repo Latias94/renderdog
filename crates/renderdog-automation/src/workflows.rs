@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::resolve_path_string_from_cwd;
 use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
 use crate::{
     QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
@@ -250,9 +251,16 @@ impl RenderDocInstallation {
         let request_path = run_dir.join("export_actions_jsonl.request.json");
         let response_path = run_dir.join("export_actions_jsonl.response.json");
         remove_if_exists(&response_path).map_err(ExportActionsError::WriteRequest)?;
+
+        let req = ExportActionsRequest {
+            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
+            ..req.clone()
+        };
+
         std::fs::write(
             &request_path,
-            serde_json::to_vec(req).map_err(ExportActionsError::ParseJson)?,
+            serde_json::to_vec(&req).map_err(ExportActionsError::ParseJson)?,
         )
         .map_err(ExportActionsError::WriteRequest)?;
 
@@ -292,9 +300,16 @@ impl RenderDocInstallation {
         let request_path = run_dir.join("export_bindings_index_jsonl.request.json");
         let response_path = run_dir.join("export_bindings_index_jsonl.response.json");
         remove_if_exists(&response_path).map_err(ExportBindingsIndexError::WriteRequest)?;
+
+        let req = ExportBindingsIndexRequest {
+            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
+            ..req.clone()
+        };
+
         std::fs::write(
             &request_path,
-            serde_json::to_vec(req).map_err(ExportBindingsIndexError::ParseJson)?,
+            serde_json::to_vec(&req).map_err(ExportBindingsIndexError::ParseJson)?,
         )
         .map_err(ExportBindingsIndexError::WriteRequest)?;
 
@@ -323,11 +338,14 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBundleRequest,
     ) -> Result<ExportBundleResponse, ExportBundleError> {
+        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture_path);
+        let output_dir = resolve_path_string_from_cwd(cwd, &req.output_dir);
+
         let actions = self.export_actions_jsonl(
             cwd,
             &ExportActionsRequest {
-                capture_path: req.capture_path.clone(),
-                output_dir: req.output_dir.clone(),
+                capture_path: capture_path.clone(),
+                output_dir: output_dir.clone(),
                 basename: req.basename.clone(),
                 only_drawcalls: req.only_drawcalls,
                 marker_prefix: req.marker_prefix.clone(),
@@ -342,8 +360,8 @@ impl RenderDocInstallation {
         let bindings = self.export_bindings_index_jsonl(
             cwd,
             &ExportBindingsIndexRequest {
-                capture_path: req.capture_path.clone(),
-                output_dir: req.output_dir.clone(),
+                capture_path: capture_path.clone(),
+                output_dir: output_dir.clone(),
                 basename: req.basename.clone(),
                 marker_prefix: req.marker_prefix.clone(),
                 event_id_min: req.event_id_min,
@@ -357,7 +375,7 @@ impl RenderDocInstallation {
         )?;
 
         Ok(ExportBundleResponse {
-            capture_path: req.capture_path.clone(),
+            capture_path,
 
             actions_jsonl_path: actions.actions_jsonl_path,
             actions_summary_json_path: actions.summary_json_path,
