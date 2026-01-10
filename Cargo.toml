@@ -3,6 +3,7 @@ members = [
     "crates/renderdog",
     "crates/renderdog-automation",
     "crates/renderdog-mcp",
+    "crates/renderdog-replay-experimental",
     "crates/renderdog-sys",
     "crates/renderdog-winit",
 ]

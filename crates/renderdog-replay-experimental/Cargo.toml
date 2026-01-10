@@ -1,0 +1,29 @@
+[package]
+name = "renderdog-replay-experimental"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+authors.workspace = true
+publish = false
+description = "Experimental RenderDoc replay bindings (C++/cxx). Not for crates.io yet."
+
+[dependencies]
+cxx = { version = "1.0", optional = true }
+thiserror = "2"
+anyhow = "1"
+
+[build-dependencies]
+cxx-build = { version = "1.0", optional = true }
+
+[features]
+default = []
+# Enable building the C++ shim and calling RenderDoc's replay API (experimental).
+cxx-replay = ["dep:cxx", "dep:cxx-build"]
+
+[[example]]
+name = "replay_pick_pixel"
+path = "examples/replay_pick_pixel.rs"
+required-features = ["cxx-replay"]
