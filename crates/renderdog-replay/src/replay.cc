@@ -1,7 +1,9 @@
 #include "replay.h"
 
+#include <atomic>
 #include <cstring>
 #include <cstdlib>
+#include <cstdio>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -14,12 +16,173 @@
 #endif
 
 // RenderDoc replay API headers (from submodule: third-party/renderdoc)
+//
+// NOTE: On Windows, RenderDoc headers declare some APIs as `dllimport`, which normally requires
+// linking against `renderdoc.lib`. For this experimental crate we want to be purely runtime-loaded,
+// so we:
+//   1) include apidefs.h once to get platform defines like RENDERDOC_CC
+//   2) override RENDERDOC_IMPORT_API/RENDERDOC_API to be blank for subsequent headers
+//   3) provide local stubs for `RENDERDOC_AllocArrayMem` / `RENDERDOC_FreeArrayMem` that forward to
+//      the real functions resolved from the loaded renderdoc module.
+#include "apidefs.h"
+#undef RENDERDOC_IMPORT_API
+#define RENDERDOC_IMPORT_API
+#undef RENDERDOC_API
+#define RENDERDOC_API
 #include "renderdoc_replay.h"
+
+// Mark this process as a replay program so RenderDoc doesn't try to capture or hook itself.
+REPLAY_PROGRAM_MARKER();
 
 namespace renderdog {
 namespace replay {
 
 namespace {
+
+using pRENDERDOC_AllocArrayMem = void *(RENDERDOC_CC *)(uint64_t);
+using pRENDERDOC_FreeArrayMem = void(RENDERDOC_CC *)(void *);
+
+#if defined(_WIN32)
+using RenderdocModule = HMODULE;
+static std::atomic<HMODULE> g_renderdoc_module{NULL};
+#else
+using RenderdocModule = void *;
+static std::atomic<void *> g_renderdoc_module{nullptr};
+#endif
+
+static std::atomic<pRENDERDOC_AllocArrayMem> g_alloc_array_mem{nullptr};
+static std::atomic<pRENDERDOC_FreeArrayMem> g_free_array_mem{nullptr};
+
+static RenderdocModule get_renderdoc_module()
+{
+#if defined(_WIN32)
+  HMODULE m = g_renderdoc_module.load();
+  if(m)
+    return m;
+
+  if(const char *dll = std::getenv("RENDERDOG_REPLAY_RENDERDOC_DLL"))
+  {
+    HMODULE lib = LoadLibraryA(dll);
+    if(lib)
+    {
+      g_renderdoc_module.store(lib);
+      return lib;
+    }
+  }
+
+  if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
+  {
+    std::string path(dir);
+    if(!path.empty() && path.back() != '\\' && path.back() != '/')
+      path.push_back('\\');
+    path += "renderdoc.dll";
+    HMODULE lib = LoadLibraryA(path.c_str());
+    if(lib)
+    {
+      g_renderdoc_module.store(lib);
+      return lib;
+    }
+  }
+
+  HMODULE lib = LoadLibraryA("renderdoc.dll");
+  if(lib)
+  {
+    g_renderdoc_module.store(lib);
+    return lib;
+  }
+
+  return NULL;
+#else
+  void *m = g_renderdoc_module.load();
+  if(m)
+    return m;
+
+  if(const char *so = std::getenv("RENDERDOG_REPLAY_RENDERDOC_SO"))
+  {
+    void *lib = dlopen(so, RTLD_NOW | RTLD_LOCAL);
+    if(lib)
+    {
+      g_renderdoc_module.store(lib);
+      return lib;
+    }
+  }
+
+  if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
+  {
+    std::string base(dir);
+    if(!base.empty() && base.back() != '/')
+      base.push_back('/');
+    for(const char *name : {"librenderdoc.so.1", "librenderdoc.so"})
+    {
+      std::string path = base + name;
+      void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+      if(lib)
+      {
+        g_renderdoc_module.store(lib);
+        return lib;
+      }
+    }
+  }
+
+  for(const char *name : {"librenderdoc.so.1", "librenderdoc.so"})
+  {
+    void *lib = dlopen(name, RTLD_NOW | RTLD_LOCAL);
+    if(lib)
+    {
+      g_renderdoc_module.store(lib);
+      return lib;
+    }
+  }
+
+  return nullptr;
+#endif
+}
+
+static void ensure_array_allocators()
+{
+  if(g_alloc_array_mem.load() && g_free_array_mem.load())
+    return;
+
+  RenderdocModule m = get_renderdoc_module();
+  if(!m)
+    throw std::runtime_error("RenderDoc module not loaded (cannot resolve array allocators)");
+
+#if defined(_WIN32)
+  auto alloc =
+      reinterpret_cast<pRENDERDOC_AllocArrayMem>(GetProcAddress(m, "RENDERDOC_AllocArrayMem"));
+  auto free =
+      reinterpret_cast<pRENDERDOC_FreeArrayMem>(GetProcAddress(m, "RENDERDOC_FreeArrayMem"));
+#else
+  auto alloc = reinterpret_cast<pRENDERDOC_AllocArrayMem>(dlsym(m, "RENDERDOC_AllocArrayMem"));
+  auto free = reinterpret_cast<pRENDERDOC_FreeArrayMem>(dlsym(m, "RENDERDOC_FreeArrayMem"));
+#endif
+
+  if(!alloc || !free)
+    throw std::runtime_error("Failed to resolve RENDERDOC_AllocArrayMem/RENDERDOC_FreeArrayMem");
+
+  g_alloc_array_mem.store(alloc);
+  g_free_array_mem.store(free);
+}
+
+static bool trace_enabled()
+{
+  const char *v = std::getenv("RENDERDOG_REPLAY_TRACE");
+  return v && v[0] && v[0] != '0';
+}
+
+static bool trace_alloc_enabled()
+{
+  const char *v = std::getenv("RENDERDOG_REPLAY_TRACE_ALLOC");
+  return v && v[0] && v[0] != '0';
+}
+
+static void trace(const char *msg)
+{
+  if(!trace_enabled())
+    return;
+  std::fprintf(stderr, "[renderdog-replay] %s\n", msg);
+  std::fflush(stderr);
+}
 
 template <typename T>
 T load_symbol(void *lib, const char *name)
@@ -63,6 +226,38 @@ std::string json_escape(const rdcstr &s)
 
 } // namespace
 
+extern "C" void *RENDERDOC_CC RENDERDOC_AllocArrayMem(uint64_t sz)
+{
+  try
+  {
+    if(trace_enabled() && trace_alloc_enabled())
+      trace("RENDERDOC_AllocArrayMem");
+    ensure_array_allocators();
+    auto f = g_alloc_array_mem.load();
+    return f ? f(sz) : nullptr;
+  }
+  catch(...)
+  {
+    return nullptr;
+  }
+}
+
+extern "C" void RENDERDOC_CC RENDERDOC_FreeArrayMem(void *mem)
+{
+  try
+  {
+    if(trace_enabled() && trace_alloc_enabled())
+      trace("RENDERDOC_FreeArrayMem");
+    ensure_array_allocators();
+    auto f = g_free_array_mem.load();
+    if(f)
+      f(mem);
+  }
+  catch(...)
+  {
+  }
+}
+
 std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path)
 {
   auto sess = std::make_unique<ReplaySession>();
@@ -77,11 +272,13 @@ std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path)
     if(!lib)
       throw std::runtime_error("LoadLibraryA failed");
     sess->lib_ = (void *)lib;
+    g_renderdoc_module.store(lib);
 #else
     void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
     if(!lib)
       throw std::runtime_error(std::string("dlopen failed: ") + dlerror());
     sess->lib_ = lib;
+    g_renderdoc_module.store(lib);
 #endif
   }
 
@@ -140,6 +337,7 @@ void ReplaySession::ensure_loaded()
     if(lib)
     {
       lib_ = (void *)lib;
+      g_renderdoc_module.store(lib);
       return;
     }
   }
@@ -154,6 +352,7 @@ void ReplaySession::ensure_loaded()
     if(lib)
     {
       lib_ = (void *)lib;
+      g_renderdoc_module.store(lib);
       return;
     }
   }
@@ -165,6 +364,7 @@ void ReplaySession::ensure_loaded()
     if(lib)
     {
       lib_ = (void *)lib;
+      g_renderdoc_module.store(lib);
       return;
     }
   }
@@ -176,6 +376,7 @@ void ReplaySession::ensure_loaded()
     if(lib)
     {
       lib_ = lib;
+      g_renderdoc_module.store(lib);
       return;
     }
   }
@@ -192,6 +393,7 @@ void ReplaySession::ensure_loaded()
       if(lib)
       {
         lib_ = lib;
+        g_renderdoc_module.store(lib);
         return;
       }
     }
@@ -204,6 +406,7 @@ void ReplaySession::ensure_loaded()
     if(lib)
     {
       lib_ = lib;
+      g_renderdoc_module.store(lib);
       return;
     }
   }
@@ -214,10 +417,13 @@ void ReplaySession::ensure_loaded()
 
 void ReplaySession::open_capture(rust::Str capture_path)
 {
+  trace("open_capture: begin");
   ensure_loaded();
+  trace("open_capture: ensure_loaded ok");
 
   if(!replay_initialised_)
   {
+    trace("open_capture: init replay");
     using pRENDERDOC_InitialiseReplay = void(RENDERDOC_CC *)(GlobalEnvironment, const rdcarray<rdcstr> &);
     auto init = load_symbol<pRENDERDOC_InitialiseReplay>(lib_, "RENDERDOC_InitialiseReplay");
 
@@ -225,34 +431,37 @@ void ReplaySession::open_capture(rust::Str capture_path)
     rdcarray<rdcstr> args;
     init(env, args);
     replay_initialised_ = true;
+    trace("open_capture: init replay ok");
   }
 
+  trace("open_capture: open capture file");
   using pRENDERDOC_OpenCaptureFile = ICaptureFile *(RENDERDOC_CC *)();
   auto open_file = load_symbol<pRENDERDOC_OpenCaptureFile>(lib_, "RENDERDOC_OpenCaptureFile");
 
   capture_file_ = open_file();
   if(!capture_file_)
     throw std::runtime_error("RENDERDOC_OpenCaptureFile returned null");
+  trace("open_capture: open capture file ok");
 
   rdcstr filename(std::string(capture_path.data(), capture_path.size()).c_str());
+  trace("open_capture: OpenFile");
   ResultDetails open_res = capture_file_->OpenFile(filename, rdcstr("rdc"), nullptr);
   if(!open_res.OK())
   {
-    std::string msg("OpenFile failed: ");
-    msg += std::string(open_res.Message().c_str());
-    throw std::runtime_error(msg);
+    throw std::runtime_error("OpenFile failed");
   }
+  trace("open_capture: OpenFile ok");
 
+  trace("open_capture: OpenCapture");
   ReplayOptions opts;
   auto pair = capture_file_->OpenCapture(opts, nullptr);
   if(!pair.first.OK() || pair.second == nullptr)
   {
-    std::string msg("OpenCapture failed: ");
-    msg += std::string(pair.first.Message().c_str());
-    throw std::runtime_error(msg);
+    throw std::runtime_error("OpenCapture failed");
   }
 
   controller_ = pair.second;
+  trace("open_capture: OpenCapture ok");
 }
 
 void ReplaySession::ensure_opened() const
@@ -358,9 +567,7 @@ void ReplaySession::save_texture_png(uint32_t texture_index, rust::Str output_pa
   ResultDetails res = controller_->SaveTexture(save, out_path);
   if(!res.OK())
   {
-    std::string msg("SaveTexture failed: ");
-    msg += std::string(res.Message().c_str());
-    throw std::runtime_error(msg);
+    throw std::runtime_error("SaveTexture failed");
   }
 }
 
