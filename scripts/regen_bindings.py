@@ -57,7 +57,11 @@ def find_out_dir(cargo_json_output: str, package_name: str) -> Path:
             continue
 
         pkg_id = msg.get("package_id") or ""
-        if f" {package_name} " not in f" {pkg_id} " and not pkg_id.startswith(f"{package_name} "):
+        # Cargo's `package_id` string is not stable across formats.
+        # On Windows for path dependencies it can look like:
+        #   "path+file:///.../renderdog-sys#0.2.0"
+        # so we do a simple substring match.
+        if package_name not in pkg_id:
             continue
 
         raw_out_dir = msg.get("out_dir")
@@ -132,4 +136,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
