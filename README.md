@@ -94,7 +94,64 @@ Use this when you want an AI agent to drive capture/replay/export via tool calls
 - Recommended tool entrypoints:
   - One-shot capture + export bundle: `renderdoc_capture_and_export_bundle_jsonl`
   - Export bundle from an existing `.rdc`: `renderdoc_export_bundle_jsonl`
-  - Headless replay outputs: `renderdoc_replay_save_outputs_png`
+- Headless replay outputs: `renderdoc_replay_save_outputs_png`
+
+## MCP client setup (Claude Code / Codex)
+
+`renderdog-mcp` uses the stdio transport, so any MCP client that supports stdio servers can run it.
+You typically want to set `RENDERDOG_RENDERDOC_DIR` so the server can find `renderdoccmd` and `qrenderdoc`.
+
+### Claude Code
+
+Claude Code supports managing MCP servers via CLI commands and config files.
+
+- Add a local stdio server (default scope):
+  - `claude mcp add --transport stdio --env RENDERDOG_RENDERDOC_DIR=C:\Users\you\scoop\apps\renderdoc\current renderdog -- renderdog-mcp`
+- Add a user-scoped server (cross-project):
+  - `claude mcp add --transport stdio --scope user --env RENDERDOG_RENDERDOC_DIR=C:\Users\you\scoop\apps\renderdoc\current renderdog -- renderdog-mcp`
+- Project-scoped (team) config:
+  - Create/commit a `.mcp.json` in the project root (Claude Code can also generate/update it).
+  - Minimal example:
+
+```json
+{
+  "mcpServers": {
+    "renderdog": {
+      "type": "stdio",
+      "command": "renderdog-mcp",
+      "args": [],
+      "env": {
+        "RENDERDOG_RENDERDOC_DIR": "C:\\\\Users\\\\you\\\\scoop\\\\apps\\\\renderdoc\\\\current"
+      }
+    }
+  }
+}
+```
+
+Notes:
+
+- Option ordering matters: `--transport/--env/--scope` must come before the server name, and `--` separates Claude flags from the server command/args.
+- If you are in a managed environment with `managed-mcp.json`, users may be blocked from adding servers via CLI/config and must rely on the managed configuration.
+
+### Codex CLI
+
+Codex stores MCP server launchers in `~/.codex/config.toml` (see `codex mcp` subcommands).
+
+- Add via CLI:
+  - `codex mcp add renderdog --env RENDERDOG_RENDERDOC_DIR=C:\\Users\\you\\scoop\\apps\\renderdoc\\current -- renderdog-mcp`
+- Or configure directly in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.renderdog]
+command = "renderdog-mcp"
+args = []
+env = { RENDERDOG_RENDERDOC_DIR = "C:\\\\Users\\\\you\\\\scoop\\\\apps\\\\renderdoc\\\\current" }
+```
+
+Notes:
+
+- Verify setup with `codex mcp list`.
+- If you run Codex in WSL but want to use a Windows RenderDoc install, ensure `renderdog-mcp` is launched as a Windows executable and that `RENDERDOG_RENDERDOC_DIR` points to the Windows install root.
 
 ## Examples
 

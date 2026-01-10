@@ -24,6 +24,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - A practical RenderDoc playbook for validating clip-mask mapping: `docs/playbooks/fret-clip-mask.md`.
 - A recommended adoption workflow section in the workspace README (capture -> markers -> UI inspection -> automation exports).
 - A README section describing integration patterns with and without MCP.
+- A README section documenting MCP client setup for Claude Code and Codex.
 
 ### Fixed
 
