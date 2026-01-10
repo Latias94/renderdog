@@ -160,6 +160,8 @@ jobs:
 
       - name: Cargo package (renderdog-sys)
         run: cargo package -p renderdog-sys
+      - name: Cargo package (renderdog-automation)
+        run: cargo package -p renderdog-automation
       # NOTE: We intentionally do not run `cargo package` for downstream crates here.
       # For workspace crates, packaging simulates crates.io publishing and may require
       # published dependencies in the crates.io index.
