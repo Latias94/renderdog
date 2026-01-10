@@ -96,6 +96,33 @@ The export supports optional filters:
 - `event_id_min/event_id_max`
 - `name_contains`, `marker_contains` (+ `case_sensitive`)
 
+## Debug playbooks
+
+Practical checklists for validating real-world rendering issues:
+
+- Clip-mask mapping (fret): `docs/playbooks/fret-clip-mask.md`
+
+## Headless replay helpers (qrenderdoc --python)
+
+In addition to exporting actions/bindings, `renderdog-automation` and `renderdog-mcp` provide
+headless replay helpers (implemented via `qrenderdoc --python`) that are useful for quick sanity
+checks:
+
+- List textures in a capture
+- Pick a pixel from a texture
+- Save a texture to PNG
+
+These are exposed as:
+
+- `renderdog-automation` examples:
+  - `replay_list_textures`
+  - `replay_pick_pixel`
+  - `replay_save_texture_png`
+- `renderdog-mcp` tools:
+  - `renderdoc_replay_list_textures`
+  - `renderdoc_replay_pick_pixel`
+  - `renderdoc_replay_save_texture_png`
+
 ## Logging
 
 `renderdog-mcp` uses `tracing` and honors `RUST_LOG`:
@@ -137,6 +164,16 @@ Alternatively, use the helper script (maintainers):
 
 - Update pregenerated bindings: `python scripts/regen_bindings.py`
 - Check without writing: `python scripts/regen_bindings.py --check`
+
+## Packaging note (workspace vs crates.io)
+
+This repository is a Cargo workspace. When you add new cross-crate APIs locally (e.g. new
+`renderdog-automation` functions used by `renderdog-mcp`), `cargo package -p renderdog-mcp` will
+only pass *after* the corresponding `renderdog-automation` version is published to crates.io.
+
+During development, use workspace builds/tests (`cargo build`, `cargo nextest run`). For packaging
+checks, you can run `cargo package -p <crate> --allow-dirty` (but verification may still fail if it
+depends on unpublished crates).
 
 ## License
 
