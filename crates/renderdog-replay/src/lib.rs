@@ -1,15 +1,14 @@
-#[cfg(feature = "cxx-replay")]
 mod ffi;
-
-#[cfg(feature = "cxx-replay")]
-pub use ffi::PixelRgba;
 
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ReplayError {
-    #[error("`renderdog-replay-experimental` requires the `cxx-replay` feature")]
+    #[error("`renderdog-replay` requires the `cxx-replay` feature")]
     FeatureNotEnabled,
+
+    #[error("pick_pixel returned {0} values (expected 4)")]
+    InvalidPickPixelReturnLen(usize),
 
     #[cfg(feature = "cxx-replay")]
     #[error(transparent)]
@@ -18,14 +17,14 @@ pub enum ReplayError {
 
 #[cfg(feature = "cxx-replay")]
 pub struct Replay {
-    inner: cxx::UniquePtr<ffi::ReplaySession>,
+    inner: cxx::UniquePtr<ffi::cxx_ffi::ReplaySession>,
 }
 
 #[cfg(feature = "cxx-replay")]
 impl Replay {
     pub fn new(renderdoc_path: Option<&str>) -> Result<Self, ReplayError> {
         let path = renderdoc_path.unwrap_or("");
-        let inner = ffi::replay_session_new(path)?;
+        let inner = ffi::cxx_ffi::replay_session_new(path)?;
         Ok(Self { inner })
     }
 
@@ -45,8 +44,12 @@ impl Replay {
         Ok(self.inner.list_textures_json()?)
     }
 
-    pub fn pick_pixel(&self, texture_index: u32, x: u32, y: u32) -> Result<PixelRgba, ReplayError> {
-        Ok(self.inner.pick_pixel(texture_index, x, y)?)
+    pub fn pick_pixel(&self, texture_index: u32, x: u32, y: u32) -> Result<[f32; 4], ReplayError> {
+        let v = self.inner.pick_pixel(texture_index, x, y)?;
+        if v.len() != 4 {
+            return Err(ReplayError::InvalidPickPixelReturnLen(v.len()));
+        }
+        Ok([v[0], v[1], v[2], v[3]])
     }
 
     pub fn save_texture_png(

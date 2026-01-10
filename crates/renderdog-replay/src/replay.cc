@@ -1,6 +1,7 @@
 #include "replay.h"
 
 #include <cstring>
+#include <cstdlib>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -133,6 +134,30 @@ void ReplaySession::ensure_loaded()
     return;
 
 #if defined(_WIN32)
+  if(const char *dll = std::getenv("RENDERDOG_REPLAY_RENDERDOC_DLL"))
+  {
+    HMODULE lib = LoadLibraryA(dll);
+    if(lib)
+    {
+      lib_ = (void *)lib;
+      return;
+    }
+  }
+
+  if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
+  {
+    std::string path(dir);
+    if(!path.empty() && path.back() != '\\' && path.back() != '/')
+      path.push_back('\\');
+    path += "renderdoc.dll";
+    HMODULE lib = LoadLibraryA(path.c_str());
+    if(lib)
+    {
+      lib_ = (void *)lib;
+      return;
+    }
+  }
+
   const char *candidates[] = {"renderdoc.dll"};
   for(const char *name : candidates)
   {
@@ -145,6 +170,33 @@ void ReplaySession::ensure_loaded()
   }
   throw std::runtime_error("failed to load renderdoc.dll (set explicit path)");
 #else
+  if(const char *so = std::getenv("RENDERDOG_REPLAY_RENDERDOC_SO"))
+  {
+    void *lib = dlopen(so, RTLD_NOW | RTLD_LOCAL);
+    if(lib)
+    {
+      lib_ = lib;
+      return;
+    }
+  }
+
+  if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
+  {
+    std::string base(dir);
+    if(!base.empty() && base.back() != '/')
+      base.push_back('/');
+    for(const char *name : {"librenderdoc.so.1", "librenderdoc.so"})
+    {
+      std::string path = base + name;
+      void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+      if(lib)
+      {
+        lib_ = lib;
+        return;
+      }
+    }
+  }
+
   const char *candidates[] = {"librenderdoc.so", "librenderdoc.so.1"};
   for(const char *name : candidates)
   {
@@ -266,7 +318,7 @@ rust::String ReplaySession::list_textures_json() const
   return rust::String(out);
 }
 
-PixelRgba ReplaySession::pick_pixel(uint32_t texture_index, uint32_t x, uint32_t y) const
+rust::Vec<float> ReplaySession::pick_pixel(uint32_t texture_index, uint32_t x, uint32_t y) const
 {
   ensure_opened();
 
@@ -278,11 +330,12 @@ PixelRgba ReplaySession::pick_pixel(uint32_t texture_index, uint32_t x, uint32_t
   Subresource sub(0, 0, 0);
   PixelValue pv = controller_->PickPixel(t.resourceId, x, y, sub, CompType::Typeless);
 
-  PixelRgba out;
-  out.r = pv.floatValue[0];
-  out.g = pv.floatValue[1];
-  out.b = pv.floatValue[2];
-  out.a = pv.floatValue[3];
+  rust::Vec<float> out;
+  out.reserve(4);
+  out.push_back(pv.floatValue[0]);
+  out.push_back(pv.floatValue[1]);
+  out.push_back(pv.floatValue[2]);
+  out.push_back(pv.floatValue[3]);
   return out;
 }
 

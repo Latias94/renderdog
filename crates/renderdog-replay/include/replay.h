@@ -10,14 +10,6 @@ struct IReplayController;
 namespace renderdog {
 namespace replay {
 
-struct PixelRgba
-{
-  float r;
-  float g;
-  float b;
-  float a;
-};
-
 class ReplaySession;
 
 std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path);
@@ -35,7 +27,7 @@ public:
   void set_frame_event(uint32_t event_id);
 
   rust::String list_textures_json() const;
-  PixelRgba pick_pixel(uint32_t texture_index, uint32_t x, uint32_t y) const;
+  rust::Vec<float> pick_pixel(uint32_t texture_index, uint32_t x, uint32_t y) const;
   void save_texture_png(uint32_t texture_index, rust::Str output_path) const;
 
 private:
