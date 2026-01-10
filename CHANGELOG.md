@@ -26,6 +26,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - A recommended adoption workflow section in the workspace README (capture -> markers -> UI inspection -> automation exports).
 - A README section describing integration patterns with and without MCP.
 - A README section documenting MCP client setup for Claude Code, Codex, and Gemini CLI.
+- A README note recommending setting the MCP server working directory (`cwd`) to the project root.
+- A `.gitattributes` file to stabilize line endings across platforms.
 
 ### Fixed
 

@@ -103,6 +103,8 @@ Use this when you want an AI agent to drive capture/replay/export via tool calls
 
 `renderdog-mcp` uses the stdio transport, so any MCP client that supports stdio servers can run it.
 You typically want to set `RENDERDOG_RENDERDOC_DIR` so the server can find `renderdoccmd` and `qrenderdoc`.
+You should also set the MCP server working directory (`cwd`) to your project root so relative paths
+in tool arguments (e.g. `artifacts_dir`, `output_dir`, `thumbnail_output_path`) behave as expected.
 
 ### Claude Code
 
@@ -123,6 +125,7 @@ Claude Code supports managing MCP servers via CLI commands and config files.
       "type": "stdio",
       "command": "renderdog-mcp",
       "args": [],
+      "cwd": ".",
       "env": {
         "RENDERDOG_RENDERDOC_DIR": "C:\\\\Users\\\\you\\\\scoop\\\\apps\\\\renderdoc\\\\current"
       }
@@ -148,6 +151,7 @@ Codex stores MCP server launchers in `~/.codex/config.toml` (see `codex mcp` sub
 [mcp_servers.renderdog]
 command = "renderdog-mcp"
 args = []
+cwd = "C:\\path\\to\\your\\project"
 env = { RENDERDOG_RENDERDOC_DIR = "C:\\\\Users\\\\you\\\\scoop\\\\apps\\\\renderdoc\\\\current" }
 ```
 
@@ -172,6 +176,7 @@ Gemini CLI can manage MCP servers either via commands or by editing `settings.js
     "renderdog": {
       "command": "renderdog-mcp",
       "args": [],
+      "cwd": ".",
       "env": {
         "RENDERDOG_RENDERDOC_DIR": "C:\\\\Users\\\\you\\\\scoop\\\\apps\\\\renderdoc\\\\current"
       }
