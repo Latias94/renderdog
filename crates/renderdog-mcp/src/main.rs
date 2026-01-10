@@ -341,6 +341,10 @@ fn default_timeout_s() -> u32 {
     60
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn resolve_base_cwd(cwd: Option<String>) -> Result<PathBuf, String> {
     let current = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
     let Some(cwd) = cwd else {
@@ -480,6 +484,55 @@ struct FindEventsRequest {
     case_sensitive: bool,
     #[serde(default)]
     max_results: Option<u32>,
+}
+
+#[derive(Debug, Default, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum FindEventSelection {
+    First,
+    #[default]
+    Last,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FindEventsAndSaveOutputsPngRequest {
+    #[serde(default)]
+    cwd: Option<String>,
+    capture_path: String,
+
+    #[serde(default)]
+    selection: FindEventSelection,
+
+    #[serde(default = "default_true")]
+    only_drawcalls: bool,
+    #[serde(default)]
+    marker_prefix: Option<String>,
+    #[serde(default)]
+    event_id_min: Option<u32>,
+    #[serde(default)]
+    event_id_max: Option<u32>,
+    #[serde(default)]
+    name_contains: Option<String>,
+    #[serde(default)]
+    marker_contains: Option<String>,
+    #[serde(default)]
+    case_sensitive: bool,
+    #[serde(default)]
+    max_results: Option<u32>,
+
+    #[serde(default)]
+    output_dir: Option<String>,
+    #[serde(default)]
+    basename: Option<String>,
+    #[serde(default)]
+    include_depth: bool,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+struct FindEventsAndSaveOutputsPngResponse {
+    find: renderdog::FindEventsResponse,
+    selected_event_id: u32,
+    replay: renderdog::ReplaySaveOutputsPngResponse,
 }
 
 #[derive(Clone)]
@@ -1055,6 +1108,130 @@ impl RenderdogMcpServer {
             "ok"
         );
         Ok(Json(res))
+    }
+
+    #[tool(
+        name = "renderdoc_find_events_and_save_outputs_png",
+        description = "One-shot helper: find matching events (by marker/name filters) and save current pipeline outputs to PNG at the selected event via headless replay."
+    )]
+    async fn find_events_and_save_outputs_png(
+        &self,
+        Parameters(req): Parameters<FindEventsAndSaveOutputsPngRequest>,
+    ) -> Result<Json<FindEventsAndSaveOutputsPngResponse>, String> {
+        let start = Instant::now();
+        tracing::info!(
+            tool = "renderdoc_find_events_and_save_outputs_png",
+            capture_path = %req.capture_path,
+            only_drawcalls = req.only_drawcalls,
+            include_depth = req.include_depth,
+            "start"
+        );
+
+        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
+            tracing::error!(
+                tool = "renderdoc_find_events_and_save_outputs_png",
+                "failed"
+            );
+            tracing::debug!(
+                tool = "renderdoc_find_events_and_save_outputs_png",
+                err = %e,
+                "details"
+            );
+            format!("detect installation failed: {e}")
+        })?;
+
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
+
+        let find = install
+            .find_events(
+                &cwd,
+                &renderdog::FindEventsRequest {
+                    capture_path: capture_path.display().to_string(),
+                    only_drawcalls: req.only_drawcalls,
+                    marker_prefix: req.marker_prefix.clone(),
+                    event_id_min: req.event_id_min,
+                    event_id_max: req.event_id_max,
+                    name_contains: req.name_contains.clone(),
+                    marker_contains: req.marker_contains.clone(),
+                    case_sensitive: req.case_sensitive,
+                    max_results: req.max_results,
+                },
+            )
+            .map_err(|e| format!("find events failed: {e}"))?;
+
+        if find.total_matches == 0 {
+            return Err(
+                "no matching events found; refine filters or disable only_drawcalls".into(),
+            );
+        }
+
+        if matches!(req.selection, FindEventSelection::Last) && find.truncated {
+            return Err(
+                "find results are truncated; increase max_results or narrow filters to select the last match safely"
+                    .into(),
+            );
+        }
+
+        let selected_event_id = match req.selection {
+            FindEventSelection::First => find
+                .matches
+                .first()
+                .map(|m| m.event_id)
+                .ok_or_else(|| "no matching events found".to_string())?,
+            FindEventSelection::Last => find
+                .matches
+                .last()
+                .map(|m| m.event_id)
+                .ok_or_else(|| "no matching events found".to_string())?,
+        };
+
+        let output_dir = req
+            .output_dir
+            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
+            .unwrap_or_else(|| {
+                renderdog::default_exports_dir(&cwd)
+                    .join("replay")
+                    .display()
+                    .to_string()
+            });
+        std::fs::create_dir_all(&output_dir)
+            .map_err(|e| format!("create output_dir failed: {e}"))?;
+
+        let basename = req.basename.unwrap_or_else(|| {
+            capture_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("capture")
+                .to_string()
+        });
+
+        let replay = install
+            .replay_save_outputs_png(
+                &cwd,
+                &renderdog::ReplaySaveOutputsPngRequest {
+                    capture_path: capture_path.display().to_string(),
+                    event_id: Some(selected_event_id),
+                    output_dir,
+                    basename,
+                    include_depth: req.include_depth,
+                },
+            )
+            .map_err(|e| format!("replay save outputs failed: {e}"))?;
+
+        tracing::info!(
+            tool = "renderdoc_find_events_and_save_outputs_png",
+            elapsed_ms = start.elapsed().as_millis(),
+            selected_event_id,
+            outputs = replay.outputs.len(),
+            "ok"
+        );
+
+        Ok(Json(FindEventsAndSaveOutputsPngResponse {
+            find,
+            selected_event_id,
+            replay,
+        }))
     }
 
     #[tool(

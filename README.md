@@ -98,6 +98,7 @@ Use this when you want an AI agent to drive capture/replay/export via tool calls
   - One-shot capture + export bundle: `renderdoc_capture_and_export_bundle_jsonl`
   - Export bundle from an existing `.rdc`: `renderdoc_export_bundle_jsonl`
   - Find event IDs by marker/name: `renderdoc_find_events`
+  - One-shot find + save outputs: `renderdoc_find_events_and_save_outputs_png`
 - Headless replay outputs: `renderdoc_replay_save_outputs_png`
 
 ## MCP client setup (Claude Code / Codex / Gemini CLI)

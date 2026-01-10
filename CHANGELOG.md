@@ -19,6 +19,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - MCP replay tools: `renderdoc_replay_list_textures`, `renderdoc_replay_pick_pixel`, `renderdoc_replay_save_texture_png`.
 - MCP replay tool: `renderdoc_replay_save_outputs_png` (save current pipeline outputs to PNG).
 - MCP utility tool: `renderdoc_find_events` (find matching `event_id`/marker paths for later replay).
+- MCP one-shot tool: `renderdoc_find_events_and_save_outputs_png` (find event -> save outputs PNG).
 - MCP one-shot bundle tool: `renderdoc_capture_and_export_bundle_jsonl` (capture + export actions + export bindings index).
 - MCP export bundle tool: `renderdoc_export_bundle_jsonl` (actions + bindings index from an existing .rdc).
 - Bundle tools can optionally save a thumbnail and/or open the capture in qrenderdoc UI.
@@ -38,6 +39,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Fix `renderdoc_replay_save_outputs_png` on Vulkan by handling output targets exposed as `renderdoc.Descriptor` objects.
 - Make headless replay output exports choose a drawcall event by default (instead of `Present`), so outputs are usually non-empty.
 - When using MCP tools with per-call `cwd`, resolve relative `executable`/`working_dir` for capture launch against that base directory.
+- Externalize embedded `qrenderdoc --python` scripts into `crates/renderdog-automation/scripts/` for easier auditing and iteration.
 
 ## [0.1.0] - 2026-01-09
 
