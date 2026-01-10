@@ -154,6 +154,9 @@ def iter_actions(
 
         if should_emit:
             counters["total_matches"] += 1
+            if counters.get("first_event_id", None) is None:
+                counters["first_event_id"] = eid
+            counters["last_event_id"] = eid
             if max_results is None or len(out_list) < int(max_results):
                 out_list.append(
                     {
@@ -224,6 +227,8 @@ def main() -> None:
                     "capture_path": req["capture_path"],
                     "total_matches": int(counters["total_matches"]),
                     "truncated": bool(counters["truncated"]),
+                    "first_event_id": counters.get("first_event_id", None),
+                    "last_event_id": counters.get("last_event_id", None),
                     "matches": out_list,
                 },
             )
@@ -246,4 +251,3 @@ if __name__ == "__main__":
     except Exception:
         write_envelope(False, error=traceback.format_exc())
     raise SystemExit(0)
-

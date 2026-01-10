@@ -345,6 +345,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_max_results() -> Option<u32> {
+    Some(200)
+}
+
 fn resolve_base_cwd(cwd: Option<String>) -> Result<PathBuf, String> {
     let current = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
     let Some(cwd) = cwd else {
@@ -482,7 +486,7 @@ struct FindEventsRequest {
     marker_contains: Option<String>,
     #[serde(default)]
     case_sensitive: bool,
-    #[serde(default)]
+    #[serde(default = "default_max_results")]
     max_results: Option<u32>,
 }
 
@@ -517,7 +521,7 @@ struct FindEventsAndSaveOutputsPngRequest {
     marker_contains: Option<String>,
     #[serde(default)]
     case_sensitive: bool,
-    #[serde(default)]
+    #[serde(default = "default_max_results")]
     max_results: Option<u32>,
 
     #[serde(default)]
@@ -1166,23 +1170,14 @@ impl RenderdogMcpServer {
             );
         }
 
-        if matches!(req.selection, FindEventSelection::Last) && find.truncated {
-            return Err(
-                "find results are truncated; increase max_results or narrow filters to select the last match safely"
-                    .into(),
-            );
-        }
-
         let selected_event_id = match req.selection {
             FindEventSelection::First => find
-                .matches
-                .first()
-                .map(|m| m.event_id)
+                .first_event_id
+                .or_else(|| find.matches.first().map(|m| m.event_id))
                 .ok_or_else(|| "no matching events found".to_string())?,
             FindEventSelection::Last => find
-                .matches
-                .last()
-                .map(|m| m.event_id)
+                .last_event_id
+                .or_else(|| find.matches.last().map(|m| m.event_id))
                 .ok_or_else(|| "no matching events found".to_string())?,
         };
 

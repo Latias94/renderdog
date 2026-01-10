@@ -78,6 +78,8 @@ pub struct FindEventsResponse {
     pub capture_path: String,
     pub total_matches: u64,
     pub truncated: bool,
+    pub first_event_id: Option<u32>,
+    pub last_event_id: Option<u32>,
     pub matches: Vec<FoundEvent>,
 }
 

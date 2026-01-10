@@ -18,4 +18,5 @@ Playbooks (practical debugging checklists):
 Examples:
 
 - Export actions + bindings bundle from an existing capture: `cargo run -p renderdog-automation --example export_bundle_from_capture -- <capture.rdc> [out_dir] [basename]`
+- Find event IDs by marker substring: `cargo run -p renderdog-automation --example find_events -- <capture.rdc> [marker_contains]`
 - Save current pipeline outputs to PNG (headless replay): `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [event_id] [out_dir] [basename]`
