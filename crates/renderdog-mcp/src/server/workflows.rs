@@ -50,14 +50,14 @@ impl RenderdogMcpServer {
     }
 
     #[tool(
-        name = "renderdoc_capture_and_export_bindings_jsonl",
+        name = "renderdoc_capture_and_export_bindings_index_jsonl",
         description = "One-shot workflow: launch target under renderdoccmd capture, trigger capture via target control, then export <basename>.bindings.jsonl and <basename>.bindings_summary.json."
     )]
     async fn capture_and_export_bindings_index_jsonl(
         &self,
         Parameters(req): Parameters<CaptureAndExportBindingsIndexToolRequest>,
     ) -> Result<Json<CaptureAndExportBindingsIndexResponse>, String> {
-        let tool = "renderdoc_capture_and_export_bindings_jsonl";
+        let tool = "renderdoc_capture_and_export_bindings_index_jsonl";
         let run = ToolRun::start(tool, || {
             tracing::info!(
                 tool = tool,
