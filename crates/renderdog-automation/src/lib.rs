@@ -18,6 +18,7 @@ mod capture;
 mod command;
 mod diagnostics;
 mod normalize;
+mod qrenderdoc_jobs;
 mod renderdoccmd;
 mod replay;
 mod scripting;

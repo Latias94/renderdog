@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::scripting::QRenderDocJsonJob;
+use crate::qrenderdoc_jobs::TRIGGER_CAPTURE_JOB;
 use crate::{QRenderDocJsonError, RenderDocInstallation};
 
 use super::{TriggerCaptureRequest, TriggerCaptureResponse};
@@ -16,8 +16,3 @@ impl RenderDocInstallation {
         self.run_qrenderdoc_json_job(cwd, TRIGGER_CAPTURE_JOB, req)
     }
 }
-
-const TRIGGER_CAPTURE_PY: &str = include_str!("../../scripts/trigger_capture.py");
-
-const TRIGGER_CAPTURE_JOB: QRenderDocJsonJob =
-    QRenderDocJsonJob::new("trigger_capture", "trigger_capture.py", TRIGGER_CAPTURE_PY);

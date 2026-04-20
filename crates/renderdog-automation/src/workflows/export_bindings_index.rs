@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::scripting::QRenderDocJsonJob;
+use crate::qrenderdoc_jobs::EXPORT_BINDINGS_INDEX_JSONL_JOB;
 use crate::{QRenderDocJsonError, RenderDocInstallation};
 
 use super::{ExportBindingsIndexRequest, ExportBindingsIndexResponse};
@@ -14,12 +14,3 @@ impl RenderDocInstallation {
         self.run_qrenderdoc_json_job(cwd, EXPORT_BINDINGS_INDEX_JSONL_JOB, req)
     }
 }
-
-const EXPORT_BINDINGS_INDEX_JSONL_PY: &str =
-    include_str!("../../scripts/export_bindings_index_jsonl.py");
-
-const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "export_bindings_index_jsonl",
-    "export_bindings_index_jsonl.py",
-    EXPORT_BINDINGS_INDEX_JSONL_PY,
-);

@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
-use crate::scripting::QRenderDocJsonJob;
+use crate::qrenderdoc_jobs::{
+    REPLAY_LIST_TEXTURES_JOB, REPLAY_PICK_PIXEL_JOB, REPLAY_SAVE_OUTPUTS_PNG_JOB,
+    REPLAY_SAVE_TEXTURE_PNG_JOB,
+};
 use crate::{
     QRenderDocJsonError, normalize_capture_path, prepare_export_target,
     resolve_path_string_from_cwd,
@@ -203,37 +206,3 @@ impl RenderDocInstallation {
             .map_err(ReplaySaveOutputsPngError::from)
     }
 }
-
-const REPLAY_LIST_TEXTURES_JSON_PY: &str = include_str!("../scripts/replay_list_textures_json.py");
-
-const REPLAY_LIST_TEXTURES_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "replay_list_textures",
-    "replay_list_textures_json.py",
-    REPLAY_LIST_TEXTURES_JSON_PY,
-);
-
-const REPLAY_PICK_PIXEL_JSON_PY: &str = include_str!("../scripts/replay_pick_pixel_json.py");
-
-const REPLAY_PICK_PIXEL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "replay_pick_pixel",
-    "replay_pick_pixel_json.py",
-    REPLAY_PICK_PIXEL_JSON_PY,
-);
-
-const REPLAY_SAVE_TEXTURE_PNG_JSON_PY: &str =
-    include_str!("../scripts/replay_save_texture_png_json.py");
-
-const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "replay_save_texture_png",
-    "replay_save_texture_png_json.py",
-    REPLAY_SAVE_TEXTURE_PNG_JSON_PY,
-);
-
-const REPLAY_SAVE_OUTPUTS_PNG_JSON_PY: &str =
-    include_str!("../scripts/replay_save_outputs_png_json.py");
-
-const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "replay_save_outputs_png",
-    "replay_save_outputs_png_json.py",
-    REPLAY_SAVE_OUTPUTS_PNG_JSON_PY,
-);

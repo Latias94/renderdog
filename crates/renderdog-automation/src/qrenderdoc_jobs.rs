@@ -1,0 +1,86 @@
+use crate::scripting::QRenderDocJsonJob;
+
+pub(crate) const EXPORT_ACTIONS_JSONL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "export_actions_jsonl",
+    "export_actions_jsonl.py",
+    include_str!("../scripts/export_actions_jsonl.py"),
+);
+
+pub(crate) const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "export_bindings_index_jsonl",
+    "export_bindings_index_jsonl.py",
+    include_str!("../scripts/export_bindings_index_jsonl.py"),
+);
+
+pub(crate) const FIND_EVENTS_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "find_events",
+    "find_events_json.py",
+    include_str!("../scripts/find_events_json.py"),
+);
+
+pub(crate) const TRIGGER_CAPTURE_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "trigger_capture",
+    "trigger_capture.py",
+    include_str!("../scripts/trigger_capture.py"),
+);
+
+pub(crate) const REPLAY_LIST_TEXTURES_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_list_textures",
+    "replay_list_textures_json.py",
+    include_str!("../scripts/replay_list_textures_json.py"),
+);
+
+pub(crate) const REPLAY_PICK_PIXEL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_pick_pixel",
+    "replay_pick_pixel_json.py",
+    include_str!("../scripts/replay_pick_pixel_json.py"),
+);
+
+pub(crate) const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_save_texture_png",
+    "replay_save_texture_png_json.py",
+    include_str!("../scripts/replay_save_texture_png_json.py"),
+);
+
+pub(crate) const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_save_outputs_png",
+    "replay_save_outputs_png_json.py",
+    include_str!("../scripts/replay_save_outputs_png_json.py"),
+);
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::{
+        EXPORT_ACTIONS_JSONL_JOB, EXPORT_BINDINGS_INDEX_JSONL_JOB, FIND_EVENTS_JOB,
+        REPLAY_LIST_TEXTURES_JOB, REPLAY_PICK_PIXEL_JOB, REPLAY_SAVE_OUTPUTS_PNG_JOB,
+        REPLAY_SAVE_TEXTURE_PNG_JOB, TRIGGER_CAPTURE_JOB,
+    };
+
+    #[test]
+    fn qrenderdoc_job_registry_uses_unique_prefixes_and_script_names() {
+        let jobs = [
+            &EXPORT_ACTIONS_JSONL_JOB,
+            &EXPORT_BINDINGS_INDEX_JSONL_JOB,
+            &FIND_EVENTS_JOB,
+            &TRIGGER_CAPTURE_JOB,
+            &REPLAY_LIST_TEXTURES_JOB,
+            &REPLAY_PICK_PIXEL_JOB,
+            &REPLAY_SAVE_TEXTURE_PNG_JOB,
+            &REPLAY_SAVE_OUTPUTS_PNG_JOB,
+        ];
+
+        let prefixes = jobs
+            .iter()
+            .map(|job| job.run_dir_prefix)
+            .collect::<BTreeSet<_>>();
+        let script_names = jobs
+            .iter()
+            .map(|job| job.script_file_name)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(prefixes.len(), jobs.len());
+        assert_eq!(script_names.len(), jobs.len());
+    }
+}
