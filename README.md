@@ -59,7 +59,8 @@ Run the example:
 
 Key points:
 
-- Loader tries API versions from `1.6.0` down to `1.0.0` via `RENDERDOC_GetAPI`.
+- Loader tries API versions from `1.7.0` down to `1.0.0` via `RENDERDOC_GetAPI`.
+- Rich object/command annotations are available when RenderDoc negotiates API `1.7.0`.
 - Windows injected connect uses `GetModuleHandleA("renderdoc.dll")` and does not call `LoadLibrary`.
 - Explicit load is available via `RenderDog::load("renderdoc.dll")` / `RenderDocInApp::try_load_and_connect(...)`.
 - Linux optional: connect only if already loaded (RTLD_NOLOAD): `RenderDocInApp::try_connect_noload_default()` or `RenderDog::new_noload_first()`.

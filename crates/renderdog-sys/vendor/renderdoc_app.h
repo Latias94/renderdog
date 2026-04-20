@@ -11,6 +11,10 @@
 
 #include <stdint.h>
 
+#if !defined(__cplusplus)
+#include <stdbool.h>
+#endif
+
 #if defined(_WIN32)
 #define RENDERDOC_CC __cdecl
 #else
@@ -25,7 +29,9 @@ typedef enum RENDERDOC_CaptureOption
   eRENDERDOC_Option_AllowVSync = 0,
   eRENDERDOC_Option_AllowFullscreen = 1,
   eRENDERDOC_Option_APIValidation = 2,
+  eRENDERDOC_Option_DebugDeviceMode = 2,
   eRENDERDOC_Option_CaptureCallstacks = 3,
+  eRENDERDOC_Option_CaptureCallstacksOnlyDraws = 4,
   eRENDERDOC_Option_CaptureCallstacksOnlyActions = 4,
   eRENDERDOC_Option_DelayForDebugger = 5,
   eRENDERDOC_Option_VerifyBufferAccess = 6,
@@ -166,14 +172,83 @@ typedef uint32_t(RENDERDOC_CC *pRENDERDOC_DiscardFrameCapture)(RENDERDOC_DeviceP
 
 typedef void(RENDERDOC_CC *pRENDERDOC_SetCaptureTitle)(const char *title);
 
+typedef enum RENDERDOC_AnnotationType
+{
+  eRENDERDOC_Empty = 0,
+  eRENDERDOC_Bool = 1,
+  eRENDERDOC_Int32 = 2,
+  eRENDERDOC_UInt32 = 3,
+  eRENDERDOC_Int64 = 4,
+  eRENDERDOC_UInt64 = 5,
+  eRENDERDOC_Float = 6,
+  eRENDERDOC_Double = 7,
+  eRENDERDOC_String = 8,
+  eRENDERDOC_APIObject = 9,
+  eRENDERDOC_AnnotationMax = 0x7FFFFFFF,
+} RENDERDOC_AnnotationType;
+
+typedef union RENDERDOC_AnnotationVectorValue
+{
+  bool boolean[4];
+  int32_t int32[4];
+  int64_t int64[4];
+  uint32_t uint32[4];
+  uint64_t uint64[4];
+  float float32[4];
+  double float64[4];
+} RENDERDOC_AnnotationVectorValue;
+
+typedef union RENDERDOC_AnnotationValue
+{
+  bool boolean;
+  int32_t int32;
+  int64_t int64;
+  uint32_t uint32;
+  uint64_t uint64;
+  float float32;
+  double float64;
+  RENDERDOC_AnnotationVectorValue vector;
+  const char *string;
+  void *apiObject;
+} RENDERDOC_AnnotationValue;
+
+typedef struct RENDERDOC_GLResourceReference
+{
+  uint32_t identifier;
+  uint32_t name;
+} GLResourceReference;
+
+typedef uint32_t(RENDERDOC_CC *pRENDERDOC_SetObjectAnnotation)(RENDERDOC_DevicePointer device,
+                                                               void *object, const char *key,
+                                                               RENDERDOC_AnnotationType valueType,
+                                                               uint32_t valueVectorWidth,
+                                                               const RENDERDOC_AnnotationValue *value);
+typedef uint32_t(RENDERDOC_CC *pRENDERDOC_SetCommandAnnotation)(
+    RENDERDOC_DevicePointer device, void *queueOrCommandBuffer, const char *key,
+    RENDERDOC_AnnotationType valueType, uint32_t valueVectorWidth,
+    const RENDERDOC_AnnotationValue *value);
+
 typedef enum RENDERDOC_Version
 {
+  eRENDERDOC_API_Version_1_0_0 = 10000,
+  eRENDERDOC_API_Version_1_0_1 = 10001,
+  eRENDERDOC_API_Version_1_0_2 = 10002,
+  eRENDERDOC_API_Version_1_1_0 = 10100,
+  eRENDERDOC_API_Version_1_1_1 = 10101,
+  eRENDERDOC_API_Version_1_1_2 = 10102,
+  eRENDERDOC_API_Version_1_2_0 = 10200,
+  eRENDERDOC_API_Version_1_3_0 = 10300,
+  eRENDERDOC_API_Version_1_4_0 = 10400,
+  eRENDERDOC_API_Version_1_4_1 = 10401,
+  eRENDERDOC_API_Version_1_4_2 = 10402,
+  eRENDERDOC_API_Version_1_5_0 = 10500,
   eRENDERDOC_API_Version_1_6_0 = 10600,
+  eRENDERDOC_API_Version_1_7_0 = 10700,
 } RENDERDOC_Version;
 
 typedef int(RENDERDOC_CC *pRENDERDOC_GetAPI)(RENDERDOC_Version version, void **outAPIPointers);
 
-typedef struct RENDERDOC_API_1_6_0
+typedef struct RENDERDOC_API_1_7_0
 {
   pRENDERDOC_GetAPIVersion GetAPIVersion;
 
@@ -237,4 +312,21 @@ typedef struct RENDERDOC_API_1_6_0
   pRENDERDOC_ShowReplayUI ShowReplayUI;
 
   pRENDERDOC_SetCaptureTitle SetCaptureTitle;
-} RENDERDOC_API_1_6_0;
+
+  pRENDERDOC_SetObjectAnnotation SetObjectAnnotation;
+  pRENDERDOC_SetCommandAnnotation SetCommandAnnotation;
+} RENDERDOC_API_1_7_0;
+
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_0_0;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_0_1;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_0_2;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_1_0;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_1_1;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_1_2;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_2_0;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_3_0;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_4_0;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_4_1;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_4_2;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_5_0;
+typedef RENDERDOC_API_1_7_0 RENDERDOC_API_1_6_0;

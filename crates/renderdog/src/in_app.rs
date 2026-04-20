@@ -1,6 +1,6 @@
 use std::{
     cell::Cell,
-    ffi::{CStr, CString},
+    ffi::{CStr, CString, c_void},
     path::{Path, PathBuf},
     ptr::NonNull,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use renderdog_sys as sys;
 
-use crate::OverlayBits;
+use crate::{AnnotationTarget, AnnotationValue, OverlayBits};
 
 #[cfg(unix)]
 use libloading::Library;
@@ -78,6 +78,15 @@ pub enum InAppError {
     #[error("required API function pointer is null: {0}")]
     MissingFunction(&'static str),
 
+    #[error(
+        "renderdoc API version {got:?} does not support `{feature}` (requires at least {min:?})"
+    )]
+    UnsupportedApiVersion {
+        feature: &'static str,
+        min: sys::RENDERDOC_Version,
+        got: sys::RENDERDOC_Version,
+    },
+
     #[error("capture index out of range")]
     InvalidCaptureIndex,
 
@@ -86,10 +95,22 @@ pub enum InAppError {
 
     #[error("invalid UTF-8 from RenderDoc")]
     InvalidUtf8,
+
+    #[error("RenderDoc rejected the annotation because the device is invalid or unknown")]
+    InvalidAnnotationDevice,
+
+    #[error("RenderDoc rejected the annotation because the target is unsupported or invalid")]
+    UnsupportedAnnotationTarget,
+
+    #[error("RenderDoc rejected the annotation because the call was ill-formed")]
+    InvalidAnnotationCall,
+
+    #[error("RenderDoc returned an unknown annotation status code: {0}")]
+    UnknownAnnotationStatus(u32),
 }
 
 pub struct RenderDocInApp {
-    api: NonNull<sys::RENDERDOC_API_1_6_0>,
+    api: NonNull<sys::RENDERDOC_API_1_7_0>,
     _guard: LibraryGuard,
     requested_version: sys::RENDERDOC_Version,
     _not_sync: Cell<()>,
@@ -219,9 +240,10 @@ impl RenderDocInApp {
 
     fn resolve_api(
         get_api: sys::pRENDERDOC_GetAPI,
-    ) -> Result<(NonNull<sys::RENDERDOC_API_1_6_0>, sys::RENDERDOC_Version), InAppError> {
+    ) -> Result<(NonNull<sys::RENDERDOC_API_1_7_0>, sys::RENDERDOC_Version), InAppError> {
         let get_api = get_api.ok_or(InAppError::MissingGetApi)?;
         let preferred = [
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_7_0,
             sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_6_0,
             sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_5_0,
             sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_4_2,
@@ -241,7 +263,7 @@ impl RenderDocInApp {
             let mut out: *mut std::ffi::c_void = std::ptr::null_mut();
             let ok = unsafe { get_api(version, &mut out) };
             if ok == 1 && !out.is_null() {
-                let api = NonNull::new(out as *mut sys::RENDERDOC_API_1_6_0).unwrap();
+                let api = NonNull::new(out as *mut sys::RENDERDOC_API_1_7_0).unwrap();
                 return Ok((api, version));
             }
         }
@@ -282,12 +304,46 @@ impl RenderDocInApp {
         })
     }
 
-    fn api(&self) -> &sys::RENDERDOC_API_1_6_0 {
+    fn api(&self) -> &sys::RENDERDOC_API_1_7_0 {
         unsafe { self.api.as_ref() }
     }
 
     pub fn requested_version(&self) -> sys::RENDERDOC_Version {
         self.requested_version
+    }
+
+    pub fn supports_api_version(&self, version: sys::RENDERDOC_Version) -> bool {
+        self.requested_version.0 >= version.0
+    }
+
+    pub fn supports_annotations(&self) -> bool {
+        self.supports_api_version(sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_7_0)
+    }
+
+    fn require_api_version(
+        &self,
+        feature: &'static str,
+        min: sys::RENDERDOC_Version,
+    ) -> Result<(), InAppError> {
+        if self.supports_api_version(min) {
+            Ok(())
+        } else {
+            Err(InAppError::UnsupportedApiVersion {
+                feature,
+                min,
+                got: self.requested_version,
+            })
+        }
+    }
+
+    fn map_annotation_status(status: u32) -> Result<(), InAppError> {
+        match status {
+            0 => Ok(()),
+            1 => Err(InAppError::InvalidAnnotationDevice),
+            2 => Err(InAppError::UnsupportedAnnotationTarget),
+            3 => Err(InAppError::InvalidAnnotationCall),
+            other => Err(InAppError::UnknownAnnotationStatus(other)),
+        }
     }
 
     pub fn get_api_version(&self) -> Result<(i32, i32, i32), InAppError> {
@@ -504,6 +560,10 @@ impl RenderDocInApp {
     }
 
     pub fn show_replay_ui(&self) -> Result<bool, InAppError> {
+        self.require_api_version(
+            "ShowReplayUI",
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_5_0,
+        )?;
         let f = self
             .api()
             .ShowReplayUI
@@ -516,6 +576,10 @@ impl RenderDocInApp {
         device: Option<sys::RENDERDOC_DevicePointer>,
         window: Option<sys::RENDERDOC_WindowHandle>,
     ) -> Result<bool, InAppError> {
+        self.require_api_version(
+            "DiscardFrameCapture",
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_4_0,
+        )?;
         let f = self
             .api()
             .DiscardFrameCapture
@@ -534,6 +598,10 @@ impl RenderDocInApp {
         capture_file_path: Option<&str>,
         comments: &str,
     ) -> Result<(), InAppError> {
+        self.require_api_version(
+            "SetCaptureFileComments",
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_2_0,
+        )?;
         let f = self
             .api()
             .SetCaptureFileComments
@@ -551,6 +619,10 @@ impl RenderDocInApp {
     }
 
     pub fn set_capture_title(&self, title: &str) -> Result<(), InAppError> {
+        self.require_api_version(
+            "SetCaptureTitle",
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_6_0,
+        )?;
         let f = self
             .api()
             .SetCaptureTitle
@@ -558,6 +630,75 @@ impl RenderDocInApp {
         let title_c = CString::new(title).map_err(|_| InAppError::InvalidUtf8)?;
         unsafe { f(title_c.as_ptr()) };
         Ok(())
+    }
+
+    pub fn set_object_annotation<'a>(
+        &self,
+        device: Option<sys::RENDERDOC_DevicePointer>,
+        object: impl Into<AnnotationTarget>,
+        key: &str,
+        value: impl Into<AnnotationValue<'a>>,
+    ) -> Result<(), InAppError> {
+        self.require_api_version(
+            "SetObjectAnnotation",
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_7_0,
+        )?;
+
+        let f = self
+            .api()
+            .SetObjectAnnotation
+            .ok_or(InAppError::MissingFunction("SetObjectAnnotation"))?;
+        let key = CString::new(key).map_err(|_| InAppError::InvalidUtf8)?;
+        let mut object = object.into().prepare();
+        let value = value
+            .into()
+            .prepare()
+            .map_err(|_| InAppError::InvalidUtf8)?;
+        let status = unsafe {
+            f(
+                device.unwrap_or(std::ptr::null_mut()),
+                object.as_ptr(),
+                key.as_ptr(),
+                value.value_type,
+                value.vector_width,
+                value.as_ptr(),
+            )
+        };
+        Self::map_annotation_status(status)
+    }
+
+    pub fn set_command_annotation<'a>(
+        &self,
+        device: Option<sys::RENDERDOC_DevicePointer>,
+        queue_or_command_buffer: *mut c_void,
+        key: &str,
+        value: impl Into<AnnotationValue<'a>>,
+    ) -> Result<(), InAppError> {
+        self.require_api_version(
+            "SetCommandAnnotation",
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_7_0,
+        )?;
+
+        let f = self
+            .api()
+            .SetCommandAnnotation
+            .ok_or(InAppError::MissingFunction("SetCommandAnnotation"))?;
+        let key = CString::new(key).map_err(|_| InAppError::InvalidUtf8)?;
+        let value = value
+            .into()
+            .prepare()
+            .map_err(|_| InAppError::InvalidUtf8)?;
+        let status = unsafe {
+            f(
+                device.unwrap_or(std::ptr::null_mut()),
+                queue_or_command_buffer,
+                key.as_ptr(),
+                value.value_type,
+                value.vector_width,
+                value.as_ptr(),
+            )
+        };
+        Self::map_annotation_status(status)
     }
 
     pub fn unload_crash_handler(&self) -> Result<(), InAppError> {
@@ -604,6 +745,10 @@ impl RenderDocInApp {
     }
 
     pub fn trigger_multi_frame_capture(&self, frames: u32) -> Result<(), InAppError> {
+        self.require_api_version(
+            "TriggerMultiFrameCapture",
+            sys::RENDERDOC_Version::eRENDERDOC_API_Version_1_1_0,
+        )?;
         let f = self
             .api()
             .TriggerMultiFrameCapture

@@ -29,10 +29,10 @@ This crate dynamically loads the local RenderDoc library for replay:
 `renderdog-replay` uses RenderDoc's **C++ replay API**. The version of the headers used at build
 time must match the version of the RenderDoc library loaded at runtime.
 
-This workspace pins the `third-party/renderdoc` submodule to **RenderDoc v1.42**, so you should run
-`renderdog-replay` with **RenderDoc v1.42** (check with `renderdoccmd version`).
+This workspace pins the `third-party/renderdoc` submodule to **RenderDoc v1.43**, so you should run
+`renderdog-replay` with **RenderDoc v1.43** (check with `renderdoccmd version`).
 
-If you have a different version installed (e.g. v1.41/v1.43), switch the submodule to the matching
+If you have a different version installed (e.g. v1.41), switch the submodule to the matching
 version and rebuild. Otherwise the process may crash due to C++ ABI/layout mismatches.
 
 If it cannot be found via the OS loader, set one of:

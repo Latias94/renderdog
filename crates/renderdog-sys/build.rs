@@ -69,6 +69,10 @@ fn generate_bindings(manifest_dir: &Path, out: &Path) {
     let bindings = bindgen::Builder::default()
         .header(header.to_string_lossy())
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        // RenderDoc v1.43 introduced annotation types that use `bool` in the C API.
+        // Clang needs `stdbool.h` preincluded when parsing the header as C.
+        .clang_arg("-include")
+        .clang_arg("stdbool.h")
         // Keep enums "safe-ish" for FFI (as integer newtypes) while still providing ergonomic
         // associated constants (e.g. `RENDERDOC_InputButton::eRENDERDOC_Key_F12`).
         //
@@ -80,6 +84,7 @@ fn generate_bindings(manifest_dir: &Path, out: &Path) {
         })
         .allowlist_type("RENDERDOC_.*")
         .allowlist_var("eRENDERDOC_.*")
+        .allowlist_var("RENDERDOC_.*")
         .allowlist_function("RENDERDOC_GetAPI")
         .allowlist_type("pRENDERDOC_.*")
         .derive_default(true)
