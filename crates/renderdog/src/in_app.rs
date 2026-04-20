@@ -408,35 +408,6 @@ impl RenderDocInApp {
         self.set_capture_file_path_template(s)
     }
 
-    #[deprecated(since = "0.1.0", note = "renamed to get_capture_file_path_template")]
-    pub fn get_log_file_path_template(&self) -> Result<String, InAppError> {
-        self.get_capture_file_path_template()
-    }
-
-    #[deprecated(since = "0.1.0", note = "renamed to set_capture_file_path_template")]
-    pub fn set_log_file_path_template(&self, template: &str) -> Result<(), InAppError> {
-        self.set_capture_file_path_template(template)
-    }
-
-    #[deprecated(
-        since = "0.1.0",
-        note = "renamed to get_capture_file_path_template_path"
-    )]
-    pub fn get_log_file_path_template_path(&self) -> Result<PathBuf, InAppError> {
-        self.get_capture_file_path_template_path()
-    }
-
-    #[deprecated(
-        since = "0.1.0",
-        note = "renamed to set_capture_file_path_template_path"
-    )]
-    pub fn set_log_file_path_template_path<P: AsRef<Path>>(
-        &self,
-        template: P,
-    ) -> Result<(), InAppError> {
-        self.set_capture_file_path_template_path(template)
-    }
-
     pub fn set_capture_option_u32(
         &self,
         opt: impl Into<sys::RENDERDOC_CaptureOption>,

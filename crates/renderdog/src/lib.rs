@@ -17,10 +17,6 @@ pub use annotations::*;
 pub use in_app::*;
 pub use settings::*;
 
-#[doc(hidden)]
-#[deprecated(note = "use RenderDocInApp")]
-pub type RenderDog = RenderDocInApp;
-
 pub type SysCaptureOption = RENDERDOC_CaptureOption;
 pub type SysInputButton = RENDERDOC_InputButton;
 pub type SysDevicePointer = RENDERDOC_DevicePointer;
