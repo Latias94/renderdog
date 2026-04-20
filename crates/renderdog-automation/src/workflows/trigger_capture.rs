@@ -2,12 +2,10 @@ use std::path::Path;
 
 use thiserror::Error;
 
-use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
-use crate::{
-    QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
-};
+use crate::RenderDocInstallation;
+use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
 
-use super::{TriggerCaptureRequest, TriggerCaptureResponse, util::remove_if_exists};
+use super::{TriggerCaptureRequest, TriggerCaptureResponse};
 
 #[derive(Debug, Error)]
 pub enum TriggerCaptureError {
@@ -27,9 +25,17 @@ pub enum TriggerCaptureError {
     ScriptError(String),
 }
 
-impl From<crate::QRenderDocPythonError> for TriggerCaptureError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
+impl From<QRenderDocJsonJobError> for TriggerCaptureError {
+    fn from(value: QRenderDocJsonJobError) -> Self {
+        match value {
+            QRenderDocJsonJobError::CreateScriptsDir(err) => Self::CreateArtifactsDir(err),
+            QRenderDocJsonJobError::WriteScript(err) => Self::WriteScript(err),
+            QRenderDocJsonJobError::WriteRequest(err) => Self::WriteRequest(err),
+            QRenderDocJsonJobError::QRenderDocPython(err) => Self::QRenderDocPython(err),
+            QRenderDocJsonJobError::ReadResponse(err) => Self::ReadResponse(err),
+            QRenderDocJsonJobError::ParseJson(err) => Self::ParseJson(err),
+            QRenderDocJsonJobError::ScriptError(err) => Self::ScriptError(err),
+        }
     }
 }
 
@@ -39,41 +45,16 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &TriggerCaptureRequest,
     ) -> Result<TriggerCaptureResponse, TriggerCaptureError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(TriggerCaptureError::CreateArtifactsDir)?;
-
-        let script_path = scripts_dir.join("trigger_capture.py");
-        write_script_file(&script_path, TRIGGER_CAPTURE_PY)
-            .map_err(TriggerCaptureError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "trigger_capture")
-            .map_err(TriggerCaptureError::CreateArtifactsDir)?;
-        let request_path = run_dir.join("trigger_capture.request.json");
-        let response_path = run_dir.join("trigger_capture.response.json");
-        remove_if_exists(&response_path).map_err(TriggerCaptureError::WriteRequest)?;
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(req).map_err(TriggerCaptureError::ParseJson)?,
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "trigger_capture",
+                script_file_name: "trigger_capture.py",
+                script_content: TRIGGER_CAPTURE_PY,
+                request: req,
+            },
         )
-        .map_err(TriggerCaptureError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-        let _ = result;
-        let bytes = std::fs::read(&response_path).map_err(TriggerCaptureError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<TriggerCaptureResponse> =
-            serde_json::from_slice(&bytes).map_err(TriggerCaptureError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| TriggerCaptureError::ScriptError("missing result".into()))
-        } else {
-            Err(TriggerCaptureError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(TriggerCaptureError::from)
     }
 }
 

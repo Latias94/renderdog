@@ -634,7 +634,7 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = "renderdoc_find_events_and_save_outputs_png",
-            capture_path = %req.capture_path,
+            capture_path = %req.inner.capture_path,
             "start"
         );
         let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
@@ -651,23 +651,9 @@ impl RenderdogMcpServer {
         })?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
 
-        let find = install
-            .find_events(
-                &cwd,
-                &renderdog::FindEventsRequest {
-                    capture_path: capture_path.display().to_string(),
-                    only_drawcalls: req.only_drawcalls,
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                    max_results: req.max_results,
-                },
-            )
+        let res = install
+            .find_events_and_save_outputs_png(&cwd, &req.inner)
             .map_err(|e| {
                 tracing::error!(
                     tool = "renderdoc_find_events_and_save_outputs_png",
@@ -678,67 +664,17 @@ impl RenderdogMcpServer {
                     err = %e,
                     "details"
                 );
-                format!("find events failed: {e}")
-            })?;
-
-        let selected_event_id = match req.selection {
-            FindEventSelection::First => find.first_event_id,
-            FindEventSelection::Last => find.last_event_id,
-        }
-        .ok_or_else(|| "no matching events found".to_string())?;
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            capture_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
-        let replay = install
-            .replay_save_outputs_png(
-                &cwd,
-                &renderdog::ReplaySaveOutputsPngRequest {
-                    capture_path: capture_path.display().to_string(),
-                    event_id: Some(selected_event_id),
-                    output_dir,
-                    basename,
-                    include_depth: req.include_depth,
-                },
-            )
-            .map_err(|e| {
-                tracing::error!(
-                    tool = "renderdoc_find_events_and_save_outputs_png",
-                    "failed"
-                );
-                tracing::debug!(
-                    tool = "renderdoc_find_events_and_save_outputs_png",
-                    err = %e,
-                    "details"
-                );
-                format!("save outputs PNG failed: {e}")
+                format!("find events and save outputs PNG failed: {e}")
             })?;
 
         tracing::info!(
             tool = "renderdoc_find_events_and_save_outputs_png",
             elapsed_ms = start.elapsed().as_millis(),
-            selected_event_id,
-            images = replay.outputs.len(),
+            selected_event_id = res.selected_event_id,
+            images = res.replay.outputs.len(),
             "ok"
         );
-
-        Ok(Json(FindEventsAndSaveOutputsPngResponse {
-            find,
-            selected_event_id,
-            replay,
-        }))
+        Ok(Json(res))
     }
 
     #[tool(
@@ -986,8 +922,8 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = "renderdoc_capture_and_export_actions_jsonl",
-            executable = %req.executable,
-            args_len = req.args.len(),
+            executable = %req.inner.executable,
+            args_len = req.inner.args.len(),
             "start"
         );
 
@@ -1005,51 +941,8 @@ impl RenderdogMcpServer {
         })?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-
-        let artifacts_dir = req
-            .artifacts_dir
-            .as_deref()
-            .map(|p| resolve_path_from_base(&cwd, p))
-            .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
-
-        std::fs::create_dir_all(&artifacts_dir)
-            .map_err(|e| format!("create artifacts_dir failed: {e}"))?;
-
-        let capture_file_template = req
-            .capture_template_name
-            .as_deref()
-            .map(|name| artifacts_dir.join(format!("{name}.rdc")));
-
-        let launch_req = renderdog::CaptureLaunchRequest {
-            executable: resolve_path_from_base(&cwd, &req.executable),
-            args: req.args.into_iter().map(OsString::from).collect(),
-            working_dir: req.working_dir.map(|p| resolve_path_from_base(&cwd, &p)),
-            capture_file_template: capture_file_template.clone(),
-        };
-
-        let launch_res = install.launch_capture(&launch_req).map_err(|e| {
-            tracing::error!(
-                tool = "renderdoc_capture_and_export_actions_jsonl",
-                "failed"
-            );
-            tracing::debug!(
-                tool = "renderdoc_capture_and_export_actions_jsonl",
-                err = %e,
-                "details"
-            );
-            format!("launch capture failed: {e}")
-        })?;
-
-        let capture_res = install
-            .trigger_capture_via_target_control(
-                &cwd,
-                &renderdog::TriggerCaptureRequest {
-                    host: req.host,
-                    target_ident: launch_res.target_ident,
-                    num_frames: req.num_frames,
-                    timeout_s: req.timeout_s,
-                },
-            )
+        let res = install
+            .capture_and_export_actions_jsonl(&cwd, &req.inner)
             .map_err(|e| {
                 tracing::error!(
                     tool = "renderdoc_capture_and_export_actions_jsonl",
@@ -1060,75 +953,20 @@ impl RenderdogMcpServer {
                     err = %e,
                     "details"
                 );
-                format!("trigger capture failed: {e}")
-            })?;
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            Path::new(&capture_res.capture_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
-        let export_res = install
-            .export_actions_jsonl(
-                &cwd,
-                &renderdog::ExportActionsRequest {
-                    capture_path: capture_res.capture_path.clone(),
-                    output_dir: output_dir.clone(),
-                    basename: basename.clone(),
-                    only_drawcalls: req.only_drawcalls,
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                },
-            )
-            .map_err(|e| {
-                tracing::error!(
-                    tool = "renderdoc_capture_and_export_actions_jsonl",
-                    "failed"
-                );
-                tracing::debug!(
-                    tool = "renderdoc_capture_and_export_actions_jsonl",
-                    err = %e,
-                    "details"
-                );
-                format!("export actions failed: {e}")
+                format!("one-shot capture/export actions failed: {e}")
             })?;
 
         tracing::info!(
             tool = "renderdoc_capture_and_export_actions_jsonl",
             elapsed_ms = start.elapsed().as_millis(),
-            target_ident = launch_res.target_ident,
-            capture_path = %export_res.capture_path,
-            actions_jsonl_path = %export_res.actions_jsonl_path,
-            total_actions = export_res.total_actions,
+            target_ident = res.target_ident,
+            capture_path = %res.capture_path,
+            actions_jsonl_path = %res.actions_jsonl_path,
+            total_actions = res.total_actions,
             "ok"
         );
 
-        Ok(Json(CaptureAndExportActionsResponse {
-            target_ident: launch_res.target_ident,
-            capture_path: export_res.capture_path,
-            capture_file_template: capture_file_template.map(|p| p.display().to_string()),
-            stdout: launch_res.stdout,
-            stderr: launch_res.stderr,
-            actions_jsonl_path: export_res.actions_jsonl_path,
-            summary_json_path: export_res.summary_json_path,
-            total_actions: export_res.total_actions,
-            drawcall_actions: export_res.drawcall_actions,
-        }))
+        Ok(Json(res))
     }
 
     #[tool(
@@ -1142,8 +980,8 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = "renderdoc_capture_and_export_bindings_jsonl",
-            executable = %req.executable,
-            args_len = req.args.len(),
+            executable = %req.inner.executable,
+            args_len = req.inner.args.len(),
             "start"
         );
 
@@ -1161,51 +999,8 @@ impl RenderdogMcpServer {
         })?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-
-        let artifacts_dir = req
-            .artifacts_dir
-            .as_deref()
-            .map(|p| resolve_path_from_base(&cwd, p))
-            .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
-
-        std::fs::create_dir_all(&artifacts_dir)
-            .map_err(|e| format!("create artifacts_dir failed: {e}"))?;
-
-        let capture_file_template = req
-            .capture_template_name
-            .as_deref()
-            .map(|name| artifacts_dir.join(format!("{name}.rdc")));
-
-        let launch_req = renderdog::CaptureLaunchRequest {
-            executable: resolve_path_from_base(&cwd, &req.executable),
-            args: req.args.into_iter().map(OsString::from).collect(),
-            working_dir: req.working_dir.map(|p| resolve_path_from_base(&cwd, &p)),
-            capture_file_template: capture_file_template.clone(),
-        };
-
-        let launch_res = install.launch_capture(&launch_req).map_err(|e| {
-            tracing::error!(
-                tool = "renderdoc_capture_and_export_bindings_jsonl",
-                "failed"
-            );
-            tracing::debug!(
-                tool = "renderdoc_capture_and_export_bindings_jsonl",
-                err = %e,
-                "details"
-            );
-            format!("launch capture failed: {e}")
-        })?;
-
-        let capture_res = install
-            .trigger_capture_via_target_control(
-                &cwd,
-                &renderdog::TriggerCaptureRequest {
-                    host: req.host,
-                    target_ident: launch_res.target_ident,
-                    num_frames: req.num_frames,
-                    timeout_s: req.timeout_s,
-                },
-            )
+        let res = install
+            .capture_and_export_bindings_index_jsonl(&cwd, &req.inner)
             .map_err(|e| {
                 tracing::error!(
                     tool = "renderdoc_capture_and_export_bindings_jsonl",
@@ -1216,75 +1011,20 @@ impl RenderdogMcpServer {
                     err = %e,
                     "details"
                 );
-                format!("trigger capture failed: {e}")
-            })?;
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            Path::new(&capture_res.capture_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
-        let export_res = install
-            .export_bindings_index_jsonl(
-                &cwd,
-                &renderdog::ExportBindingsIndexRequest {
-                    capture_path: capture_res.capture_path.clone(),
-                    output_dir: output_dir.clone(),
-                    basename: basename.clone(),
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                    include_cbuffers: req.include_cbuffers,
-                    include_outputs: req.include_outputs,
-                },
-            )
-            .map_err(|e| {
-                tracing::error!(
-                    tool = "renderdoc_capture_and_export_bindings_jsonl",
-                    "failed"
-                );
-                tracing::debug!(
-                    tool = "renderdoc_capture_and_export_bindings_jsonl",
-                    err = %e,
-                    "details"
-                );
-                format!("export bindings index failed: {e}")
+                format!("one-shot capture/export bindings failed: {e}")
             })?;
 
         tracing::info!(
             tool = "renderdoc_capture_and_export_bindings_jsonl",
             elapsed_ms = start.elapsed().as_millis(),
-            target_ident = launch_res.target_ident,
-            capture_path = %export_res.capture_path,
-            bindings_jsonl_path = %export_res.bindings_jsonl_path,
-            total_drawcalls = export_res.total_drawcalls,
+            target_ident = res.target_ident,
+            capture_path = %res.capture_path,
+            bindings_jsonl_path = %res.bindings_jsonl_path,
+            total_drawcalls = res.total_drawcalls,
             "ok"
         );
 
-        Ok(Json(CaptureAndExportBindingsIndexResponse {
-            target_ident: launch_res.target_ident,
-            capture_path: export_res.capture_path,
-            capture_file_template: capture_file_template.map(|p| p.display().to_string()),
-            stdout: launch_res.stdout,
-            stderr: launch_res.stderr,
-            bindings_jsonl_path: export_res.bindings_jsonl_path,
-            summary_json_path: export_res.summary_json_path,
-            total_drawcalls: export_res.total_drawcalls,
-        }))
+        Ok(Json(res))
     }
 
     #[tool(
@@ -1298,8 +1038,8 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = "renderdoc_capture_and_export_bundle_jsonl",
-            executable = %req.executable,
-            args_len = req.args.len(),
+            executable = %req.inner.executable,
+            args_len = req.inner.args.len(),
             "start"
         );
 
@@ -1314,48 +1054,8 @@ impl RenderdogMcpServer {
         })?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-
-        let artifacts_dir = req
-            .artifacts_dir
-            .as_deref()
-            .map(|p| resolve_path_from_base(&cwd, p))
-            .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
-
-        std::fs::create_dir_all(&artifacts_dir)
-            .map_err(|e| format!("create artifacts_dir failed: {e}"))?;
-
-        let capture_file_template = req
-            .capture_template_name
-            .as_deref()
-            .map(|name| artifacts_dir.join(format!("{name}.rdc")));
-
-        let launch_req = renderdog::CaptureLaunchRequest {
-            executable: resolve_path_from_base(&cwd, &req.executable),
-            args: req.args.into_iter().map(OsString::from).collect(),
-            working_dir: req.working_dir.map(|p| resolve_path_from_base(&cwd, &p)),
-            capture_file_template: capture_file_template.clone(),
-        };
-
-        let launch_res = install.launch_capture(&launch_req).map_err(|e| {
-            tracing::error!(tool = "renderdoc_capture_and_export_bundle_jsonl", "failed");
-            tracing::debug!(
-                tool = "renderdoc_capture_and_export_bundle_jsonl",
-                err = %e,
-                "details"
-            );
-            format!("launch capture failed: {e}")
-        })?;
-
-        let capture_res = install
-            .trigger_capture_via_target_control(
-                &cwd,
-                &renderdog::TriggerCaptureRequest {
-                    host: req.host,
-                    target_ident: launch_res.target_ident,
-                    num_frames: req.num_frames,
-                    timeout_s: req.timeout_s,
-                },
-            )
+        let res = install
+            .capture_and_export_bundle_jsonl(&cwd, &req.inner)
             .map_err(|e| {
                 tracing::error!(tool = "renderdoc_capture_and_export_bundle_jsonl", "failed");
                 tracing::debug!(
@@ -1363,112 +1063,21 @@ impl RenderdogMcpServer {
                     err = %e,
                     "details"
                 );
-                format!("trigger capture failed: {e}")
+                format!("one-shot capture/export bundle failed: {e}")
             })?;
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            Path::new(&capture_res.capture_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
-        let export_res = install
-            .export_bundle_jsonl(
-                &cwd,
-                &renderdog::ExportBundleRequest {
-                    capture_path: capture_res.capture_path.clone(),
-                    output_dir: output_dir.clone(),
-                    basename: basename.clone(),
-                    only_drawcalls: req.only_drawcalls,
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                    include_cbuffers: req.include_cbuffers,
-                    include_outputs: req.include_outputs,
-                },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_capture_and_export_bundle_jsonl", "failed");
-                tracing::debug!(
-                    tool = "renderdoc_capture_and_export_bundle_jsonl",
-                    err = %e,
-                    "details"
-                );
-                format!("export bundle failed: {e}")
-            })?;
-
-        let mut thumbnail_output_path: Option<String> = None;
-        if req.save_thumbnail {
-            let thumb_path = req
-                .thumbnail_output_path
-                .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-                .unwrap_or_else(|| {
-                    Path::new(&output_dir)
-                        .join(format!("{basename}.thumb.png"))
-                        .display()
-                        .to_string()
-                });
-            if let Some(parent) = Path::new(&thumb_path).parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("create thumbnail output dir failed: {e}"))?;
-            }
-            install
-                .save_thumbnail(Path::new(&export_res.capture_path), Path::new(&thumb_path))
-                .map_err(|e| format!("save thumbnail failed: {e}"))?;
-            thumbnail_output_path = Some(thumb_path);
-        }
-
-        let mut ui_pid: Option<u32> = None;
-        if req.open_capture_ui {
-            let child = install
-                .open_capture_in_ui(Path::new(&export_res.capture_path))
-                .map_err(|e| format!("open capture UI failed: {e}"))?;
-            ui_pid = Some(child.id());
-        }
 
         tracing::info!(
             tool = "renderdoc_capture_and_export_bundle_jsonl",
             elapsed_ms = start.elapsed().as_millis(),
-            target_ident = launch_res.target_ident,
-            capture_path = %export_res.capture_path,
-            actions_jsonl_path = %export_res.actions_jsonl_path,
-            bindings_jsonl_path = %export_res.bindings_jsonl_path,
-            total_actions = export_res.total_actions,
-            total_drawcalls = export_res.total_drawcalls,
+            target_ident = res.target_ident,
+            capture_path = %res.capture_path,
+            actions_jsonl_path = %res.actions_jsonl_path,
+            bindings_jsonl_path = %res.bindings_jsonl_path,
+            total_actions = res.total_actions,
+            total_drawcalls = res.total_drawcalls,
             "ok"
         );
 
-        Ok(Json(CaptureAndExportBundleResponse {
-            target_ident: launch_res.target_ident,
-            capture_path: export_res.capture_path,
-            capture_file_template: capture_file_template.map(|p| p.display().to_string()),
-            stdout: launch_res.stdout,
-            stderr: launch_res.stderr,
-
-            actions_jsonl_path: export_res.actions_jsonl_path,
-            actions_summary_json_path: export_res.actions_summary_json_path,
-            total_actions: export_res.total_actions,
-            drawcall_actions: export_res.drawcall_actions,
-
-            bindings_jsonl_path: export_res.bindings_jsonl_path,
-            bindings_summary_json_path: export_res.bindings_summary_json_path,
-            total_drawcalls: export_res.total_drawcalls,
-
-            thumbnail_output_path,
-            ui_pid,
-        }))
+        Ok(Json(res))
     }
 }

@@ -3,14 +3,25 @@
 mod export_actions;
 mod export_bindings_index;
 mod export_bundle;
+mod find_and_save_outputs;
 mod find_events;
+mod one_shot;
 mod trigger_capture;
-mod util;
 
 pub use export_actions::ExportActionsError;
 pub use export_bindings_index::ExportBindingsIndexError;
 pub use export_bundle::ExportBundleError;
+pub use find_and_save_outputs::{
+    FindEventSelection, FindEventsAndSaveOutputsPngError, FindEventsAndSaveOutputsPngRequest,
+    FindEventsAndSaveOutputsPngResponse,
+};
 pub use find_events::FindEventsError;
+pub use one_shot::{
+    CaptureAndExportActionsError, CaptureAndExportActionsRequest, CaptureAndExportActionsResponse,
+    CaptureAndExportBindingsIndexError, CaptureAndExportBindingsIndexRequest,
+    CaptureAndExportBindingsIndexResponse, CaptureAndExportBundleError,
+    CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, PrepareOneShotCaptureError,
+};
 pub use trigger_capture::TriggerCaptureError;
 
 use schemars::JsonSchema;

@@ -2,12 +2,10 @@ use std::path::Path;
 
 use thiserror::Error;
 
-use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
-use crate::{
-    QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
-};
+use crate::RenderDocInstallation;
+use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
 
-use super::{FindEventsRequest, FindEventsResponse, util::remove_if_exists};
+use super::{FindEventsRequest, FindEventsResponse};
 
 #[derive(Debug, Error)]
 pub enum FindEventsError {
@@ -27,9 +25,17 @@ pub enum FindEventsError {
     ScriptError(String),
 }
 
-impl From<crate::QRenderDocPythonError> for FindEventsError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
+impl From<QRenderDocJsonJobError> for FindEventsError {
+    fn from(value: QRenderDocJsonJobError) -> Self {
+        match value {
+            QRenderDocJsonJobError::CreateScriptsDir(err) => Self::CreateScriptsDir(err),
+            QRenderDocJsonJobError::WriteScript(err) => Self::WriteScript(err),
+            QRenderDocJsonJobError::WriteRequest(err) => Self::WriteRequest(err),
+            QRenderDocJsonJobError::QRenderDocPython(err) => Self::QRenderDocPython(err),
+            QRenderDocJsonJobError::ReadResponse(err) => Self::ReadResponse(err),
+            QRenderDocJsonJobError::ParseJson(err) => Self::ParseJson(err),
+            QRenderDocJsonJobError::ScriptError(err) => Self::ScriptError(err),
+        }
     }
 }
 
@@ -39,47 +45,21 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsRequest,
     ) -> Result<FindEventsResponse, FindEventsError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(FindEventsError::CreateScriptsDir)?;
-
-        let script_path = scripts_dir.join("find_events_json.py");
-        write_script_file(&script_path, FIND_EVENTS_JSON_PY)
-            .map_err(FindEventsError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "find_events")
-            .map_err(FindEventsError::CreateScriptsDir)?;
-        let request_path = run_dir.join("find_events_json.request.json");
-        let response_path = run_dir.join("find_events_json.response.json");
-        remove_if_exists(&response_path).map_err(FindEventsError::WriteRequest)?;
-
         let req = FindEventsRequest {
             capture_path: crate::resolve_path_string_from_cwd(cwd, &req.capture_path),
             ..req.clone()
         };
 
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(&req).map_err(FindEventsError::ParseJson)?,
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "find_events",
+                script_file_name: "find_events_json.py",
+                script_content: FIND_EVENTS_JSON_PY,
+                request: &req,
+            },
         )
-        .map_err(FindEventsError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-        let _ = result;
-        let bytes = std::fs::read(&response_path).map_err(FindEventsError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<FindEventsResponse> =
-            serde_json::from_slice(&bytes).map_err(FindEventsError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| FindEventsError::ScriptError("missing result".into()))
-        } else {
-            Err(FindEventsError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(FindEventsError::from)
     }
 }
 

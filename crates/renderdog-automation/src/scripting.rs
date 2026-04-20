@@ -4,9 +4,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
+use crate::default_scripts_dir;
 use crate::{CommandError, CommandSpec, run_command_expect_success};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -40,6 +42,38 @@ pub(crate) fn create_qrenderdoc_run_dir(
     Ok(run_dir)
 }
 
+#[derive(Debug, Error)]
+pub(crate) enum QRenderDocJsonJobError {
+    #[error("failed to create scripts dir: {0}")]
+    CreateScriptsDir(std::io::Error),
+    #[error("failed to write python script: {0}")]
+    WriteScript(std::io::Error),
+    #[error("failed to write request JSON: {0}")]
+    WriteRequest(std::io::Error),
+    #[error("qrenderdoc python failed: {0}")]
+    QRenderDocPython(Box<QRenderDocPythonError>),
+    #[error("failed to read response JSON: {0}")]
+    ReadResponse(std::io::Error),
+    #[error("failed to parse JSON: {0}")]
+    ParseJson(serde_json::Error),
+    #[error("qrenderdoc script error: {0}")]
+    ScriptError(String),
+}
+
+impl From<QRenderDocPythonError> for QRenderDocJsonJobError {
+    fn from(value: QRenderDocPythonError) -> Self {
+        Self::QRenderDocPython(Box::new(value))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct QRenderDocJsonJobRequest<'a, T> {
+    pub run_dir_prefix: &'a str,
+    pub script_file_name: &'a str,
+    pub script_content: &'a str,
+    pub request: &'a T,
+}
+
 #[derive(Debug, Clone)]
 pub struct QRenderDocPythonRequest {
     pub script_path: PathBuf,
@@ -69,6 +103,57 @@ impl From<CommandError> for QRenderDocPythonError {
 }
 
 impl RenderDocInstallation {
+    pub(crate) fn run_qrenderdoc_json_job<TReq, TResp>(
+        &self,
+        cwd: &Path,
+        req: &QRenderDocJsonJobRequest<'_, TReq>,
+    ) -> Result<TResp, QRenderDocJsonJobError>
+    where
+        TReq: Serialize,
+        TResp: DeserializeOwned,
+    {
+        let scripts_dir = default_scripts_dir(cwd);
+        std::fs::create_dir_all(&scripts_dir).map_err(QRenderDocJsonJobError::CreateScriptsDir)?;
+
+        let script_path = scripts_dir.join(req.script_file_name);
+        write_script_file(&script_path, req.script_content)
+            .map_err(QRenderDocJsonJobError::WriteScript)?;
+
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, req.run_dir_prefix)
+            .map_err(QRenderDocJsonJobError::CreateScriptsDir)?;
+        let job_file_stem = Path::new(req.script_file_name)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(req.script_file_name);
+        let request_path = run_dir.join(format!("{job_file_stem}.request.json"));
+        let response_path = run_dir.join(format!("{job_file_stem}.response.json"));
+        remove_if_exists(&response_path).map_err(QRenderDocJsonJobError::WriteRequest)?;
+
+        std::fs::write(
+            &request_path,
+            serde_json::to_vec(req.request).map_err(QRenderDocJsonJobError::ParseJson)?,
+        )
+        .map_err(QRenderDocJsonJobError::WriteRequest)?;
+
+        let _ = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
+            script_path,
+            args: Vec::new(),
+            working_dir: Some(run_dir),
+        })?;
+
+        let bytes = std::fs::read(&response_path).map_err(QRenderDocJsonJobError::ReadResponse)?;
+        let env: QRenderDocJsonEnvelope<TResp> =
+            serde_json::from_slice(&bytes).map_err(QRenderDocJsonJobError::ParseJson)?;
+        if env.ok {
+            env.result
+                .ok_or_else(|| QRenderDocJsonJobError::ScriptError("missing result".into()))
+        } else {
+            Err(QRenderDocJsonJobError::ScriptError(
+                env.error.unwrap_or_else(|| "unknown error".into()),
+            ))
+        }
+    }
+
     pub fn run_qrenderdoc_python(
         &self,
         req: &QRenderDocPythonRequest,
@@ -102,4 +187,12 @@ pub fn write_script_file(path: &Path, content: &str) -> Result<(), std::io::Erro
         fs::create_dir_all(parent)?;
     }
     fs::write(path, content.as_bytes())
+}
+
+fn remove_if_exists(path: &Path) -> Result<(), std::io::Error> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
 }

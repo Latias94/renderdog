@@ -2,13 +2,11 @@ use std::path::Path;
 
 use thiserror::Error;
 
+use crate::RenderDocInstallation;
 use crate::resolve_path_string_from_cwd;
-use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
-use crate::{
-    QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
-};
+use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
 
-use super::{ExportActionsRequest, ExportActionsResponse, util::remove_if_exists};
+use super::{ExportActionsRequest, ExportActionsResponse};
 
 #[derive(Debug, Error)]
 pub enum ExportActionsError {
@@ -28,9 +26,17 @@ pub enum ExportActionsError {
     ScriptError(String),
 }
 
-impl From<crate::QRenderDocPythonError> for ExportActionsError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
+impl From<QRenderDocJsonJobError> for ExportActionsError {
+    fn from(value: QRenderDocJsonJobError) -> Self {
+        match value {
+            QRenderDocJsonJobError::CreateScriptsDir(err) => Self::CreateOutputDir(err),
+            QRenderDocJsonJobError::WriteScript(err) => Self::WriteScript(err),
+            QRenderDocJsonJobError::WriteRequest(err) => Self::WriteRequest(err),
+            QRenderDocJsonJobError::QRenderDocPython(err) => Self::QRenderDocPython(err),
+            QRenderDocJsonJobError::ReadResponse(err) => Self::ReadResponse(err),
+            QRenderDocJsonJobError::ParseJson(err) => Self::ParseJson(err),
+            QRenderDocJsonJobError::ScriptError(err) => Self::ScriptError(err),
+        }
     }
 }
 
@@ -40,48 +46,22 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportActionsRequest,
     ) -> Result<ExportActionsResponse, ExportActionsError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(ExportActionsError::CreateOutputDir)?;
-
-        let script_path = scripts_dir.join("export_actions_jsonl.py");
-        write_script_file(&script_path, EXPORT_ACTIONS_JSONL_PY)
-            .map_err(ExportActionsError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "export_actions_jsonl")
-            .map_err(ExportActionsError::CreateOutputDir)?;
-        let request_path = run_dir.join("export_actions_jsonl.request.json");
-        let response_path = run_dir.join("export_actions_jsonl.response.json");
-        remove_if_exists(&response_path).map_err(ExportActionsError::WriteRequest)?;
-
         let req = ExportActionsRequest {
             capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
             output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
             ..req.clone()
         };
 
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(&req).map_err(ExportActionsError::ParseJson)?,
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "export_actions_jsonl",
+                script_file_name: "export_actions_jsonl.py",
+                script_content: EXPORT_ACTIONS_JSONL_PY,
+                request: &req,
+            },
         )
-        .map_err(ExportActionsError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-        let _ = result;
-        let bytes = std::fs::read(&response_path).map_err(ExportActionsError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<ExportActionsResponse> =
-            serde_json::from_slice(&bytes).map_err(ExportActionsError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| ExportActionsError::ScriptError("missing result".into()))
-        } else {
-            Err(ExportActionsError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(ExportActionsError::from)
     }
 }
 

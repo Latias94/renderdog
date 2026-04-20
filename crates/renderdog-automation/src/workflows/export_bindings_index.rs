@@ -2,13 +2,11 @@ use std::path::Path;
 
 use thiserror::Error;
 
+use crate::RenderDocInstallation;
 use crate::resolve_path_string_from_cwd;
-use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
-use crate::{
-    QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
-};
+use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
 
-use super::{ExportBindingsIndexRequest, ExportBindingsIndexResponse, util::remove_if_exists};
+use super::{ExportBindingsIndexRequest, ExportBindingsIndexResponse};
 
 #[derive(Debug, Error)]
 pub enum ExportBindingsIndexError {
@@ -28,9 +26,17 @@ pub enum ExportBindingsIndexError {
     ScriptError(String),
 }
 
-impl From<crate::QRenderDocPythonError> for ExportBindingsIndexError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
+impl From<QRenderDocJsonJobError> for ExportBindingsIndexError {
+    fn from(value: QRenderDocJsonJobError) -> Self {
+        match value {
+            QRenderDocJsonJobError::CreateScriptsDir(err) => Self::CreateOutputDir(err),
+            QRenderDocJsonJobError::WriteScript(err) => Self::WriteScript(err),
+            QRenderDocJsonJobError::WriteRequest(err) => Self::WriteRequest(err),
+            QRenderDocJsonJobError::QRenderDocPython(err) => Self::QRenderDocPython(err),
+            QRenderDocJsonJobError::ReadResponse(err) => Self::ReadResponse(err),
+            QRenderDocJsonJobError::ParseJson(err) => Self::ParseJson(err),
+            QRenderDocJsonJobError::ScriptError(err) => Self::ScriptError(err),
+        }
     }
 }
 
@@ -40,49 +46,22 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBindingsIndexRequest,
     ) -> Result<ExportBindingsIndexResponse, ExportBindingsIndexError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(ExportBindingsIndexError::CreateOutputDir)?;
-
-        let script_path = scripts_dir.join("export_bindings_index_jsonl.py");
-        write_script_file(&script_path, EXPORT_BINDINGS_INDEX_JSONL_PY)
-            .map_err(ExportBindingsIndexError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "export_bindings_index_jsonl")
-            .map_err(ExportBindingsIndexError::CreateOutputDir)?;
-        let request_path = run_dir.join("export_bindings_index_jsonl.request.json");
-        let response_path = run_dir.join("export_bindings_index_jsonl.response.json");
-        remove_if_exists(&response_path).map_err(ExportBindingsIndexError::WriteRequest)?;
-
         let req = ExportBindingsIndexRequest {
             capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
             output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
             ..req.clone()
         };
 
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(&req).map_err(ExportBindingsIndexError::ParseJson)?,
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "export_bindings_index_jsonl",
+                script_file_name: "export_bindings_index_jsonl.py",
+                script_content: EXPORT_BINDINGS_INDEX_JSONL_PY,
+                request: &req,
+            },
         )
-        .map_err(ExportBindingsIndexError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-        let _ = result;
-        let bytes =
-            std::fs::read(&response_path).map_err(ExportBindingsIndexError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<ExportBindingsIndexResponse> =
-            serde_json::from_slice(&bytes).map_err(ExportBindingsIndexError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| ExportBindingsIndexError::ScriptError("missing result".into()))
-        } else {
-            Err(ExportBindingsIndexError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(ExportBindingsIndexError::from)
     }
 }
 

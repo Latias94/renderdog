@@ -4,11 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::RenderDocInstallation;
 use crate::resolve_path_string_from_cwd;
-use crate::scripting::{QRenderDocJsonEnvelope, create_qrenderdoc_run_dir};
-use crate::{
-    QRenderDocPythonRequest, RenderDocInstallation, default_scripts_dir, write_script_file,
-};
+use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayListTexturesRequest {
@@ -114,12 +112,6 @@ pub enum ReplayListTexturesError {
     ScriptError(String),
 }
 
-impl From<crate::QRenderDocPythonError> for ReplayListTexturesError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum ReplayPickPixelError {
     #[error("failed to create scripts dir: {0}")]
@@ -136,12 +128,6 @@ pub enum ReplayPickPixelError {
     ParseJson(serde_json::Error),
     #[error("qrenderdoc script error: {0}")]
     ScriptError(String),
-}
-
-impl From<crate::QRenderDocPythonError> for ReplayPickPixelError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
-    }
 }
 
 #[derive(Debug, Error)]
@@ -162,12 +148,6 @@ pub enum ReplaySaveTexturePngError {
     ScriptError(String),
 }
 
-impl From<crate::QRenderDocPythonError> for ReplaySaveTexturePngError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum ReplaySaveOutputsPngError {
     #[error("failed to create scripts dir: {0}")]
@@ -186,19 +166,28 @@ pub enum ReplaySaveOutputsPngError {
     ScriptError(String),
 }
 
-impl From<crate::QRenderDocPythonError> for ReplaySaveOutputsPngError {
-    fn from(value: crate::QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
-    }
+macro_rules! impl_from_json_job_error {
+    ($error_ty:ident) => {
+        impl From<QRenderDocJsonJobError> for $error_ty {
+            fn from(value: QRenderDocJsonJobError) -> Self {
+                match value {
+                    QRenderDocJsonJobError::CreateScriptsDir(err) => Self::CreateScriptsDir(err),
+                    QRenderDocJsonJobError::WriteScript(err) => Self::WriteScript(err),
+                    QRenderDocJsonJobError::WriteRequest(err) => Self::WriteRequest(err),
+                    QRenderDocJsonJobError::QRenderDocPython(err) => Self::QRenderDocPython(err),
+                    QRenderDocJsonJobError::ReadResponse(err) => Self::ReadResponse(err),
+                    QRenderDocJsonJobError::ParseJson(err) => Self::ParseJson(err),
+                    QRenderDocJsonJobError::ScriptError(err) => Self::ScriptError(err),
+                }
+            }
+        }
+    };
 }
 
-fn remove_if_exists(path: &Path) -> Result<(), std::io::Error> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e),
-    }
-}
+impl_from_json_job_error!(ReplayListTexturesError);
+impl_from_json_job_error!(ReplayPickPixelError);
+impl_from_json_job_error!(ReplaySaveTexturePngError);
+impl_from_json_job_error!(ReplaySaveOutputsPngError);
 
 impl RenderDocInstallation {
     pub fn replay_list_textures(
@@ -206,47 +195,21 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayListTexturesRequest,
     ) -> Result<ReplayListTexturesResponse, ReplayListTexturesError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(ReplayListTexturesError::CreateScriptsDir)?;
-
-        let script_path = scripts_dir.join("replay_list_textures_json.py");
-        write_script_file(&script_path, REPLAY_LIST_TEXTURES_JSON_PY)
-            .map_err(ReplayListTexturesError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "replay_list_textures")
-            .map_err(ReplayListTexturesError::CreateScriptsDir)?;
-        let request_path = run_dir.join("replay_list_textures_json.request.json");
-        let response_path = run_dir.join("replay_list_textures_json.response.json");
-        remove_if_exists(&response_path).map_err(ReplayListTexturesError::WriteRequest)?;
-
         let req = ReplayListTexturesRequest {
             capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
             ..req.clone()
         };
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(&req).map_err(ReplayListTexturesError::ParseJson)?,
+
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "replay_list_textures",
+                script_file_name: "replay_list_textures_json.py",
+                script_content: REPLAY_LIST_TEXTURES_JSON_PY,
+                request: &req,
+            },
         )
-        .map_err(ReplayListTexturesError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-
-        let _ = result;
-        let bytes = std::fs::read(&response_path).map_err(ReplayListTexturesError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<ReplayListTexturesResponse> =
-            serde_json::from_slice(&bytes).map_err(ReplayListTexturesError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| ReplayListTexturesError::ScriptError("missing result".into()))
-        } else {
-            Err(ReplayListTexturesError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(ReplayListTexturesError::from)
     }
 
     pub fn replay_pick_pixel(
@@ -254,47 +217,21 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayPickPixelRequest,
     ) -> Result<ReplayPickPixelResponse, ReplayPickPixelError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(ReplayPickPixelError::CreateScriptsDir)?;
-
-        let script_path = scripts_dir.join("replay_pick_pixel_json.py");
-        write_script_file(&script_path, REPLAY_PICK_PIXEL_JSON_PY)
-            .map_err(ReplayPickPixelError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "replay_pick_pixel")
-            .map_err(ReplayPickPixelError::CreateScriptsDir)?;
-        let request_path = run_dir.join("replay_pick_pixel_json.request.json");
-        let response_path = run_dir.join("replay_pick_pixel_json.response.json");
-        remove_if_exists(&response_path).map_err(ReplayPickPixelError::WriteRequest)?;
-
         let req = ReplayPickPixelRequest {
             capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
             ..req.clone()
         };
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(&req).map_err(ReplayPickPixelError::ParseJson)?,
+
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "replay_pick_pixel",
+                script_file_name: "replay_pick_pixel_json.py",
+                script_content: REPLAY_PICK_PIXEL_JSON_PY,
+                request: &req,
+            },
         )
-        .map_err(ReplayPickPixelError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-
-        let _ = result;
-        let bytes = std::fs::read(&response_path).map_err(ReplayPickPixelError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<ReplayPickPixelResponse> =
-            serde_json::from_slice(&bytes).map_err(ReplayPickPixelError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| ReplayPickPixelError::ScriptError("missing result".into()))
-        } else {
-            Err(ReplayPickPixelError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(ReplayPickPixelError::from)
     }
 
     pub fn replay_save_texture_png(
@@ -302,50 +239,22 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveTexturePngRequest,
     ) -> Result<ReplaySaveTexturePngResponse, ReplaySaveTexturePngError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir)
-            .map_err(ReplaySaveTexturePngError::CreateScriptsDir)?;
-
-        let script_path = scripts_dir.join("replay_save_texture_png_json.py");
-        write_script_file(&script_path, REPLAY_SAVE_TEXTURE_PNG_JSON_PY)
-            .map_err(ReplaySaveTexturePngError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "replay_save_texture_png")
-            .map_err(ReplaySaveTexturePngError::CreateScriptsDir)?;
-        let request_path = run_dir.join("replay_save_texture_png_json.request.json");
-        let response_path = run_dir.join("replay_save_texture_png_json.response.json");
-        remove_if_exists(&response_path).map_err(ReplaySaveTexturePngError::WriteRequest)?;
-
         let req = ReplaySaveTexturePngRequest {
             capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
             output_path: resolve_path_string_from_cwd(cwd, &req.output_path),
             ..req.clone()
         };
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(&req).map_err(ReplaySaveTexturePngError::ParseJson)?,
+
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "replay_save_texture_png",
+                script_file_name: "replay_save_texture_png_json.py",
+                script_content: REPLAY_SAVE_TEXTURE_PNG_JSON_PY,
+                request: &req,
+            },
         )
-        .map_err(ReplaySaveTexturePngError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-
-        let _ = result;
-        let bytes =
-            std::fs::read(&response_path).map_err(ReplaySaveTexturePngError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<ReplaySaveTexturePngResponse> =
-            serde_json::from_slice(&bytes).map_err(ReplaySaveTexturePngError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| ReplaySaveTexturePngError::ScriptError("missing result".into()))
-        } else {
-            Err(ReplaySaveTexturePngError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(ReplaySaveTexturePngError::from)
     }
 
     pub fn replay_save_outputs_png(
@@ -353,50 +262,22 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveOutputsPngRequest,
     ) -> Result<ReplaySaveOutputsPngResponse, ReplaySaveOutputsPngError> {
-        let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir)
-            .map_err(ReplaySaveOutputsPngError::CreateScriptsDir)?;
-
-        let script_path = scripts_dir.join("replay_save_outputs_png_json.py");
-        write_script_file(&script_path, REPLAY_SAVE_OUTPUTS_PNG_JSON_PY)
-            .map_err(ReplaySaveOutputsPngError::WriteScript)?;
-
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, "replay_save_outputs_png")
-            .map_err(ReplaySaveOutputsPngError::CreateScriptsDir)?;
-        let request_path = run_dir.join("replay_save_outputs_png_json.request.json");
-        let response_path = run_dir.join("replay_save_outputs_png_json.response.json");
-        remove_if_exists(&response_path).map_err(ReplaySaveOutputsPngError::WriteRequest)?;
-
         let req = ReplaySaveOutputsPngRequest {
             capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
             output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
             ..req.clone()
         };
-        std::fs::write(
-            &request_path,
-            serde_json::to_vec(&req).map_err(ReplaySaveOutputsPngError::ParseJson)?,
+
+        self.run_qrenderdoc_json_job(
+            cwd,
+            &QRenderDocJsonJobRequest {
+                run_dir_prefix: "replay_save_outputs_png",
+                script_file_name: "replay_save_outputs_png_json.py",
+                script_content: REPLAY_SAVE_OUTPUTS_PNG_JSON_PY,
+                request: &req,
+            },
         )
-        .map_err(ReplaySaveOutputsPngError::WriteRequest)?;
-
-        let result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path: script_path.clone(),
-            args: Vec::new(),
-            working_dir: Some(run_dir.clone()),
-        })?;
-
-        let _ = result;
-        let bytes =
-            std::fs::read(&response_path).map_err(ReplaySaveOutputsPngError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<ReplaySaveOutputsPngResponse> =
-            serde_json::from_slice(&bytes).map_err(ReplaySaveOutputsPngError::ParseJson)?;
-        if env.ok {
-            env.result
-                .ok_or_else(|| ReplaySaveOutputsPngError::ScriptError("missing result".into()))
-        } else {
-            Err(ReplaySaveOutputsPngError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
-            ))
-        }
+        .map_err(ReplaySaveOutputsPngError::from)
     }
 }
 
