@@ -8,8 +8,6 @@ mod find_events;
 mod one_shot;
 mod trigger_capture;
 
-pub use export_actions::ExportActionsError;
-pub use export_bindings_index::ExportBindingsIndexError;
 pub use export_bundle::ExportBundleError;
 pub use find_and_save_outputs::{
     FindEventSelection, FindEventsAndSaveOutputsPngError, FindEventsAndSaveOutputsPngRequest,
@@ -157,7 +155,7 @@ pub struct TriggerCaptureResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ExportActionsRequest {
+pub(crate) struct ExportActionsRequest {
     #[serde(flatten)]
     pub capture: CaptureInput,
     #[serde(flatten)]
@@ -169,7 +167,7 @@ pub struct ExportActionsRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ExportActionsResponse {
+pub(crate) struct ExportActionsResponse {
     pub capture_path: String,
     pub actions_jsonl_path: String,
     pub summary_json_path: String,
@@ -212,7 +210,7 @@ pub struct FindEventsResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ExportBindingsIndexRequest {
+pub(crate) struct ExportBindingsIndexRequest {
     #[serde(flatten)]
     pub capture: CaptureInput,
     #[serde(flatten)]
@@ -224,7 +222,7 @@ pub struct ExportBindingsIndexRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ExportBindingsIndexResponse {
+pub(crate) struct ExportBindingsIndexResponse {
     pub capture_path: String,
     pub bindings_jsonl_path: String,
     pub summary_json_path: String,

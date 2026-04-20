@@ -70,7 +70,7 @@ impl From<QRenderDocPythonError> for QRenderDocJsonJobError {
 macro_rules! define_qrenderdoc_json_job_error_enum {
     (
         $(#[$meta:meta])*
-        pub enum $name:ident {
+        $vis:vis enum $name:ident {
             create_dir_variant: $create_variant:ident => $create_message:literal,
             parse_json_message: $parse_message:literal
             $(, extra_variant: $extra_variant:ident($extra_ty:ty) => $extra_message:literal)*
@@ -78,7 +78,7 @@ macro_rules! define_qrenderdoc_json_job_error_enum {
         }
     ) => {
         $(#[$meta])*
-        pub enum $name {
+        $vis enum $name {
             #[error($create_message)]
             $create_variant(std::io::Error),
         $(

@@ -3,25 +3,65 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::{
-    OpenCaptureUiError, RenderDocInstallation, normalize_capture_path, resolve_path_from_cwd,
+    OpenCaptureUiError, QRenderDocExecutionError, RenderDocInstallation, normalize_capture_path,
+    resolve_path_from_cwd,
 };
 
+use super::export_actions::ExportActionsError;
+use super::export_bindings_index::ExportBindingsIndexError;
 use super::{
-    CaptureInput, CapturePostActionOutputs, CapturePostActions, ExportActionsError,
-    ExportActionsRequest, ExportBindingsIndexError, ExportBindingsIndexRequest,
-    ExportBundleRequest, ExportBundleResponse,
+    CaptureInput, CapturePostActionOutputs, CapturePostActions, ExportActionsRequest,
+    ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse,
 };
 
 #[derive(Debug, Error)]
 pub enum ExportBundleError {
-    #[error("export actions failed: {0}")]
-    Actions(#[from] ExportActionsError),
-    #[error("export bindings index failed: {0}")]
-    Bindings(#[from] ExportBindingsIndexError),
+    #[error("failed to create output dir: {0}")]
+    CreateOutputDir(std::io::Error),
+    #[error("failed to write python script: {0}")]
+    WriteScript(std::io::Error),
+    #[error("failed to write request JSON: {0}")]
+    WriteRequest(std::io::Error),
+    #[error("qrenderdoc execution failed: {0}")]
+    QRenderDocExecution(Box<QRenderDocExecutionError>),
+    #[error("failed to read response JSON: {0}")]
+    ReadResponse(std::io::Error),
+    #[error("failed to parse export JSON: {0}")]
+    ParseJson(serde_json::Error),
+    #[error("qrenderdoc script error: {0}")]
+    ScriptError(String),
     #[error("save thumbnail failed: {0}")]
     SaveThumbnail(std::io::Error),
     #[error("open capture UI failed: {0}")]
     OpenCaptureUi(#[from] OpenCaptureUiError),
+}
+
+impl From<ExportActionsError> for ExportBundleError {
+    fn from(value: ExportActionsError) -> Self {
+        match value {
+            ExportActionsError::CreateOutputDir(err) => Self::CreateOutputDir(err),
+            ExportActionsError::WriteScript(err) => Self::WriteScript(err),
+            ExportActionsError::WriteRequest(err) => Self::WriteRequest(err),
+            ExportActionsError::QRenderDocExecution(err) => Self::QRenderDocExecution(err),
+            ExportActionsError::ReadResponse(err) => Self::ReadResponse(err),
+            ExportActionsError::ParseJson(err) => Self::ParseJson(err),
+            ExportActionsError::ScriptError(err) => Self::ScriptError(err),
+        }
+    }
+}
+
+impl From<ExportBindingsIndexError> for ExportBundleError {
+    fn from(value: ExportBindingsIndexError) -> Self {
+        match value {
+            ExportBindingsIndexError::CreateOutputDir(err) => Self::CreateOutputDir(err),
+            ExportBindingsIndexError::WriteScript(err) => Self::WriteScript(err),
+            ExportBindingsIndexError::WriteRequest(err) => Self::WriteRequest(err),
+            ExportBindingsIndexError::QRenderDocExecution(err) => Self::QRenderDocExecution(err),
+            ExportBindingsIndexError::ReadResponse(err) => Self::ReadResponse(err),
+            ExportBindingsIndexError::ParseJson(err) => Self::ParseJson(err),
+            ExportBindingsIndexError::ScriptError(err) => Self::ScriptError(err),
+        }
+    }
 }
 
 fn default_thumbnail_output_path(actions_jsonl_path: &str) -> PathBuf {

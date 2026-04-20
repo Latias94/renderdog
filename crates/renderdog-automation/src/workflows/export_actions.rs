@@ -13,7 +13,7 @@ use super::{ExportActionsRequest, ExportActionsResponse};
 
 define_qrenderdoc_json_job_error_enum! {
     #[derive(Debug, Error)]
-    pub enum ExportActionsError {
+    pub(crate) enum ExportActionsError {
         create_dir_variant: CreateOutputDir => "failed to create output dir: {0}",
         parse_json_message: "failed to parse export JSON: {0}",
     }
@@ -24,7 +24,7 @@ impl_qrenderdoc_json_job_error_conversion!(
 );
 
 impl RenderDocInstallation {
-    pub fn export_actions_jsonl(
+    pub(crate) fn export_actions_jsonl(
         &self,
         cwd: &Path,
         req: &ExportActionsRequest,
