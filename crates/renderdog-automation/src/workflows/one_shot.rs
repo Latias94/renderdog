@@ -34,7 +34,7 @@ pub struct CaptureAndExportBundleResponse {
 }
 
 #[derive(Debug, Error)]
-pub enum PrepareOneShotCaptureError {
+pub enum OneShotCaptureError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
     #[error("capture target failed: {0}")]
@@ -46,12 +46,12 @@ pub enum PrepareOneShotCaptureError {
 #[derive(Debug, Error)]
 pub enum CaptureAndExportBundleError {
     #[error(transparent)]
-    Prepare(#[from] PrepareOneShotCaptureError),
+    Capture(#[from] OneShotCaptureError),
     #[error("export bundle failed: {0}")]
     Export(#[from] ExportBundleError),
 }
 
-struct PreparedOneShotCapture {
+struct CompletedOneShotCapture {
     target_ident: u32,
     capture: CaptureInput,
     output: ExportOutput,
@@ -60,7 +60,7 @@ struct PreparedOneShotCapture {
     stderr: String,
 }
 
-impl PreparedOneShotCapture {
+impl CompletedOneShotCapture {
     fn export_bundle_request(&self, req: &CaptureAndExportBundleRequest) -> ExportBundleRequest {
         ExportBundleRequest {
             capture: self.capture.clone(),
@@ -92,20 +92,19 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &CaptureAndExportBundleRequest,
     ) -> Result<CaptureAndExportBundleResponse, CaptureAndExportBundleError> {
-        let prepared =
-            self.prepare_one_shot_capture(cwd, &req.target, &req.trigger, &req.output)?;
-        let export = self.export_bundle_jsonl(cwd, &prepared.export_bundle_request(req))?;
+        let capture = self.capture_one_shot(cwd, &req.target, &req.trigger, &req.output)?;
+        let export = self.export_bundle_jsonl(cwd, &capture.export_bundle_request(req))?;
 
-        Ok(prepared.into_response(export))
+        Ok(capture.into_response(export))
     }
 
-    fn prepare_one_shot_capture(
+    fn capture_one_shot(
         &self,
         cwd: &Path,
         target: &CaptureTargetRequest,
         trigger_options: &TriggerCaptureOptions,
         output: &ExportOutput,
-    ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
+    ) -> Result<CompletedOneShotCapture, OneShotCaptureError> {
         let prepared_target = self.prepare_capture_target(cwd, target)?;
         let launched_target = self.launch_prepared_capture_target(&prepared_target)?;
 
@@ -121,9 +120,9 @@ impl RenderDocInstallation {
                     capture_path: capture.capture_path,
                 },
             )
-            .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
+            .map_err(OneShotCaptureError::CreateOutputDir)?;
 
-        Ok(PreparedOneShotCapture {
+        Ok(CompletedOneShotCapture {
             target_ident: launched_target.target_ident,
             capture,
             output,
@@ -139,8 +138,8 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, PrepareOneShotCaptureError,
-        PreparedOneShotCapture,
+        CaptureAndExportBundleError, CaptureAndExportBundleRequest, CaptureAndExportBundleResponse,
+        CompletedOneShotCapture, OneShotCaptureError,
     };
     use crate::{
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
@@ -149,8 +148,8 @@ mod tests {
     };
 
     #[test]
-    fn prepared_one_shot_capture_builds_export_bundle_request() {
-        let prepared = PreparedOneShotCapture {
+    fn completed_one_shot_capture_builds_export_bundle_request() {
+        let capture = CompletedOneShotCapture {
             target_ident: 7,
             capture: CaptureInput {
                 capture_path: "/tmp/frame.rdc".to_string(),
@@ -193,7 +192,7 @@ mod tests {
             },
         };
 
-        let export_req = prepared.export_bundle_request(&req);
+        let export_req = capture.export_bundle_request(&req);
 
         assert_eq!(export_req.capture.capture_path, "/tmp/frame.rdc");
         assert_eq!(export_req.output.output_dir.as_deref(), Some("/tmp/out"));
@@ -208,8 +207,8 @@ mod tests {
     }
 
     #[test]
-    fn prepared_one_shot_capture_merges_export_response() {
-        let prepared = PreparedOneShotCapture {
+    fn completed_one_shot_capture_merges_export_response() {
+        let capture = CompletedOneShotCapture {
             target_ident: 9,
             capture: CaptureInput {
                 capture_path: "/tmp/frame.rdc".to_string(),
@@ -239,7 +238,7 @@ mod tests {
             },
         };
 
-        let response: CaptureAndExportBundleResponse = prepared.into_response(export);
+        let response: CaptureAndExportBundleResponse = capture.into_response(export);
 
         assert_eq!(response.target_ident, 9);
         assert_eq!(response.capture_path, "/tmp/frame.rdc");
@@ -368,12 +367,25 @@ mod tests {
     }
 
     #[test]
-    fn prepare_one_shot_capture_error_wraps_capture_target_error() {
-        let err: PrepareOneShotCaptureError = CaptureTargetError::InvalidTargetIdent(-1).into();
+    fn one_shot_capture_error_wraps_capture_target_error() {
+        let err: OneShotCaptureError = CaptureTargetError::InvalidTargetIdent(-1).into();
 
         assert!(matches!(
             err,
-            PrepareOneShotCaptureError::CaptureTarget(CaptureTargetError::InvalidTargetIdent(-1))
+            OneShotCaptureError::CaptureTarget(CaptureTargetError::InvalidTargetIdent(-1))
+        ));
+    }
+
+    #[test]
+    fn capture_and_export_bundle_error_wraps_one_shot_capture_error() {
+        let err: CaptureAndExportBundleError = OneShotCaptureError::CreateOutputDir(
+            std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+        )
+        .into();
+
+        assert!(matches!(
+            err,
+            CaptureAndExportBundleError::Capture(OneShotCaptureError::CreateOutputDir(_))
         ));
     }
 }

@@ -16,7 +16,7 @@ pub use find_and_save_outputs::{
 pub use find_events::FindEventsError;
 pub use one_shot::{
     CaptureAndExportBundleError, CaptureAndExportBundleRequest, CaptureAndExportBundleResponse,
-    PrepareOneShotCaptureError,
+    OneShotCaptureError,
 };
 pub use trigger_capture::TriggerCaptureError;
 
