@@ -8,10 +8,10 @@ mod workflows;
 use std::{fmt::Display, path::PathBuf, time::Instant};
 
 use rmcp::{handler::server::router::tool::ToolRouter, tool_handler};
+use schemars::JsonSchema;
 
 use renderdog_automation as renderdog;
-
-use crate::types::CwdRequest;
+use serde::Deserialize;
 
 #[derive(Clone)]
 pub(crate) struct RenderdogMcpServer {
@@ -31,6 +31,20 @@ impl RenderdogMcpServer {
                 + Self::replay_tool_router()
                 + Self::workflows_tool_router(),
         }
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(super) struct CwdRequest<T> {
+    #[serde(default)]
+    pub(super) cwd: Option<String>,
+    #[serde(flatten)]
+    pub(super) inner: T,
+}
+
+impl<T> CwdRequest<T> {
+    pub(super) fn into_parts(self) -> Result<(PathBuf, T), String> {
+        Ok((crate::paths::resolve_base_cwd(self.cwd)?, self.inner))
     }
 }
 

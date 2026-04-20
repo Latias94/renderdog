@@ -2,12 +2,7 @@ use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use renderdog_automation as renderdog;
 
-use crate::types::{
-    FindEventsAndSaveOutputsPngRequest as FindEventsAndSaveOutputsPngToolRequest,
-    FindEventsAndSaveOutputsPngResponse, FindEventsRequest as FindEventsToolRequest,
-};
-
-use super::{RenderdogMcpServer, ToolRun};
+use super::{CwdRequest, RenderdogMcpServer, ToolRun};
 
 #[tool_router(router = find_tool_router, vis = "pub(super)")]
 impl RenderdogMcpServer {
@@ -17,7 +12,7 @@ impl RenderdogMcpServer {
     )]
     async fn find_events(
         &self,
-        Parameters(req): Parameters<FindEventsToolRequest>,
+        Parameters(req): Parameters<CwdRequest<renderdog::FindEventsRequest>>,
     ) -> Result<Json<renderdog::FindEventsResponse>, String> {
         let tool = "renderdoc_find_events";
         let run = ToolRun::start(tool, || {
@@ -43,8 +38,8 @@ impl RenderdogMcpServer {
     )]
     async fn find_events_and_save_outputs_png(
         &self,
-        Parameters(req): Parameters<FindEventsAndSaveOutputsPngToolRequest>,
-    ) -> Result<Json<FindEventsAndSaveOutputsPngResponse>, String> {
+        Parameters(req): Parameters<CwdRequest<renderdog::FindEventsAndSaveOutputsPngRequest>>,
+    ) -> Result<Json<renderdog::FindEventsAndSaveOutputsPngResponse>, String> {
         let tool = "renderdoc_find_events_and_save_outputs_png";
         let run = ToolRun::start(tool, || {
             tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");

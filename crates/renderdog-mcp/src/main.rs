@@ -1,6 +1,5 @@
 mod paths;
 mod server;
-mod types;
 
 use std::io::IsTerminal;
 

@@ -2,14 +2,7 @@ use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use renderdog_automation as renderdog;
 
-use crate::types::{
-    ReplayListTexturesRequest as ReplayListTexturesToolRequest,
-    ReplayPickPixelRequest as ReplayPickPixelToolRequest,
-    ReplaySaveOutputsPngRequest as ReplaySaveOutputsPngToolRequest,
-    ReplaySaveTexturePngRequest as ReplaySaveTexturePngToolRequest,
-};
-
-use super::{RenderdogMcpServer, ToolRun};
+use super::{CwdRequest, RenderdogMcpServer, ToolRun};
 
 #[tool_router(router = replay_tool_router, vis = "pub(super)")]
 impl RenderdogMcpServer {
@@ -19,7 +12,7 @@ impl RenderdogMcpServer {
     )]
     async fn replay_list_textures(
         &self,
-        Parameters(req): Parameters<ReplayListTexturesToolRequest>,
+        Parameters(req): Parameters<CwdRequest<renderdog::ReplayListTexturesRequest>>,
     ) -> Result<Json<renderdog::ReplayListTexturesResponse>, String> {
         let tool = "renderdoc_replay_list_textures";
         let run = ToolRun::start(tool, || {
@@ -44,7 +37,7 @@ impl RenderdogMcpServer {
     )]
     async fn replay_pick_pixel(
         &self,
-        Parameters(req): Parameters<ReplayPickPixelToolRequest>,
+        Parameters(req): Parameters<CwdRequest<renderdog::ReplayPickPixelRequest>>,
     ) -> Result<Json<renderdog::ReplayPickPixelResponse>, String> {
         let tool = "renderdoc_replay_pick_pixel";
         let run = ToolRun::start(tool, || {
@@ -71,7 +64,7 @@ impl RenderdogMcpServer {
     )]
     async fn replay_save_texture_png(
         &self,
-        Parameters(req): Parameters<ReplaySaveTexturePngToolRequest>,
+        Parameters(req): Parameters<CwdRequest<renderdog::ReplaySaveTexturePngRequest>>,
     ) -> Result<Json<renderdog::ReplaySaveTexturePngResponse>, String> {
         let tool = "renderdoc_replay_save_texture_png";
         let run = ToolRun::start(tool, || {
@@ -102,7 +95,7 @@ impl RenderdogMcpServer {
     )]
     async fn replay_save_outputs_png(
         &self,
-        Parameters(req): Parameters<ReplaySaveOutputsPngToolRequest>,
+        Parameters(req): Parameters<CwdRequest<renderdog::ReplaySaveOutputsPngRequest>>,
     ) -> Result<Json<renderdog::ReplaySaveOutputsPngResponse>, String> {
         let tool = "renderdoc_replay_save_outputs_png";
         let run = ToolRun::start(tool, || {

@@ -1,10 +1,8 @@
 use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
-use crate::types::{
-    OpenCaptureUiRequest, OpenCaptureUiResponse, SaveThumbnailRequest, SaveThumbnailResponse,
-};
+use renderdog_automation as renderdog;
 
-use super::{RenderdogMcpServer, ToolRun};
+use super::{CwdRequest, RenderdogMcpServer, ToolRun};
 
 #[tool_router(router = capture_tool_router, vis = "pub(super)")]
 impl RenderdogMcpServer {
@@ -14,8 +12,8 @@ impl RenderdogMcpServer {
     )]
     async fn save_thumbnail(
         &self,
-        Parameters(req): Parameters<SaveThumbnailRequest>,
-    ) -> Result<Json<SaveThumbnailResponse>, String> {
+        Parameters(req): Parameters<CwdRequest<renderdog::SaveThumbnailRequest>>,
+    ) -> Result<Json<renderdog::SaveThumbnailResponse>, String> {
         let tool = "renderdoc_save_thumbnail";
         let run = ToolRun::start(tool, || {
             tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
@@ -39,8 +37,8 @@ impl RenderdogMcpServer {
     )]
     async fn open_capture_ui(
         &self,
-        Parameters(req): Parameters<OpenCaptureUiRequest>,
-    ) -> Result<Json<OpenCaptureUiResponse>, String> {
+        Parameters(req): Parameters<CwdRequest<renderdog::OpenCaptureUiRequest>>,
+    ) -> Result<Json<renderdog::OpenCaptureUiResponse>, String> {
         let tool = "renderdoc_open_capture_ui";
         let run = ToolRun::start(tool, || {
             tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");

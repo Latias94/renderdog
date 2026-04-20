@@ -1,8 +1,8 @@
 use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
-use crate::types::{ExportBundleRequest as ExportBundleToolRequest, ExportBundleResponse};
+use renderdog_automation as renderdog;
 
-use super::{RenderdogMcpServer, ToolRun};
+use super::{CwdRequest, RenderdogMcpServer, ToolRun};
 
 #[tool_router(router = export_tool_router, vis = "pub(super)")]
 impl RenderdogMcpServer {
@@ -12,8 +12,8 @@ impl RenderdogMcpServer {
     )]
     async fn export_bundle_jsonl(
         &self,
-        Parameters(req): Parameters<ExportBundleToolRequest>,
-    ) -> Result<Json<ExportBundleResponse>, String> {
+        Parameters(req): Parameters<CwdRequest<renderdog::ExportBundleRequest>>,
+    ) -> Result<Json<renderdog::ExportBundleResponse>, String> {
         let tool = "renderdoc_export_bundle_jsonl";
         let run = ToolRun::start(tool, || {
             tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
