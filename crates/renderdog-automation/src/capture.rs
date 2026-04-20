@@ -13,16 +13,12 @@ use crate::{
     resolve_path_from_cwd,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CaptureTargetRequest {
+#[derive(Debug, Clone)]
+pub(crate) struct CaptureTargetRequest {
     pub executable: String,
-    #[serde(default)]
     pub args: Vec<String>,
-    #[serde(default)]
     pub working_dir: Option<String>,
-    #[serde(default)]
     pub artifacts_dir: Option<String>,
-    #[serde(default)]
     pub capture_template_name: Option<String>,
 }
 
@@ -57,7 +53,7 @@ pub struct OpenCaptureUiResponse {
 }
 
 #[derive(Debug, Error)]
-pub enum CaptureTargetError {
+pub(crate) enum CaptureTargetError {
     #[error("failed to create artifacts dir: {0}")]
     CreateArtifactsDir(std::io::Error),
     #[error(transparent)]

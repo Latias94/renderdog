@@ -6,9 +6,9 @@ use thiserror::Error;
 
 use crate::{
     BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
-    CaptureTargetError, DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest,
+    CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest,
     ExportOutput, OneShotCaptureTarget, OneShotTriggerOptions, RenderDocInstallation,
-    TriggerCaptureError, TriggerCaptureRequest, prepare_export_target,
+    ToolInvocationError, TriggerCaptureError, TriggerCaptureRequest, prepare_export_target,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -51,8 +51,12 @@ pub struct CaptureAndExportBundleResponse {
 pub enum PrepareOneShotCaptureError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
-    #[error("capture target setup failed: {0}")]
-    Target(#[from] CaptureTargetError),
+    #[error("failed to create capture artifacts dir: {0}")]
+    CreateArtifactsDir(std::io::Error),
+    #[error("failed to launch capture target: {0}")]
+    LaunchTarget(Box<ToolInvocationError>),
+    #[error("renderdoccmd returned invalid target ident: {0}")]
+    InvalidTargetIdent(i32),
     #[error("trigger capture failed: {0}")]
     Trigger(#[from] TriggerCaptureError),
 }
@@ -81,6 +85,32 @@ impl PreparedOneShotCapture {
 
     fn export_output(&self) -> ExportOutput {
         self.output.clone()
+    }
+}
+
+impl From<&OneShotCaptureTarget> for CaptureTargetRequest {
+    fn from(value: &OneShotCaptureTarget) -> Self {
+        Self {
+            executable: value.executable.clone(),
+            args: value.args.clone(),
+            working_dir: value.working_dir.clone(),
+            artifacts_dir: value.artifacts_dir.clone(),
+            capture_template_name: value.capture_template_name.clone(),
+        }
+    }
+}
+
+fn map_capture_target_error(err: crate::capture::CaptureTargetError) -> PrepareOneShotCaptureError {
+    match err {
+        crate::capture::CaptureTargetError::CreateArtifactsDir(source) => {
+            PrepareOneShotCaptureError::CreateArtifactsDir(source)
+        }
+        crate::capture::CaptureTargetError::Tool(source) => {
+            PrepareOneShotCaptureError::LaunchTarget(source)
+        }
+        crate::capture::CaptureTargetError::InvalidTargetIdent(code) => {
+            PrepareOneShotCaptureError::InvalidTargetIdent(code)
+        }
     }
 }
 
@@ -128,8 +158,13 @@ impl RenderDocInstallation {
         trigger_options: &OneShotTriggerOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let prepared_target = self.prepare_capture_target(cwd, target)?;
-        let launched_target = self.launch_prepared_capture_target(&prepared_target)?;
+        let target_request = CaptureTargetRequest::from(target);
+        let prepared_target = self
+            .prepare_capture_target(cwd, &target_request)
+            .map_err(map_capture_target_error)?;
+        let launched_target = self
+            .launch_prepared_capture_target(&prepared_target)
+            .map_err(map_capture_target_error)?;
 
         let capture = self.trigger_capture_via_target_control(
             cwd,

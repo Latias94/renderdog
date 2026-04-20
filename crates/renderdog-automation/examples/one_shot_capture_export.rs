@@ -25,7 +25,7 @@ fn main() -> anyhow::Result<()> {
     let res = install.capture_and_export_bundle_jsonl(
         &cwd,
         &renderdog::CaptureAndExportBundleRequest {
-            target: renderdog::CaptureTargetRequest {
+            target: renderdog::OneShotCaptureTarget {
                 executable: executable.clone(),
                 args: exe_args.to_vec(),
                 working_dir: None,
