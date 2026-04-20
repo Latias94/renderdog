@@ -8,8 +8,9 @@ use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
+use crate::command::CommandError;
 use crate::default_scripts_dir;
-use crate::{CommandError, CommandSpec, run_command_expect_success};
+use crate::{CommandSpec, ToolInvocationError, run_command_expect_success};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct QRenderDocJsonEnvelope<T> {
@@ -50,7 +51,7 @@ pub(crate) enum QRenderDocJsonJobError {
     WriteScript(std::io::Error),
     #[error("failed to write request JSON: {0}")]
     WriteRequest(std::io::Error),
-    #[error("qrenderdoc python failed: {0}")]
+    #[error("qrenderdoc execution failed: {0}")]
     QRenderDocPython(Box<QRenderDocPythonError>),
     #[error("failed to read response JSON: {0}")]
     ReadResponse(std::io::Error),
@@ -88,8 +89,8 @@ macro_rules! define_qrenderdoc_json_job_error {
             WriteScript(std::io::Error),
             #[error("failed to write request JSON: {0}")]
             WriteRequest(std::io::Error),
-            #[error("qrenderdoc python failed: {0}")]
-            QRenderDocPython(Box<crate::QRenderDocPythonError>),
+            #[error("qrenderdoc execution failed: {0}")]
+            QRenderDocExecution(Box<crate::QRenderDocExecutionError>),
             #[error("failed to read response JSON: {0}")]
             ReadResponse(std::io::Error),
             #[error($parse_message)]
@@ -111,7 +112,7 @@ macro_rules! define_qrenderdoc_json_job_error {
                         Self::WriteRequest(err)
                     }
                     crate::scripting::QRenderDocJsonJobError::QRenderDocPython(err) => {
-                        Self::QRenderDocPython(err)
+                        Self::QRenderDocExecution(Box::new(crate::QRenderDocExecutionError::from(*err)))
                     }
                     crate::scripting::QRenderDocJsonJobError::ReadResponse(err) => {
                         Self::ReadResponse(err)
@@ -146,7 +147,24 @@ pub(crate) struct QRenderDocPythonRequest {
 }
 
 #[derive(Debug, Error)]
-pub enum QRenderDocPythonError {
+pub enum QRenderDocExecutionError {
+    #[error("script not found: {0}")]
+    ScriptNotFound(PathBuf),
+    #[error(transparent)]
+    Tool(Box<ToolInvocationError>),
+}
+
+impl From<QRenderDocPythonError> for QRenderDocExecutionError {
+    fn from(value: QRenderDocPythonError) -> Self {
+        match value {
+            QRenderDocPythonError::ScriptNotFound(path) => Self::ScriptNotFound(path),
+            QRenderDocPythonError::Command(err) => Self::Tool(Box::new((*err).into())),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub(crate) enum QRenderDocPythonError {
     #[error("script not found: {0}")]
     ScriptNotFound(PathBuf),
     #[error(transparent)]

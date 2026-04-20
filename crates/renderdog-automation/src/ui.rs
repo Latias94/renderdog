@@ -5,18 +5,19 @@ use std::{
 
 use thiserror::Error;
 
-use crate::CommandError;
 use crate::RenderDocInstallation;
+use crate::ToolInvocationError;
+use crate::command::CommandError;
 
 #[derive(Debug, Error)]
 pub enum OpenCaptureUiError {
     #[error(transparent)]
-    Command(Box<CommandError>),
+    Tool(Box<ToolInvocationError>),
 }
 
 impl From<CommandError> for OpenCaptureUiError {
     fn from(value: CommandError) -> Self {
-        Self::Command(Box::new(value))
+        Self::Tool(Box::new(value.into()))
     }
 }
 
@@ -26,12 +27,12 @@ impl RenderDocInstallation {
             .arg(capture_path)
             .spawn()
             .map_err(|e| {
-                OpenCaptureUiError::Command(Box::new(CommandError::Spawn {
+                OpenCaptureUiError::Tool(Box::new(ToolInvocationError::from(CommandError::Spawn {
                     program: self.qrenderdoc_exe.display().to_string(),
                     args: vec![capture_path.display().to_string()],
                     cwd: None,
                     source: e,
-                }))
+                })))
             })
     }
 }

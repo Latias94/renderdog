@@ -23,12 +23,12 @@ mod toolchain;
 mod ui;
 mod workflows;
 
-pub use command::CommandError;
+pub use command::ToolInvocationError;
 pub(crate) use command::{CommandSpec, run_command_expect_success, run_command_output_text};
 pub use diagnostics::*;
 pub use renderdoccmd::*;
 pub use replay::*;
-pub use scripting::QRenderDocPythonError;
+pub use scripting::QRenderDocExecutionError;
 pub use toolchain::{DetectInstallationError, RenderDocInstallation, default_artifacts_dir};
 pub(crate) use toolchain::{
     default_capture_basename, default_exports_dir, default_scripts_dir,

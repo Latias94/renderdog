@@ -6,7 +6,10 @@ use std::{
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
-use crate::{CommandError, CommandSpec, run_command_expect_success, run_command_output_text};
+use crate::command::CommandError;
+use crate::{
+    CommandSpec, ToolInvocationError, run_command_expect_success, run_command_output_text,
+};
 
 #[derive(Debug, Clone)]
 pub struct CaptureLaunchRequest {
@@ -26,14 +29,14 @@ pub struct CaptureLaunchResult {
 #[derive(Debug, Error)]
 pub enum CaptureLaunchError {
     #[error(transparent)]
-    Command(Box<CommandError>),
+    Tool(Box<ToolInvocationError>),
     #[error("renderdoccmd returned invalid target ident: {0}")]
     InvalidTargetIdent(i32),
 }
 
 impl From<CommandError> for CaptureLaunchError {
     fn from(value: CommandError) -> Self {
-        Self::Command(Box::new(value))
+        Self::Tool(Box::new(value.into()))
     }
 }
 

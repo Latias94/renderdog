@@ -36,7 +36,7 @@ pub(crate) struct CommandOutputText {
 }
 
 #[derive(Debug, Error)]
-pub enum CommandError {
+pub enum ToolInvocationError {
     #[error("failed to spawn `{program}`\nargs: {args:?}\ncwd: {cwd:?}\nsource: {source}")]
     Spawn {
         program: String,
@@ -68,12 +68,91 @@ pub enum CommandError {
     },
 }
 
-impl CommandError {
+impl ToolInvocationError {
     pub fn program(&self) -> &str {
         match self {
-            CommandError::Spawn { program, .. } => program,
-            CommandError::NoStatusCode { program, .. } => program,
-            CommandError::NonZeroExit { program, .. } => program,
+            ToolInvocationError::Spawn { program, .. } => program,
+            ToolInvocationError::NoStatusCode { program, .. } => program,
+            ToolInvocationError::NonZeroExit { program, .. } => program,
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub(crate) enum CommandError {
+    #[error("failed to spawn `{program}`\nargs: {args:?}\ncwd: {cwd:?}\nsource: {source}")]
+    Spawn {
+        program: String,
+        args: Vec<String>,
+        cwd: Option<String>,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error(
+        "`{program}` exited without a status code\nargs: {args:?}\ncwd: {cwd:?}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    )]
+    NoStatusCode {
+        program: String,
+        args: Vec<String>,
+        cwd: Option<String>,
+        stdout: String,
+        stderr: String,
+    },
+    #[error(
+        "`{program}` exited with status {status}\nargs: {args:?}\ncwd: {cwd:?}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    )]
+    NonZeroExit {
+        program: String,
+        args: Vec<String>,
+        cwd: Option<String>,
+        status: i32,
+        stdout: String,
+        stderr: String,
+    },
+}
+
+impl From<CommandError> for ToolInvocationError {
+    fn from(value: CommandError) -> Self {
+        match value {
+            CommandError::Spawn {
+                program,
+                args,
+                cwd,
+                source,
+            } => Self::Spawn {
+                program,
+                args,
+                cwd,
+                source,
+            },
+            CommandError::NoStatusCode {
+                program,
+                args,
+                cwd,
+                stdout,
+                stderr,
+            } => Self::NoStatusCode {
+                program,
+                args,
+                cwd,
+                stdout,
+                stderr,
+            },
+            CommandError::NonZeroExit {
+                program,
+                args,
+                cwd,
+                status,
+                stdout,
+                stderr,
+            } => Self::NonZeroExit {
+                program,
+                args,
+                cwd,
+                status,
+                stdout,
+                stderr,
+            },
         }
     }
 }
