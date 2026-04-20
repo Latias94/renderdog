@@ -1,7 +1,7 @@
-use renderdog::{InAppError, RenderDog};
+use renderdog::{InAppError, RenderDocInApp};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    match RenderDog::connect_injected() {
+    match RenderDocInApp::connect_injected() {
         Ok(rd) => {
             let (major, minor, patch) = rd.get_api_version()?;
             println!("Connected to injected RenderDoc. API: {major}.{minor}.{patch}");

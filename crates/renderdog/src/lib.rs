@@ -11,13 +11,15 @@
 
 mod annotations;
 mod in_app;
-mod renderdog;
 mod settings;
 
 pub use annotations::*;
 pub use in_app::*;
-pub use renderdog::*;
 pub use settings::*;
+
+#[doc(hidden)]
+#[deprecated(note = "use RenderDocInApp")]
+pub type RenderDog = RenderDocInApp;
 
 pub type SysCaptureOption = RENDERDOC_CaptureOption;
 pub type SysInputButton = RENDERDOC_InputButton;

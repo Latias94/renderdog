@@ -1,4 +1,4 @@
-use renderdog::RenderDog;
+use renderdog::RenderDocInApp;
 use renderdog_winit::input_button_from_key_code;
 use winit::{
     application::ApplicationHandler,
@@ -9,14 +9,14 @@ use winit::{
 };
 
 struct App {
-    rd: RenderDog,
+    rd: RenderDocInApp,
     window: Option<Window>,
     capturing: bool,
 }
 
 impl App {
     fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let rd = RenderDog::new()?;
+        let rd = RenderDocInApp::new()?;
         Ok(Self {
             rd,
             window: None,
@@ -81,7 +81,7 @@ impl App {
         #[cfg(windows)]
         {
             if let Some(window) = &self.window {
-                let _ = renderdog_winit::start_frame_capture_window(self.rd.inner(), window);
+                let _ = renderdog_winit::start_frame_capture_window(&self.rd, window);
                 if let Some(h) = renderdog_winit::renderdoc_window_handle(window) {
                     let _ = self.rd.set_active_window(None, Some(h));
                 }
@@ -99,7 +99,7 @@ impl App {
         #[cfg(windows)]
         {
             if let Some(window) = &self.window {
-                let _ = renderdog_winit::end_frame_capture_window(self.rd.inner(), window);
+                let _ = renderdog_winit::end_frame_capture_window(&self.rd, window);
             }
         }
         self.capturing = false;

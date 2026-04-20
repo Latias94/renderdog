@@ -1,7 +1,7 @@
-use renderdog::{CaptureOption, InputButton, OverlayBits, RenderDog};
+use renderdog::{CaptureOption, InputButton, OverlayBits, RenderDocInApp};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let rd = RenderDog::new()?;
+    let rd = RenderDocInApp::new()?;
 
     let (major, minor, patch) = rd.get_api_version()?;
     println!("RenderDoc API: {major}.{minor}.{patch}");

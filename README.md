@@ -62,8 +62,8 @@ Key points:
 - Loader tries API versions from `1.7.0` down to `1.0.0` via `RENDERDOC_GetAPI`.
 - Rich object/command annotations are available when RenderDoc negotiates API `1.7.0`.
 - Windows injected connect uses `GetModuleHandleA("renderdoc.dll")` and does not call `LoadLibrary`.
-- Explicit load is available via `RenderDog::load("renderdoc.dll")` / `RenderDocInApp::try_load_and_connect(...)`.
-- Linux optional: connect only if already loaded (RTLD_NOLOAD): `RenderDocInApp::try_connect_noload_default()` or `RenderDog::new_noload_first()`.
+- Explicit load is available via `RenderDocInApp::load("renderdoc.dll")` / `RenderDocInApp::try_load_and_connect(...)`.
+- Linux optional: connect only if already loaded (RTLD_NOLOAD): `RenderDocInApp::try_connect_noload_default()` or `RenderDocInApp::new_noload_first()`.
 - Thread-safety: in-app handles are `Send` but `!Sync` and not `Clone`. For cross-thread usage, wrap in `Arc<Mutex<...>>` to serialize calls.
 
 ## Integration patterns (with or without MCP)
@@ -81,7 +81,7 @@ Use this when you want a local/manual workflow (or your own automation) without 
 - In-app capture control (integrate `renderdog` into your renderer):
   - `cargo add renderdog`
   - Typical flow:
-    - connect/load RenderDoc (`RenderDog::new()` / `RenderDocInApp::try_connect_or_load_default()`)
+    - connect/load RenderDoc (`RenderDocInApp::new()` / `RenderDocInApp::try_connect_or_load_default()`)
     - optionally set capture path template (`set_capture_file_path_template...`)
     - trigger capture (`trigger_capture` or `start_frame_capture`/`end_frame_capture`)
 - Out-of-process automation from CLI (no MCP):
