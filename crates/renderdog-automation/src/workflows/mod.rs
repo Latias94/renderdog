@@ -152,6 +152,50 @@ pub struct BindingsExportOptions {
     pub include_outputs: bool,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct BundleExportOptions {
+    #[serde(flatten)]
+    pub drawcall_scope: DrawcallScope,
+    #[serde(flatten)]
+    pub filter: EventFilter,
+    #[serde(flatten)]
+    pub bindings: BindingsExportOptions,
+    #[serde(flatten)]
+    pub post_actions: CapturePostActions,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct BundleExportArtifacts {
+    pub actions_jsonl_path: String,
+    pub actions_summary_json_path: String,
+    pub total_actions: u64,
+    pub drawcall_actions: u64,
+    pub bindings_jsonl_path: String,
+    pub bindings_summary_json_path: String,
+    pub total_drawcalls: u64,
+    #[serde(flatten)]
+    pub post_actions: CapturePostActionOutputs,
+}
+
+impl BundleExportArtifacts {
+    pub(crate) fn from_parts(
+        actions: ExportActionsResponse,
+        bindings: ExportBindingsIndexResponse,
+        post_actions: CapturePostActionOutputs,
+    ) -> Self {
+        Self {
+            actions_jsonl_path: actions.actions_jsonl_path,
+            actions_summary_json_path: actions.summary_json_path,
+            total_actions: actions.total_actions,
+            drawcall_actions: actions.drawcall_actions,
+            bindings_jsonl_path: bindings.bindings_jsonl_path,
+            bindings_summary_json_path: bindings.summary_json_path,
+            total_drawcalls: bindings.total_drawcalls,
+            post_actions,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct OneShotCaptureTarget {
     pub executable: String,
@@ -326,48 +370,21 @@ pub struct ExportBundleRequest {
     #[serde(flatten)]
     pub output: ExportOutput,
     #[serde(flatten)]
-    pub drawcall_scope: DrawcallScope,
-    #[serde(flatten)]
-    pub filter: EventFilter,
-    #[serde(flatten)]
-    pub bindings: BindingsExportOptions,
-    #[serde(flatten)]
-    pub post_actions: CapturePostActions,
+    pub bundle: BundleExportOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportBundleResponse {
     pub capture_path: String,
-
-    pub actions_jsonl_path: String,
-    pub actions_summary_json_path: String,
-    pub total_actions: u64,
-    pub drawcall_actions: u64,
-
-    pub bindings_jsonl_path: String,
-    pub bindings_summary_json_path: String,
-    pub total_drawcalls: u64,
     #[serde(flatten)]
-    pub post_actions: CapturePostActionOutputs,
+    pub artifacts: BundleExportArtifacts,
 }
 
 impl ExportBundleResponse {
-    pub(crate) fn from_parts(
-        capture_path: String,
-        actions: ExportActionsResponse,
-        bindings: ExportBindingsIndexResponse,
-        post_actions: CapturePostActionOutputs,
-    ) -> Self {
+    pub(crate) fn from_parts(capture_path: String, artifacts: BundleExportArtifacts) -> Self {
         Self {
             capture_path,
-            actions_jsonl_path: actions.actions_jsonl_path,
-            actions_summary_json_path: actions.summary_json_path,
-            total_actions: actions.total_actions,
-            drawcall_actions: actions.drawcall_actions,
-            bindings_jsonl_path: bindings.bindings_jsonl_path,
-            bindings_summary_json_path: bindings.summary_json_path,
-            total_drawcalls: bindings.total_drawcalls,
-            post_actions,
+            artifacts,
         }
     }
 }
@@ -376,7 +393,14 @@ impl ExportBundleResponse {
 mod tests {
     use std::path::Path;
 
-    use super::{CaptureInput, ExportOutput};
+    use serde_json::Value;
+
+    use super::{
+        BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
+        CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter,
+        ExportActionsResponse, ExportBindingsIndexResponse, ExportBundleRequest,
+        ExportBundleResponse, ExportOutput,
+    };
 
     #[test]
     fn capture_input_normalizes_relative_path_in_cwd() {
@@ -406,5 +430,108 @@ mod tests {
             Some("/tmp/project/artifacts/renderdoc/exports")
         );
         assert_eq!(output.basename.as_deref(), Some("frame"));
+    }
+
+    #[test]
+    fn export_bundle_request_serializes_bundle_options_flattened() {
+        let req = ExportBundleRequest {
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+            output: ExportOutput {
+                output_dir: Some("/tmp/out".to_string()),
+                basename: Some("frame".to_string()),
+            },
+            bundle: BundleExportOptions {
+                drawcall_scope: DrawcallScope {
+                    only_drawcalls: true,
+                },
+                filter: EventFilter {
+                    marker_contains: Some("fret".to_string()),
+                    ..EventFilter::default()
+                },
+                bindings: BindingsExportOptions {
+                    include_cbuffers: true,
+                    include_outputs: false,
+                },
+                post_actions: CapturePostActions {
+                    save_thumbnail: true,
+                    thumbnail_output_path: Some("thumb.png".to_string()),
+                    open_capture_ui: false,
+                },
+            },
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(
+            object.get("output_dir"),
+            Some(&Value::String("/tmp/out".to_string()))
+        );
+        assert_eq!(
+            object.get("basename"),
+            Some(&Value::String("frame".to_string()))
+        );
+        assert_eq!(object.get("only_drawcalls"), Some(&Value::Bool(true)));
+        assert_eq!(
+            object.get("marker_contains"),
+            Some(&Value::String("fret".to_string()))
+        );
+        assert_eq!(object.get("include_cbuffers"), Some(&Value::Bool(true)));
+        assert_eq!(object.get("save_thumbnail"), Some(&Value::Bool(true)));
+        assert!(!object.contains_key("bundle"));
+    }
+
+    #[test]
+    fn export_bundle_response_serializes_artifacts_flattened() {
+        let response = ExportBundleResponse::from_parts(
+            "/tmp/frame.rdc".to_string(),
+            BundleExportArtifacts::from_parts(
+                ExportActionsResponse {
+                    capture_path: "/tmp/frame.rdc".to_string(),
+                    actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
+                    summary_json_path: "/tmp/out/frame.summary.json".to_string(),
+                    total_actions: 10,
+                    drawcall_actions: 4,
+                },
+                ExportBindingsIndexResponse {
+                    capture_path: "/tmp/frame.rdc".to_string(),
+                    bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
+                    summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
+                    total_drawcalls: 4,
+                },
+                CapturePostActionOutputs {
+                    thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
+                    ui_pid: Some(123),
+                },
+            ),
+        );
+
+        let json = serde_json::to_value(response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(
+            object.get("actions_jsonl_path"),
+            Some(&Value::String("/tmp/out/frame.actions.jsonl".to_string()))
+        );
+        assert_eq!(
+            object.get("bindings_jsonl_path"),
+            Some(&Value::String("/tmp/out/frame.bindings.jsonl".to_string()))
+        );
+        assert_eq!(
+            object.get("thumbnail_output_path"),
+            Some(&Value::String("/tmp/out/frame.thumb.png".to_string()))
+        );
+        assert_eq!(object.get("ui_pid"), Some(&Value::Number(123_u32.into())));
+        assert!(!object.contains_key("artifacts"));
     }
 }

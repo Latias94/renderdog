@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use super::{
-    CapturePostActionOutputs, CapturePostActions, ExportActionsRequest, ExportBindingsIndexRequest,
-    ExportBundleRequest, ExportBundleResponse,
+    BundleExportArtifacts, CapturePostActionOutputs, CapturePostActions, ExportActionsRequest,
+    ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse,
 };
 use crate::{
     OpenCaptureUiError, QRenderDocJsonError, RenderDocInstallation, resolve_path_from_cwd,
@@ -54,8 +54,8 @@ impl RenderDocInstallation {
             &ExportActionsRequest {
                 capture: capture.clone(),
                 output: output.clone(),
-                drawcall_scope: req.drawcall_scope,
-                filter: req.filter.clone(),
+                drawcall_scope: req.bundle.drawcall_scope,
+                filter: req.bundle.filter.clone(),
             },
         )?;
 
@@ -64,8 +64,8 @@ impl RenderDocInstallation {
             &ExportBindingsIndexRequest {
                 capture,
                 output,
-                filter: req.filter.clone(),
-                bindings: req.bindings,
+                filter: req.bundle.filter.clone(),
+                bindings: req.bundle.bindings,
             },
         )?;
 
@@ -73,14 +73,12 @@ impl RenderDocInstallation {
             cwd,
             Path::new(&capture_path),
             &actions.actions_jsonl_path,
-            &req.post_actions,
+            &req.bundle.post_actions,
         )?;
 
         Ok(ExportBundleResponse::from_parts(
             capture_path,
-            actions,
-            bindings,
-            post_actions,
+            BundleExportArtifacts::from_parts(actions, bindings, post_actions),
         ))
     }
 

@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
-    CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest,
-    ExportBundleResponse, ExportOutput, OneShotCaptureTarget, OneShotTriggerOptions,
-    RenderDocInstallation, ToolInvocationError, TriggerCaptureError, TriggerCaptureRequest,
+    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureTargetRequest,
+    ExportBundleError, ExportBundleRequest, ExportBundleResponse, ExportOutput,
+    OneShotCaptureTarget, OneShotTriggerOptions, RenderDocInstallation, ToolInvocationError,
+    TriggerCaptureError, TriggerCaptureRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -20,13 +20,7 @@ pub struct CaptureAndExportBundleRequest {
     #[serde(flatten)]
     pub output: ExportOutput,
     #[serde(flatten)]
-    pub drawcall_scope: DrawcallScope,
-    #[serde(flatten)]
-    pub filter: EventFilter,
-    #[serde(flatten)]
-    pub bindings: BindingsExportOptions,
-    #[serde(flatten)]
-    pub post_actions: CapturePostActions,
+    pub bundle: BundleExportOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -36,15 +30,8 @@ pub struct CaptureAndExportBundleResponse {
     pub capture_file_template: Option<String>,
     pub stdout: String,
     pub stderr: String,
-    pub actions_jsonl_path: String,
-    pub actions_summary_json_path: String,
-    pub total_actions: u64,
-    pub drawcall_actions: u64,
-    pub bindings_jsonl_path: String,
-    pub bindings_summary_json_path: String,
-    pub total_drawcalls: u64,
     #[serde(flatten)]
-    pub post_actions: CapturePostActionOutputs,
+    pub artifacts: BundleExportArtifacts,
 }
 
 #[derive(Debug, Error)]
@@ -83,28 +70,23 @@ impl PreparedOneShotCapture {
         ExportBundleRequest {
             capture: self.capture.clone(),
             output: self.output.clone(),
-            drawcall_scope: req.drawcall_scope,
-            filter: req.filter.clone(),
-            bindings: req.bindings,
-            post_actions: req.post_actions.clone(),
+            bundle: req.bundle.clone(),
         }
     }
 
     fn into_response(self, export: ExportBundleResponse) -> CaptureAndExportBundleResponse {
+        let ExportBundleResponse {
+            capture_path,
+            artifacts,
+        } = export;
+
         CaptureAndExportBundleResponse {
             target_ident: self.target_ident,
-            capture_path: export.capture_path,
+            capture_path,
             capture_file_template: self.capture_file_template,
             stdout: self.stdout,
             stderr: self.stderr,
-            actions_jsonl_path: export.actions_jsonl_path,
-            actions_summary_json_path: export.actions_summary_json_path,
-            total_actions: export.total_actions,
-            drawcall_actions: export.drawcall_actions,
-            bindings_jsonl_path: export.bindings_jsonl_path,
-            bindings_summary_json_path: export.bindings_summary_json_path,
-            total_drawcalls: export.total_drawcalls,
-            post_actions: export.post_actions,
+            artifacts,
         }
     }
 }
@@ -195,13 +177,16 @@ impl RenderDocInstallation {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
+
     use super::{
         CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, OneShotCaptureTarget,
         OneShotTriggerOptions, PreparedOneShotCapture,
     };
     use crate::{
-        BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
-        DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput,
+        BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
+        CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter,
+        ExportBundleResponse, ExportOutput,
     };
 
     #[test]
@@ -229,21 +214,23 @@ mod tests {
             },
             trigger: OneShotTriggerOptions::default(),
             output: ExportOutput::default(),
-            drawcall_scope: DrawcallScope {
-                only_drawcalls: true,
-            },
-            filter: EventFilter {
-                marker_contains: Some("fret".to_string()),
-                ..EventFilter::default()
-            },
-            bindings: BindingsExportOptions {
-                include_cbuffers: true,
-                include_outputs: false,
-            },
-            post_actions: CapturePostActions {
-                save_thumbnail: true,
-                thumbnail_output_path: Some("thumb.png".to_string()),
-                open_capture_ui: false,
+            bundle: BundleExportOptions {
+                drawcall_scope: DrawcallScope {
+                    only_drawcalls: true,
+                },
+                filter: EventFilter {
+                    marker_contains: Some("fret".to_string()),
+                    ..EventFilter::default()
+                },
+                bindings: BindingsExportOptions {
+                    include_cbuffers: true,
+                    include_outputs: false,
+                },
+                post_actions: CapturePostActions {
+                    save_thumbnail: true,
+                    thumbnail_output_path: Some("thumb.png".to_string()),
+                    open_capture_ui: false,
+                },
             },
         };
 
@@ -252,10 +239,13 @@ mod tests {
         assert_eq!(export_req.capture.capture_path, "/tmp/frame.rdc");
         assert_eq!(export_req.output.output_dir.as_deref(), Some("/tmp/out"));
         assert_eq!(export_req.output.basename.as_deref(), Some("frame"));
-        assert!(export_req.drawcall_scope.only_drawcalls);
-        assert_eq!(export_req.filter.marker_contains.as_deref(), Some("fret"));
-        assert!(export_req.bindings.include_cbuffers);
-        assert!(export_req.post_actions.save_thumbnail);
+        assert!(export_req.bundle.drawcall_scope.only_drawcalls);
+        assert_eq!(
+            export_req.bundle.filter.marker_contains.as_deref(),
+            Some("fret")
+        );
+        assert!(export_req.bundle.bindings.include_cbuffers);
+        assert!(export_req.bundle.post_actions.save_thumbnail);
     }
 
     #[test]
@@ -275,16 +265,18 @@ mod tests {
         };
         let export = ExportBundleResponse {
             capture_path: "/tmp/frame.rdc".to_string(),
-            actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
-            actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
-            total_actions: 10,
-            drawcall_actions: 4,
-            bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
-            bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
-            total_drawcalls: 4,
-            post_actions: CapturePostActionOutputs {
-                thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
-                ui_pid: Some(123),
+            artifacts: BundleExportArtifacts {
+                actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
+                actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
+                total_actions: 10,
+                drawcall_actions: 4,
+                bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
+                bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
+                total_drawcalls: 4,
+                post_actions: CapturePostActionOutputs {
+                    thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
+                    ui_pid: Some(123),
+                },
             },
         };
 
@@ -296,12 +288,123 @@ mod tests {
             response.capture_file_template.as_deref(),
             Some("/tmp/frame")
         );
-        assert_eq!(response.actions_jsonl_path, "/tmp/out/frame.actions.jsonl");
-        assert_eq!(response.total_drawcalls, 4);
         assert_eq!(
-            response.post_actions.thumbnail_output_path.as_deref(),
+            response.artifacts.actions_jsonl_path,
+            "/tmp/out/frame.actions.jsonl"
+        );
+        assert_eq!(response.artifacts.total_drawcalls, 4);
+        assert_eq!(
+            response
+                .artifacts
+                .post_actions
+                .thumbnail_output_path
+                .as_deref(),
             Some("/tmp/out/frame.thumb.png")
         );
-        assert_eq!(response.post_actions.ui_pid, Some(123));
+        assert_eq!(response.artifacts.post_actions.ui_pid, Some(123));
+    }
+
+    #[test]
+    fn capture_and_export_bundle_request_serializes_bundle_options_flattened() {
+        let req = CaptureAndExportBundleRequest {
+            target: OneShotCaptureTarget {
+                executable: "game".to_string(),
+                args: vec!["--flag".to_string()],
+                working_dir: None,
+                artifacts_dir: None,
+                capture_template_name: Some("capture".to_string()),
+            },
+            trigger: OneShotTriggerOptions::default(),
+            output: ExportOutput::default(),
+            bundle: BundleExportOptions {
+                drawcall_scope: DrawcallScope {
+                    only_drawcalls: true,
+                },
+                filter: EventFilter {
+                    marker_contains: Some("fret".to_string()),
+                    ..EventFilter::default()
+                },
+                bindings: BindingsExportOptions {
+                    include_cbuffers: true,
+                    include_outputs: false,
+                },
+                post_actions: CapturePostActions {
+                    save_thumbnail: true,
+                    thumbnail_output_path: Some("thumb.png".to_string()),
+                    open_capture_ui: false,
+                },
+            },
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("executable"),
+            Some(&Value::String("game".to_string()))
+        );
+        assert_eq!(
+            object.get("capture_template_name"),
+            Some(&Value::String("capture".to_string()))
+        );
+        assert_eq!(
+            object.get("host"),
+            Some(&Value::String("localhost".to_string()))
+        );
+        assert_eq!(object.get("num_frames"), Some(&Value::Number(1_u32.into())));
+        assert_eq!(object.get("timeout_s"), Some(&Value::Number(60_u32.into())));
+        assert_eq!(object.get("only_drawcalls"), Some(&Value::Bool(true)));
+        assert_eq!(
+            object.get("marker_contains"),
+            Some(&Value::String("fret".to_string()))
+        );
+        assert_eq!(object.get("include_cbuffers"), Some(&Value::Bool(true)));
+        assert_eq!(object.get("save_thumbnail"), Some(&Value::Bool(true)));
+        assert!(!object.contains_key("bundle"));
+    }
+
+    #[test]
+    fn capture_and_export_bundle_response_serializes_artifacts_flattened() {
+        let response = CaptureAndExportBundleResponse {
+            target_ident: 9,
+            capture_path: "/tmp/frame.rdc".to_string(),
+            capture_file_template: Some("/tmp/frame".to_string()),
+            stdout: "stdout".to_string(),
+            stderr: "stderr".to_string(),
+            artifacts: BundleExportArtifacts {
+                actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
+                actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
+                total_actions: 10,
+                drawcall_actions: 4,
+                bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
+                bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
+                total_drawcalls: 4,
+                post_actions: CapturePostActionOutputs {
+                    thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
+                    ui_pid: Some(123),
+                },
+            },
+        };
+
+        let json = serde_json::to_value(response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(
+            object.get("target_ident"),
+            Some(&Value::Number(9_u32.into()))
+        );
+        assert_eq!(
+            object.get("actions_jsonl_path"),
+            Some(&Value::String("/tmp/out/frame.actions.jsonl".to_string()))
+        );
+        assert_eq!(
+            object.get("bindings_jsonl_path"),
+            Some(&Value::String("/tmp/out/frame.bindings.jsonl".to_string()))
+        );
+        assert_eq!(
+            object.get("thumbnail_output_path"),
+            Some(&Value::String("/tmp/out/frame.thumb.png".to_string()))
+        );
+        assert!(!object.contains_key("artifacts"));
     }
 }

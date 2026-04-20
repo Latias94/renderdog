@@ -22,10 +22,12 @@ fn main() -> anyhow::Result<()> {
                 output_dir: out_dir.map(|path| path.display().to_string()),
                 basename,
             },
-            drawcall_scope: renderdog::DrawcallScope::default(),
-            filter: renderdog::EventFilter::default(),
-            bindings: renderdog::BindingsExportOptions::default(),
-            post_actions: renderdog::CapturePostActions::default(),
+            bundle: renderdog::BundleExportOptions {
+                drawcall_scope: renderdog::DrawcallScope::default(),
+                filter: renderdog::EventFilter::default(),
+                bindings: renderdog::BindingsExportOptions::default(),
+                post_actions: renderdog::CapturePostActions::default(),
+            },
         },
     )?;
 

@@ -32,10 +32,12 @@ fn main() -> anyhow::Result<()> {
             },
             trigger: renderdog::OneShotTriggerOptions::default(),
             output: renderdog::ExportOutput::default(),
-            drawcall_scope: renderdog::DrawcallScope::default(),
-            filter: renderdog::EventFilter::default(),
-            bindings: renderdog::BindingsExportOptions::default(),
-            post_actions: renderdog::CapturePostActions::default(),
+            bundle: renderdog::BundleExportOptions {
+                drawcall_scope: renderdog::DrawcallScope::default(),
+                filter: renderdog::EventFilter::default(),
+                bindings: renderdog::BindingsExportOptions::default(),
+                post_actions: renderdog::CapturePostActions::default(),
+            },
         },
     )?;
     println!("{}", serde_json::to_string_pretty(&res)?);
