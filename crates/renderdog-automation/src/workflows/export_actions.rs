@@ -11,6 +11,6 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportActionsRequest,
     ) -> Result<ExportActionsResponse, QRenderDocJsonError> {
-        self.run_qrenderdoc_json_job(cwd, EXPORT_ACTIONS_JSONL_JOB, req)
+        self.run_prepared_qrenderdoc_json_job(cwd, EXPORT_ACTIONS_JSONL_JOB, req)
     }
 }

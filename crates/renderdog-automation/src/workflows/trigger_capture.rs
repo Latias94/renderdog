@@ -13,6 +13,6 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &TriggerCaptureRequest,
     ) -> Result<TriggerCaptureResponse, TriggerCaptureError> {
-        self.run_qrenderdoc_json_job(cwd, TRIGGER_CAPTURE_JOB, req)
+        self.run_prepared_qrenderdoc_json_job(cwd, TRIGGER_CAPTURE_JOB, req)
     }
 }

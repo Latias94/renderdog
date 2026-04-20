@@ -11,6 +11,6 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBindingsIndexRequest,
     ) -> Result<ExportBindingsIndexResponse, QRenderDocJsonError> {
-        self.run_qrenderdoc_json_job(cwd, EXPORT_BINDINGS_INDEX_JSONL_JOB, req)
+        self.run_prepared_qrenderdoc_json_job(cwd, EXPORT_BINDINGS_INDEX_JSONL_JOB, req)
     }
 }

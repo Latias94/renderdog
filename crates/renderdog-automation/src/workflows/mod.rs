@@ -25,7 +25,8 @@ use std::path::Path;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{normalize_capture_path, prepare_export_target};
+use crate::scripting::PrepareQRenderDocJsonRequest;
+use crate::{QRenderDocJsonError, normalize_capture_path, prepare_export_target};
 
 fn default_max_results() -> Option<u32> {
     Some(200)
@@ -195,6 +196,14 @@ pub struct TriggerCaptureRequest {
     pub timeout_s: u32,
 }
 
+impl PrepareQRenderDocJsonRequest for TriggerCaptureRequest {
+    type Error = QRenderDocJsonError;
+
+    fn prepare_in_cwd(&self, _cwd: &Path) -> Result<Self, Self::Error> {
+        Ok(self.clone())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureResponse {
     pub capture_path: String,
@@ -212,6 +221,14 @@ pub(crate) struct ExportActionsRequest {
     pub drawcall_scope: DrawcallScope,
     #[serde(flatten)]
     pub filter: EventFilter,
+}
+
+impl PrepareQRenderDocJsonRequest for ExportActionsRequest {
+    type Error = QRenderDocJsonError;
+
+    fn prepare_in_cwd(&self, _cwd: &Path) -> Result<Self, Self::Error> {
+        Ok(self.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -241,6 +258,14 @@ impl FindEventsRequest {
             capture: self.capture.normalized_in_cwd(cwd),
             ..self.clone()
         }
+    }
+}
+
+impl PrepareQRenderDocJsonRequest for FindEventsRequest {
+    type Error = QRenderDocJsonError;
+
+    fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error> {
+        Ok(self.normalized_in_cwd(cwd))
     }
 }
 
@@ -276,6 +301,14 @@ pub(crate) struct ExportBindingsIndexRequest {
     pub filter: EventFilter,
     #[serde(flatten)]
     pub bindings: BindingsExportOptions,
+}
+
+impl PrepareQRenderDocJsonRequest for ExportBindingsIndexRequest {
+    type Error = QRenderDocJsonError;
+
+    fn prepare_in_cwd(&self, _cwd: &Path) -> Result<Self, Self::Error> {
+        Ok(self.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -9,6 +9,7 @@ use crate::qrenderdoc_jobs::{
     REPLAY_LIST_TEXTURES_JOB, REPLAY_PICK_PIXEL_JOB, REPLAY_SAVE_OUTPUTS_PNG_JOB,
     REPLAY_SAVE_TEXTURE_PNG_JOB,
 };
+use crate::scripting::PrepareQRenderDocJsonRequest;
 use crate::{
     QRenderDocJsonError, normalize_capture_path, prepare_export_target,
     resolve_path_string_from_cwd,
@@ -26,6 +27,14 @@ impl ReplayListTexturesRequest {
             capture_path: normalize_capture_path(cwd, &self.capture_path),
             ..self.clone()
         }
+    }
+}
+
+impl PrepareQRenderDocJsonRequest for ReplayListTexturesRequest {
+    type Error = QRenderDocJsonError;
+
+    fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error> {
+        Ok(self.normalized_in_cwd(cwd))
     }
 }
 
@@ -68,6 +77,14 @@ impl ReplayPickPixelRequest {
     }
 }
 
+impl PrepareQRenderDocJsonRequest for ReplayPickPixelRequest {
+    type Error = QRenderDocJsonError;
+
+    fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error> {
+        Ok(self.normalized_in_cwd(cwd))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayPickPixelResponse {
     pub capture_path: String,
@@ -93,6 +110,14 @@ impl ReplaySaveTexturePngRequest {
             output_path: resolve_path_string_from_cwd(cwd, &self.output_path),
             ..self.clone()
         }
+    }
+}
+
+impl PrepareQRenderDocJsonRequest for ReplaySaveTexturePngRequest {
+    type Error = QRenderDocJsonError;
+
+    fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error> {
+        Ok(self.resolved_in_cwd(cwd))
     }
 }
 
@@ -135,6 +160,15 @@ impl ReplaySaveOutputsPngRequest {
     }
 }
 
+impl PrepareQRenderDocJsonRequest for ReplaySaveOutputsPngRequest {
+    type Error = ReplaySaveOutputsPngError;
+
+    fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error> {
+        self.normalized_in_cwd(cwd)
+            .map_err(ReplaySaveOutputsPngError::CreateOutputDir)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaySavedImage {
     pub kind: String,
@@ -168,9 +202,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayListTexturesRequest,
     ) -> Result<ReplayListTexturesResponse, ReplayListTexturesError> {
-        let req = req.normalized_in_cwd(cwd);
-
-        self.run_qrenderdoc_json_job(cwd, REPLAY_LIST_TEXTURES_JOB, &req)
+        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_LIST_TEXTURES_JOB, req)
     }
 
     pub fn replay_pick_pixel(
@@ -178,9 +210,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayPickPixelRequest,
     ) -> Result<ReplayPickPixelResponse, ReplayPickPixelError> {
-        let req = req.normalized_in_cwd(cwd);
-
-        self.run_qrenderdoc_json_job(cwd, REPLAY_PICK_PIXEL_JOB, &req)
+        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_PICK_PIXEL_JOB, req)
     }
 
     pub fn replay_save_texture_png(
@@ -188,9 +218,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveTexturePngRequest,
     ) -> Result<ReplaySaveTexturePngResponse, ReplaySaveTexturePngError> {
-        let req = req.resolved_in_cwd(cwd);
-
-        self.run_qrenderdoc_json_job(cwd, REPLAY_SAVE_TEXTURE_PNG_JOB, &req)
+        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_SAVE_TEXTURE_PNG_JOB, req)
     }
 
     pub fn replay_save_outputs_png(
@@ -198,11 +226,6 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveOutputsPngRequest,
     ) -> Result<ReplaySaveOutputsPngResponse, ReplaySaveOutputsPngError> {
-        let req = req
-            .normalized_in_cwd(cwd)
-            .map_err(ReplaySaveOutputsPngError::CreateOutputDir)?;
-
-        self.run_qrenderdoc_json_job(cwd, REPLAY_SAVE_OUTPUTS_PNG_JOB, &req)
-            .map_err(ReplaySaveOutputsPngError::from)
+        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_SAVE_OUTPUTS_PNG_JOB, req)
     }
 }

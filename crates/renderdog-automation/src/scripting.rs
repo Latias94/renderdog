@@ -126,6 +126,12 @@ impl From<CommandError> for QRenderDocPythonError {
     }
 }
 
+pub(crate) trait PrepareQRenderDocJsonRequest: Clone + Serialize {
+    type Error: From<QRenderDocJsonError>;
+
+    fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error>;
+}
+
 impl RenderDocInstallation {
     pub(crate) fn run_qrenderdoc_json_job<TReq, TResp>(
         &self,
@@ -177,6 +183,21 @@ impl RenderDocInstallation {
                 env.error.unwrap_or_else(|| "unknown error".into()),
             ))
         }
+    }
+
+    pub(crate) fn run_prepared_qrenderdoc_json_job<TReq, TResp>(
+        &self,
+        cwd: &Path,
+        job: QRenderDocJsonJob,
+        request: &TReq,
+    ) -> Result<TResp, TReq::Error>
+    where
+        TReq: PrepareQRenderDocJsonRequest,
+        TResp: DeserializeOwned,
+    {
+        let request = request.prepare_in_cwd(cwd)?;
+        self.run_qrenderdoc_json_job(cwd, job, &request)
+            .map_err(TReq::Error::from)
     }
 
     pub(crate) fn run_qrenderdoc_python(
