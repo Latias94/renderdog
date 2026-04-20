@@ -117,7 +117,7 @@ pub struct BindingsExportOptions {
 pub type OneShotCaptureTarget = crate::CaptureTargetRequest;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct OneShotCaptureOptions {
+pub struct OneShotTriggerOptions {
     #[serde(default = "default_host")]
     pub host: String,
     #[serde(default = "default_frames")]
@@ -126,7 +126,7 @@ pub struct OneShotCaptureOptions {
     pub timeout_s: u32,
 }
 
-impl Default for OneShotCaptureOptions {
+impl Default for OneShotTriggerOptions {
     fn default() -> Self {
         Self {
             host: default_host(),

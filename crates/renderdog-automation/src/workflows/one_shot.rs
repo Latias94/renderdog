@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::{
     BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
     CaptureTargetError, DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest,
-    ExportOutput, OneShotCaptureOptions, OneShotCaptureTarget, RenderDocInstallation,
+    ExportOutput, OneShotCaptureTarget, OneShotTriggerOptions, RenderDocInstallation,
     TriggerCaptureError, TriggerCaptureRequest, prepare_export_target,
 };
 
@@ -16,7 +16,7 @@ pub struct CaptureAndExportBundleRequest {
     #[serde(flatten)]
     pub target: OneShotCaptureTarget,
     #[serde(flatten)]
-    pub capture: OneShotCaptureOptions,
+    pub trigger: OneShotTriggerOptions,
     #[serde(flatten)]
     pub output: ExportOutput,
     #[serde(flatten)]
@@ -91,7 +91,7 @@ impl RenderDocInstallation {
         req: &CaptureAndExportBundleRequest,
     ) -> Result<CaptureAndExportBundleResponse, CaptureAndExportBundleError> {
         let prepared =
-            self.prepare_one_shot_capture(cwd, &req.target, &req.capture, &req.output)?;
+            self.prepare_one_shot_capture(cwd, &req.target, &req.trigger, &req.output)?;
         let export = self.export_bundle_jsonl(
             cwd,
             &ExportBundleRequest {
@@ -125,7 +125,7 @@ impl RenderDocInstallation {
         &self,
         cwd: &Path,
         target: &OneShotCaptureTarget,
-        capture_options: &OneShotCaptureOptions,
+        trigger_options: &OneShotTriggerOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
         let prepared_target = self.prepare_capture_target(cwd, target)?;
@@ -134,10 +134,10 @@ impl RenderDocInstallation {
         let capture = self.trigger_capture_via_target_control(
             cwd,
             &TriggerCaptureRequest {
-                host: capture_options.host.clone(),
+                host: trigger_options.host.clone(),
                 target_ident: launched_target.target_ident,
-                num_frames: capture_options.num_frames,
-                timeout_s: capture_options.timeout_s,
+                num_frames: trigger_options.num_frames,
+                timeout_s: trigger_options.timeout_s,
             },
         )?;
 
