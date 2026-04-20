@@ -57,11 +57,11 @@ pub struct OpenCaptureUiResponse {
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum CaptureTargetError {
+pub enum CaptureTargetError {
     #[error("failed to create artifacts dir: {0}")]
     CreateArtifactsDir(std::io::Error),
-    #[error(transparent)]
-    Tool(Box<ToolInvocationError>),
+    #[error("failed to launch capture target: {0}")]
+    LaunchTarget(Box<ToolInvocationError>),
     #[error("renderdoccmd returned invalid target ident: {0}")]
     InvalidTargetIdent(i32),
 }
@@ -69,7 +69,7 @@ pub(crate) enum CaptureTargetError {
 impl From<CommandCaptureLaunchError> for CaptureTargetError {
     fn from(value: CommandCaptureLaunchError) -> Self {
         match value {
-            CommandCaptureLaunchError::Tool(err) => Self::Tool(err),
+            CommandCaptureLaunchError::Tool(err) => Self::LaunchTarget(err),
             CommandCaptureLaunchError::InvalidTargetIdent(code) => Self::InvalidTargetIdent(code),
         }
     }
@@ -168,6 +168,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
+    use crate::renderdoccmd::CaptureLaunchError as CommandCaptureLaunchError;
     use serde_json::json;
 
     use super::*;
@@ -262,5 +263,23 @@ mod tests {
         assert_eq!(req.working_dir, None);
         assert_eq!(req.artifacts_dir, None);
         assert_eq!(req.capture_template_name, None);
+    }
+
+    #[test]
+    fn capture_target_error_preserves_launch_context() {
+        let err = CaptureTargetError::from(CommandCaptureLaunchError::InvalidTargetIdent(-1));
+        assert!(matches!(err, CaptureTargetError::InvalidTargetIdent(-1)));
+
+        let err = CaptureTargetError::from(CommandCaptureLaunchError::Tool(Box::new(
+            ToolInvocationError::NonZeroExit {
+                program: "renderdoccmd".to_string(),
+                args: vec!["capture".to_string()],
+                cwd: None,
+                status: 1,
+                stdout: String::new(),
+                stderr: "boom".to_string(),
+            },
+        )));
+        assert!(matches!(err, CaptureTargetError::LaunchTarget(_)));
     }
 }

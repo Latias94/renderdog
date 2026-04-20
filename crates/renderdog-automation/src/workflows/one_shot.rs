@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureTargetRequest,
-    ExportBundleError, ExportBundleRequest, ExportBundleResponse, ExportOutput,
-    RenderDocInstallation, ToolInvocationError, TriggerCaptureError, TriggerCaptureOptions,
+    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureTargetError,
+    CaptureTargetRequest, ExportBundleError, ExportBundleRequest, ExportBundleResponse,
+    ExportOutput, RenderDocInstallation, TriggerCaptureError, TriggerCaptureOptions,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -37,12 +37,8 @@ pub struct CaptureAndExportBundleResponse {
 pub enum PrepareOneShotCaptureError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
-    #[error("failed to create capture artifacts dir: {0}")]
-    CreateArtifactsDir(std::io::Error),
-    #[error("failed to launch capture target: {0}")]
-    LaunchTarget(Box<ToolInvocationError>),
-    #[error("renderdoccmd returned invalid target ident: {0}")]
-    InvalidTargetIdent(i32),
+    #[error("capture target failed: {0}")]
+    CaptureTarget(#[from] CaptureTargetError),
     #[error("trigger capture failed: {0}")]
     Trigger(#[from] TriggerCaptureError),
 }
@@ -90,20 +86,6 @@ impl PreparedOneShotCapture {
     }
 }
 
-fn map_capture_target_error(err: crate::capture::CaptureTargetError) -> PrepareOneShotCaptureError {
-    match err {
-        crate::capture::CaptureTargetError::CreateArtifactsDir(source) => {
-            PrepareOneShotCaptureError::CreateArtifactsDir(source)
-        }
-        crate::capture::CaptureTargetError::Tool(source) => {
-            PrepareOneShotCaptureError::LaunchTarget(source)
-        }
-        crate::capture::CaptureTargetError::InvalidTargetIdent(code) => {
-            PrepareOneShotCaptureError::InvalidTargetIdent(code)
-        }
-    }
-}
-
 impl RenderDocInstallation {
     pub fn capture_and_export_bundle_jsonl(
         &self,
@@ -124,12 +106,8 @@ impl RenderDocInstallation {
         trigger_options: &TriggerCaptureOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let prepared_target = self
-            .prepare_capture_target(cwd, target)
-            .map_err(map_capture_target_error)?;
-        let launched_target = self
-            .launch_prepared_capture_target(&prepared_target)
-            .map_err(map_capture_target_error)?;
+        let prepared_target = self.prepare_capture_target(cwd, target)?;
+        let launched_target = self.launch_prepared_capture_target(&prepared_target)?;
 
         let capture = self.trigger_capture_via_target_control(
             cwd,
@@ -161,12 +139,13 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, PreparedOneShotCapture,
+        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, PrepareOneShotCaptureError,
+        PreparedOneShotCapture,
     };
     use crate::{
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
-        CapturePostActionOutputs, CapturePostActions, CaptureTargetRequest, DrawcallScope,
-        EventFilter, ExportBundleResponse, ExportOutput, TriggerCaptureOptions,
+        CapturePostActionOutputs, CapturePostActions, CaptureTargetError, CaptureTargetRequest,
+        DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput, TriggerCaptureOptions,
     };
 
     #[test]
@@ -386,5 +365,15 @@ mod tests {
             Some(&Value::String("/tmp/out/frame.thumb.png".to_string()))
         );
         assert!(!object.contains_key("artifacts"));
+    }
+
+    #[test]
+    fn prepare_one_shot_capture_error_wraps_capture_target_error() {
+        let err: PrepareOneShotCaptureError = CaptureTargetError::InvalidTargetIdent(-1).into();
+
+        assert!(matches!(
+            err,
+            PrepareOneShotCaptureError::CaptureTarget(CaptureTargetError::InvalidTargetIdent(-1))
+        ));
     }
 }
