@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use crate::{
     BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
     DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest, ExportOutput,
     LaunchCaptureError, OneShotCaptureOptions, OneShotCaptureTarget, RenderDocInstallation,
-    TriggerCaptureError, TriggerCaptureRequest, default_exports_dir, resolve_path_from_cwd,
+    TriggerCaptureError, TriggerCaptureRequest, prepare_export_target,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -65,46 +65,22 @@ pub enum CaptureAndExportBundleError {
     Export(#[from] ExportBundleError),
 }
 
-struct OneShotCaptureResponseBase {
+struct PreparedOneShotCapture {
     target_ident: u32,
+    capture: CaptureInput,
+    output: ExportOutput,
     capture_file_template: Option<String>,
     stdout: String,
     stderr: String,
 }
 
-struct PreparedOneShotCapture {
-    target_ident: u32,
-    capture_path: PathBuf,
-    capture_file_template: Option<PathBuf>,
-    stdout: String,
-    stderr: String,
-    output_dir: PathBuf,
-    basename: String,
-}
-
 impl PreparedOneShotCapture {
     fn capture_input(&self) -> CaptureInput {
-        CaptureInput {
-            capture_path: self.capture_path.display().to_string(),
-        }
+        self.capture.clone()
     }
 
     fn export_output(&self) -> ExportOutput {
-        ExportOutput {
-            output_dir: Some(self.output_dir.display().to_string()),
-            basename: Some(self.basename.clone()),
-        }
-    }
-
-    fn into_response_base(self) -> OneShotCaptureResponseBase {
-        OneShotCaptureResponseBase {
-            target_ident: self.target_ident,
-            capture_file_template: self
-                .capture_file_template
-                .map(|path| path.display().to_string()),
-            stdout: self.stdout,
-            stderr: self.stderr,
-        }
+        self.output.clone()
     }
 }
 
@@ -150,13 +126,12 @@ impl RenderDocInstallation {
                     },
                 )?;
 
-                let base = prepared.into_response_base();
                 Ok(CaptureAndExportBundleResponse {
-                    target_ident: base.target_ident,
+                    target_ident: prepared.target_ident,
                     capture_path: export.capture_path,
-                    capture_file_template: base.capture_file_template,
-                    stdout: base.stdout,
-                    stderr: base.stderr,
+                    capture_file_template: prepared.capture_file_template,
+                    stdout: prepared.stdout,
+                    stderr: prepared.stderr,
                     actions_jsonl_path: export.actions_jsonl_path,
                     actions_summary_json_path: export.actions_summary_json_path,
                     total_actions: export.total_actions,
@@ -187,31 +162,26 @@ impl RenderDocInstallation {
             },
         )?;
 
-        let output_dir = req
-            .output
-            .output_dir
-            .as_deref()
-            .map(|path| resolve_path_from_cwd(cwd, path))
-            .unwrap_or_else(|| default_exports_dir(cwd));
-        std::fs::create_dir_all(&output_dir)
-            .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
-
-        let basename = req.output.basename.clone().unwrap_or_else(|| {
-            Path::new(&capture.capture_path)
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
+        let prepared_export = prepare_export_target(
+            cwd,
+            &capture.capture_path,
+            req.output.output_dir.as_deref(),
+            req.output.basename.as_deref(),
+        )
+        .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
 
         Ok(PreparedOneShotCapture {
             target_ident: launch.target_ident,
-            capture_path: PathBuf::from(capture.capture_path),
-            capture_file_template: launch.capture_file_template.map(PathBuf::from),
+            capture: CaptureInput {
+                capture_path: prepared_export.capture_path,
+            },
+            output: ExportOutput {
+                output_dir: Some(prepared_export.output_dir),
+                basename: Some(prepared_export.basename),
+            },
+            capture_file_template: launch.capture_file_template,
             stdout: launch.stdout,
             stderr: launch.stderr,
-            output_dir,
-            basename,
         })
     }
 
