@@ -70,10 +70,9 @@ In composite / masked passes:
 These checks don’t replace UI inspection, but help validate outputs quickly:
 
 - Export actions/bindings for grep-friendly search
-  - `renderdog-automation`: `export_actions_from_capture` (example)
-  - `renderdog-mcp`: `renderdoc_export_actions_jsonl` / `renderdoc_export_bindings_index_jsonl`
+  - `renderdog-automation`: `export_bundle_from_capture` (example)
+  - `renderdog-mcp`: `renderdoc_export_bundle_jsonl`
 - Export textures / pick pixels (headless replay via `qrenderdoc --python`)
   - `renderdog-automation`: `replay_list_textures`, `replay_pick_pixel`, `replay_save_texture_png`
   - `renderdog-mcp`: `renderdoc_replay_list_textures`, `renderdoc_replay_pick_pixel`,
     `renderdoc_replay_save_texture_png`
-
