@@ -1,15 +1,22 @@
 # renderdog-replay
 
-Experimental RenderDoc *replay* bindings via a small C++ shim and the `cxx` crate.
+Experimental RenderDoc *replay-session* bindings via a small C++ shim and the `cxx` crate.
 
 This crate is **not published** to crates.io (`publish = false`), and the API is expected to change.
+It is intentionally a small, stateful session adapter around RenderDoc's C++ replay API.
+
+If you want stable capture/export/replay workflows, prefer `renderdog-automation` and
+`qrenderdoc --python` from the workspace instead of depending on this crate directly.
 
 See the [workspace README](../../README.md) for the stable crates and the MCP workflow.
 
 ## Status
 
-- Goal: open an `.rdc` capture and expose a few replay operations (e.g. list textures, pick pixels, save textures).
+- Goal: open an `.rdc` capture and expose a few session-scoped replay operations
+  (e.g. list textures, pick pixels, save textures).
 - Approach: dynamically load the local RenderDoc library (`renderdoc.dll` / `librenderdoc.so`) and call replay APIs.
+
+The primary Rust entrypoint is `ReplaySession`.
 
 ## Build
 

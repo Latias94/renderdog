@@ -16,7 +16,7 @@ Repository: https://github.com/Latias94/renderdog
 - Provide a small, safe-ish Rust wrapper for RenderDoc's in-app capture API.
 - Provide out-of-process automation that is usable by an AI agent (capture + export searchable artifacts).
 - Keep the stable "replay/analysis" workflow in `qrenderdoc --python` for fast iteration.
-- Optionally experiment with a minimal Rust-friendly replay shim (`renderdog-replay`, not published).
+- Optionally experiment with a minimal Rust-friendly replay-session shim (`renderdog-replay`, not published).
 
 ## Crates
 
@@ -25,7 +25,7 @@ Repository: https://github.com/Latias94/renderdog
 - `renderdog-automation`: out-of-process automation helpers (`renderdoccmd`, `qrenderdoc --python` workflows).
 - `renderdog-mcp`: MCP server exposing automation workflows.
 - `renderdog-winit`: optional `winit` helpers (key mapping + window-handle helpers).
-- `renderdog-replay`: experimental replay shim (C++/cxx, not published to crates.io).
+- `renderdog-replay`: experimental stateful replay-session shim (C++/cxx, not published to crates.io).
 
 ## Platform support
 

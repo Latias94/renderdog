@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use renderdog_replay::Replay;
+use renderdog_replay::ReplaySession;
 
 fn main() -> anyhow::Result<()> {
     println!("[cxx_replay_pick_pixel] start");
@@ -32,7 +32,8 @@ fn main() -> anyhow::Result<()> {
         "[cxx_replay_pick_pixel] new(renderdoc_path={:?})",
         renderdoc_path.as_deref()
     );
-    let mut replay = Replay::new(renderdoc_path.as_deref()).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mut replay =
+        ReplaySession::new(renderdoc_path.as_deref()).map_err(|e| anyhow::anyhow!("{e}"))?;
     println!("[cxx_replay_pick_pixel] open_capture");
     replay
         .open_capture(&capture)
