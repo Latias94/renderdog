@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use crate::types::{
@@ -11,7 +9,7 @@ use crate::types::{
     CaptureAndExportBundleResponse,
 };
 
-use super::{RenderdogMcpServer, require_installation, tool_result};
+use super::{RenderdogMcpServer, ToolRun};
 
 #[tool_router(router = workflows_tool_router, vis = "pub(super)")]
 impl RenderdogMcpServer {
@@ -24,25 +22,23 @@ impl RenderdogMcpServer {
         Parameters(req): Parameters<CaptureAndExportActionsToolRequest>,
     ) -> Result<Json<CaptureAndExportActionsResponse>, String> {
         let tool = "renderdoc_capture_and_export_actions_jsonl";
-        let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            executable = %req.inner.target.executable,
-            args_len = req.inner.target.args.len(),
-            "start"
-        );
-
-        let install = require_installation(tool)?;
-        let (cwd, req) = req.into_parts()?;
-        let res = tool_result(
-            tool,
+        let run = ToolRun::start(tool, || {
+            tracing::info!(
+                tool = tool,
+                executable = %req.inner.target.executable,
+                args_len = req.inner.target.args.len(),
+                "start"
+            );
+        });
+        let res = run.with_install_and_cwd(
             "one-shot capture/export actions",
-            install.capture_and_export_actions_jsonl(&cwd, &req),
+            req,
+            |install, cwd, req| install.capture_and_export_actions_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
             tool = tool,
-            elapsed_ms = start.elapsed().as_millis(),
+            elapsed_ms = run.elapsed_ms(),
             target_ident = res.target_ident,
             capture_path = %res.capture_path,
             actions_jsonl_path = %res.actions_jsonl_path,
@@ -62,25 +58,23 @@ impl RenderdogMcpServer {
         Parameters(req): Parameters<CaptureAndExportBindingsIndexToolRequest>,
     ) -> Result<Json<CaptureAndExportBindingsIndexResponse>, String> {
         let tool = "renderdoc_capture_and_export_bindings_jsonl";
-        let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            executable = %req.inner.target.executable,
-            args_len = req.inner.target.args.len(),
-            "start"
-        );
-
-        let install = require_installation(tool)?;
-        let (cwd, req) = req.into_parts()?;
-        let res = tool_result(
-            tool,
+        let run = ToolRun::start(tool, || {
+            tracing::info!(
+                tool = tool,
+                executable = %req.inner.target.executable,
+                args_len = req.inner.target.args.len(),
+                "start"
+            );
+        });
+        let res = run.with_install_and_cwd(
             "one-shot capture/export bindings",
-            install.capture_and_export_bindings_index_jsonl(&cwd, &req),
+            req,
+            |install, cwd, req| install.capture_and_export_bindings_index_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
             tool = tool,
-            elapsed_ms = start.elapsed().as_millis(),
+            elapsed_ms = run.elapsed_ms(),
             target_ident = res.target_ident,
             capture_path = %res.capture_path,
             bindings_jsonl_path = %res.bindings_jsonl_path,
@@ -100,25 +94,23 @@ impl RenderdogMcpServer {
         Parameters(req): Parameters<CaptureAndExportBundleToolRequest>,
     ) -> Result<Json<CaptureAndExportBundleResponse>, String> {
         let tool = "renderdoc_capture_and_export_bundle_jsonl";
-        let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            executable = %req.inner.target.executable,
-            args_len = req.inner.target.args.len(),
-            "start"
-        );
-
-        let install = require_installation(tool)?;
-        let (cwd, req) = req.into_parts()?;
-        let res = tool_result(
-            tool,
+        let run = ToolRun::start(tool, || {
+            tracing::info!(
+                tool = tool,
+                executable = %req.inner.target.executable,
+                args_len = req.inner.target.args.len(),
+                "start"
+            );
+        });
+        let res = run.with_install_and_cwd(
             "one-shot capture/export bundle",
-            install.capture_and_export_bundle_jsonl(&cwd, &req),
+            req,
+            |install, cwd, req| install.capture_and_export_bundle_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
             tool = tool,
-            elapsed_ms = start.elapsed().as_millis(),
+            elapsed_ms = run.elapsed_ms(),
             target_ident = res.target_ident,
             capture_path = %res.capture_path,
             actions_jsonl_path = %res.actions_jsonl_path,

@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use renderdog_automation as renderdog;
@@ -11,7 +9,7 @@ use crate::types::{
     ReplaySaveTexturePngRequest as ReplaySaveTexturePngToolRequest,
 };
 
-use super::{RenderdogMcpServer, require_installation, tool_result};
+use super::{RenderdogMcpServer, ToolRun};
 
 #[tool_router(router = replay_tool_router, vis = "pub(super)")]
 impl RenderdogMcpServer {
@@ -24,20 +22,16 @@ impl RenderdogMcpServer {
         Parameters(req): Parameters<ReplayListTexturesToolRequest>,
     ) -> Result<Json<renderdog::ReplayListTexturesResponse>, String> {
         let tool = "renderdoc_replay_list_textures";
-        let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
-        let install = require_installation(tool)?;
-
-        let (cwd, req) = req.into_parts()?;
-        let res = tool_result(
-            tool,
-            "replay list textures",
-            install.replay_list_textures(&cwd, &req),
-        )?;
+        let run = ToolRun::start(tool, || {
+            tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
+        });
+        let res = run.with_install_and_cwd("replay list textures", req, |install, cwd, req| {
+            install.replay_list_textures(&cwd, &req)
+        })?;
 
         tracing::info!(
             tool = tool,
-            elapsed_ms = start.elapsed().as_millis(),
+            elapsed_ms = run.elapsed_ms(),
             textures = res.textures.len(),
             "ok"
         );
@@ -53,25 +47,21 @@ impl RenderdogMcpServer {
         Parameters(req): Parameters<ReplayPickPixelToolRequest>,
     ) -> Result<Json<renderdog::ReplayPickPixelResponse>, String> {
         let tool = "renderdoc_replay_pick_pixel";
-        let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.inner.capture_path,
-            texture_index = req.inner.texture_index,
-            x = req.inner.x,
-            y = req.inner.y,
-            "start"
-        );
-        let install = require_installation(tool)?;
+        let run = ToolRun::start(tool, || {
+            tracing::info!(
+                tool = tool,
+                capture_path = %req.inner.capture_path,
+                texture_index = req.inner.texture_index,
+                x = req.inner.x,
+                y = req.inner.y,
+                "start"
+            );
+        });
+        let res = run.with_install_and_cwd("replay pick pixel", req, |install, cwd, req| {
+            install.replay_pick_pixel(&cwd, &req)
+        })?;
 
-        let (cwd, req) = req.into_parts()?;
-        let res = tool_result(
-            tool,
-            "replay pick pixel",
-            install.replay_pick_pixel(&cwd, &req),
-        )?;
-
-        tracing::info!(tool = tool, elapsed_ms = start.elapsed().as_millis(), "ok");
+        tracing::info!(tool = tool, elapsed_ms = run.elapsed_ms(), "ok");
         Ok(Json(res))
     }
 
@@ -84,25 +74,22 @@ impl RenderdogMcpServer {
         Parameters(req): Parameters<ReplaySaveTexturePngToolRequest>,
     ) -> Result<Json<renderdog::ReplaySaveTexturePngResponse>, String> {
         let tool = "renderdoc_replay_save_texture_png";
-        let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.inner.capture_path,
-            texture_index = req.inner.texture_index,
-            "start"
-        );
-        let install = require_installation(tool)?;
-
-        let (cwd, req) = req.into_parts()?;
-        let res = tool_result(
-            tool,
-            "replay save texture PNG",
-            install.replay_save_texture_png(&cwd, &req),
-        )?;
+        let run = ToolRun::start(tool, || {
+            tracing::info!(
+                tool = tool,
+                capture_path = %req.inner.capture_path,
+                texture_index = req.inner.texture_index,
+                "start"
+            );
+        });
+        let res =
+            run.with_install_and_cwd("replay save texture PNG", req, |install, cwd, req| {
+                install.replay_save_texture_png(&cwd, &req)
+            })?;
 
         tracing::info!(
             tool = tool,
-            elapsed_ms = start.elapsed().as_millis(),
+            elapsed_ms = run.elapsed_ms(),
             output_path = %res.output_path,
             "ok"
         );
@@ -118,26 +105,23 @@ impl RenderdogMcpServer {
         Parameters(req): Parameters<ReplaySaveOutputsPngToolRequest>,
     ) -> Result<Json<renderdog::ReplaySaveOutputsPngResponse>, String> {
         let tool = "renderdoc_replay_save_outputs_png";
-        let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.inner.capture_path,
-            event_id = req.inner.event_id.unwrap_or(0),
-            include_depth = req.inner.include_depth,
-            "start"
-        );
-        let install = require_installation(tool)?;
-
-        let (cwd, req) = req.into_parts()?;
-        let res = tool_result(
-            tool,
-            "replay save outputs PNG",
-            install.replay_save_outputs_png(&cwd, &req),
-        )?;
+        let run = ToolRun::start(tool, || {
+            tracing::info!(
+                tool = tool,
+                capture_path = %req.inner.capture_path,
+                event_id = req.inner.event_id.unwrap_or(0),
+                include_depth = req.inner.include_depth,
+                "start"
+            );
+        });
+        let res =
+            run.with_install_and_cwd("replay save outputs PNG", req, |install, cwd, req| {
+                install.replay_save_outputs_png(&cwd, &req)
+            })?;
 
         tracing::info!(
             tool = tool,
-            elapsed_ms = start.elapsed().as_millis(),
+            elapsed_ms = run.elapsed_ms(),
             images = res.outputs.len(),
             "ok"
         );
