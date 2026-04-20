@@ -1,8 +1,6 @@
-use std::{ffi::OsString, path::PathBuf};
-
 use renderdog_automation as renderdog;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!(
@@ -12,8 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(2);
     }
 
-    let executable = PathBuf::from(&args[0]);
-    let exe_args: Vec<OsString> = args[1..].iter().cloned().map(OsString::from).collect();
+    let (executable, exe_args) = args.split_first().expect("checked above");
 
     let install = renderdog::RenderDocInstallation::detect()?;
 
@@ -25,51 +22,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let cwd = std::env::current_dir()?;
-    let artifacts_dir = renderdog::default_artifacts_dir(&cwd);
-    std::fs::create_dir_all(&artifacts_dir)?;
-
-    let capture_template = artifacts_dir.join("capture_{app}_{timestamp}_{frame}.rdc");
-
-    let launch = install.launch_capture(&renderdog::CaptureLaunchRequest {
-        executable,
-        args: exe_args,
-        working_dir: None,
-        capture_file_template: Some(capture_template.clone()),
-    })?;
-    eprintln!(
-        "launched renderdoccmd capture: target_ident={}",
-        launch.target_ident
-    );
-
-    let capture = install.trigger_capture_via_target_control(
+    let res = install.capture_and_export_actions_jsonl(
         &cwd,
-        &renderdog::TriggerCaptureRequest {
-            host: "localhost".to_string(),
-            target_ident: launch.target_ident,
-            num_frames: 1,
-            timeout_s: 60,
-        },
-    )?;
-    eprintln!("captured: {}", capture.capture_path);
-
-    let export = install.export_actions_jsonl(
-        &cwd,
-        &renderdog::ExportActionsRequest {
-            capture: renderdog::CaptureInput {
-                capture_path: capture.capture_path,
+        &renderdog::CaptureAndExportActionsRequest {
+            target: renderdog::LaunchCaptureRequest {
+                executable: executable.clone(),
+                args: exe_args.to_vec(),
+                working_dir: None,
+                artifacts_dir: None,
+                capture_template_name: Some("capture_{app}_{timestamp}_{frame}".to_string()),
             },
+            capture: renderdog::OneShotCaptureOptions::default(),
             output: renderdog::ExportOutput::default(),
             drawcall_scope: renderdog::DrawcallScope::default(),
             filter: renderdog::EventFilter::default(),
         },
     )?;
-
-    println!("actions_jsonl: {}", export.actions_jsonl_path);
-    println!("summary_json:  {}", export.summary_json_path);
-    println!(
-        "actions: total={}, drawcalls={}",
-        export.total_actions, export.drawcall_actions
-    );
+    println!("{}", serde_json::to_string_pretty(&res)?);
 
     Ok(())
 }
