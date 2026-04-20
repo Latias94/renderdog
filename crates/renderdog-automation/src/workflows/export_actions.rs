@@ -3,8 +3,10 @@ use std::path::Path;
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
-use crate::resolve_path_string_from_cwd;
 use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
+use crate::{
+    default_capture_basename, resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
+};
 
 use super::{ExportActionsRequest, ExportActionsResponse};
 
@@ -46,9 +48,17 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportActionsRequest,
     ) -> Result<ExportActionsResponse, ExportActionsError> {
+        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture_path);
+        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output_dir.as_deref());
+        std::fs::create_dir_all(&output_dir).map_err(ExportActionsError::CreateOutputDir)?;
+        let basename = req
+            .basename
+            .clone()
+            .unwrap_or_else(|| default_capture_basename(&capture_path));
         let req = ExportActionsRequest {
-            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
-            output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
+            capture_path,
+            output_dir: Some(output_dir.display().to_string()),
+            basename: Some(basename),
             ..req.clone()
         };
 

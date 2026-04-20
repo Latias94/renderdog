@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::{
     FindEventsError, FindEventsRequest, FindEventsResponse, RenderDocInstallation,
     ReplaySaveOutputsPngError, ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse,
-    default_exports_dir, resolve_path_from_cwd, resolve_path_string_from_cwd,
+    default_capture_basename, resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
 };
 
 fn default_true() -> bool {
@@ -103,29 +103,22 @@ impl RenderDocInstallation {
         }
         .ok_or(FindEventsAndSaveOutputsPngError::NoMatchingEvents)?;
 
-        let output_dir = req
-            .output_dir
-            .as_deref()
-            .map(|path| resolve_path_from_cwd(cwd, path))
-            .unwrap_or_else(|| default_exports_dir(cwd));
+        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output_dir.as_deref());
         std::fs::create_dir_all(&output_dir)
             .map_err(FindEventsAndSaveOutputsPngError::CreateOutputDir)?;
 
-        let basename = req.basename.clone().unwrap_or_else(|| {
-            Path::new(&capture_path)
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
+        let basename = req
+            .basename
+            .clone()
+            .unwrap_or_else(|| default_capture_basename(&capture_path));
 
         let replay = self.replay_save_outputs_png(
             cwd,
             &ReplaySaveOutputsPngRequest {
                 capture_path,
                 event_id: Some(selected_event_id),
-                output_dir: output_dir.display().to_string(),
-                basename,
+                output_dir: Some(output_dir.display().to_string()),
+                basename: Some(basename),
                 include_depth: req.include_depth,
             },
         )?;

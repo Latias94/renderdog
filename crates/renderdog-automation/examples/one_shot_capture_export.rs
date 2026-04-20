@@ -1,7 +1,4 @@
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-};
+use std::{ffi::OsString, path::PathBuf};
 
 use renderdog_automation as renderdog;
 
@@ -29,9 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cwd = std::env::current_dir()?;
     let artifacts_dir = renderdog::default_artifacts_dir(&cwd);
-    let exports_dir = renderdog::default_exports_dir(&cwd);
     std::fs::create_dir_all(&artifacts_dir)?;
-    std::fs::create_dir_all(&exports_dir)?;
 
     let capture_template = artifacts_dir.join("capture_{app}_{timestamp}_{frame}.rdc");
 
@@ -57,18 +52,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     eprintln!("captured: {}", capture.capture_path);
 
-    let basename = Path::new(&capture.capture_path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("capture")
-        .to_string();
-
     let export = install.export_actions_jsonl(
         &cwd,
         &renderdog::ExportActionsRequest {
             capture_path: capture.capture_path,
-            output_dir: exports_dir.display().to_string(),
-            basename,
+            output_dir: None,
+            basename: None,
             only_drawcalls: false,
             marker_prefix: None,
             event_id_min: None,

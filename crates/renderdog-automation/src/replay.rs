@@ -5,8 +5,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
-use crate::resolve_path_string_from_cwd;
 use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
+use crate::{
+    default_capture_basename, resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayListTexturesRequest {
@@ -73,9 +75,13 @@ pub struct ReplaySaveTexturePngResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaySaveOutputsPngRequest {
     pub capture_path: String,
+    #[serde(default)]
     pub event_id: Option<u32>,
-    pub output_dir: String,
-    pub basename: String,
+    #[serde(default)]
+    pub output_dir: Option<String>,
+    #[serde(default)]
+    pub basename: Option<String>,
+    #[serde(default)]
     pub include_depth: bool,
 }
 
@@ -152,6 +158,8 @@ pub enum ReplaySaveTexturePngError {
 pub enum ReplaySaveOutputsPngError {
     #[error("failed to create scripts dir: {0}")]
     CreateScriptsDir(std::io::Error),
+    #[error("failed to create output dir: {0}")]
+    CreateOutputDir(std::io::Error),
     #[error("failed to write python script: {0}")]
     WriteScript(std::io::Error),
     #[error("failed to write request JSON: {0}")]
@@ -262,9 +270,17 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveOutputsPngRequest,
     ) -> Result<ReplaySaveOutputsPngResponse, ReplaySaveOutputsPngError> {
+        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture_path);
+        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output_dir.as_deref());
+        std::fs::create_dir_all(&output_dir).map_err(ReplaySaveOutputsPngError::CreateOutputDir)?;
+        let basename = req
+            .basename
+            .clone()
+            .unwrap_or_else(|| default_capture_basename(&capture_path));
         let req = ReplaySaveOutputsPngRequest {
-            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
-            output_dir: resolve_path_string_from_cwd(cwd, &req.output_dir),
+            capture_path,
+            output_dir: Some(output_dir.display().to_string()),
+            basename: Some(basename),
             ..req.clone()
         };
 

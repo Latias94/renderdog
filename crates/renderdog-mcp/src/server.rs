@@ -44,6 +44,23 @@ fn require_installation(tool: &'static str) -> Result<renderdog::RenderDocInstal
     )
 }
 
+fn default_thumbnail_output_path(actions_jsonl_path: &str) -> String {
+    let actions_path = Path::new(actions_jsonl_path);
+    let basename = actions_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_suffix(".actions.jsonl"))
+        .or_else(|| actions_path.file_stem().and_then(|name| name.to_str()))
+        .unwrap_or("capture");
+
+    actions_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(format!("{basename}.thumb.png"))
+        .display()
+        .to_string()
+}
+
 #[tool_router(router = tool_router)]
 impl RenderdogMcpServer {
     pub(crate) fn new() -> Self {
@@ -299,49 +316,14 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::ExportActionsResponse>, String> {
         let tool = "renderdoc_export_actions_jsonl";
         let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.capture_path,
-            "start"
-        );
+        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            capture_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
         let res = tool_result(
             tool,
             "export actions",
-            install.export_actions_jsonl(
-                &cwd,
-                &renderdog::ExportActionsRequest {
-                    capture_path: capture_path.display().to_string(),
-                    output_dir,
-                    basename,
-                    only_drawcalls: req.only_drawcalls,
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                },
-            ),
+            install.export_actions_jsonl(&cwd, &req.inner),
         )?;
 
         tracing::info!(
@@ -364,50 +346,14 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::ExportBindingsIndexResponse>, String> {
         let tool = "renderdoc_export_bindings_index_jsonl";
         let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.capture_path,
-            "start"
-        );
+        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            capture_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
         let res = tool_result(
             tool,
             "export bindings index",
-            install.export_bindings_index_jsonl(
-                &cwd,
-                &renderdog::ExportBindingsIndexRequest {
-                    capture_path: capture_path.display().to_string(),
-                    output_dir,
-                    basename,
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                    include_cbuffers: req.include_cbuffers,
-                    include_outputs: req.include_outputs,
-                },
-            ),
+            install.export_bindings_index_jsonl(&cwd, &req.inner),
         )?;
 
         tracing::info!(
@@ -430,51 +376,14 @@ impl RenderdogMcpServer {
     ) -> Result<Json<ExportBundleResponse>, String> {
         let tool = "renderdoc_export_bundle_jsonl";
         let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.capture_path,
-            "start"
-        );
+        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            capture_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
         let bundle = tool_result(
             tool,
             "export bundle",
-            install.export_bundle_jsonl(
-                &cwd,
-                &renderdog::ExportBundleRequest {
-                    capture_path: capture_path.display().to_string(),
-                    output_dir: output_dir.clone(),
-                    basename: basename.clone(),
-                    only_drawcalls: req.only_drawcalls,
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                    include_cbuffers: req.include_cbuffers,
-                    include_outputs: req.include_outputs,
-                },
-            ),
+            install.export_bundle_jsonl(&cwd, &req.inner),
         )?;
 
         let mut thumbnail_output_path: Option<String> = None;
@@ -482,12 +391,7 @@ impl RenderdogMcpServer {
             let thumb_path = req
                 .thumbnail_output_path
                 .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-                .unwrap_or_else(|| {
-                    Path::new(&output_dir)
-                        .join(format!("{basename}.thumb.png"))
-                        .display()
-                        .to_string()
-                });
+                .unwrap_or_else(|| default_thumbnail_output_path(&bundle.actions_jsonl_path));
             if let Some(parent) = Path::new(&thumb_path).parent() {
                 std::fs::create_dir_all(parent)
                     .map_err(|e| format!("create thumbnail output dir failed: {e}"))?;
@@ -538,34 +442,11 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::FindEventsResponse>, String> {
         let tool = "renderdoc_find_events";
         let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.capture_path,
-            "start"
-        );
+        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
-        let res = tool_result(
-            tool,
-            "find events",
-            install.find_events(
-                &cwd,
-                &renderdog::FindEventsRequest {
-                    capture_path: capture_path.display().to_string(),
-                    only_drawcalls: req.only_drawcalls,
-                    marker_prefix: req.marker_prefix,
-                    event_id_min: req.event_id_min,
-                    event_id_max: req.event_id_max,
-                    name_contains: req.name_contains,
-                    marker_contains: req.marker_contains,
-                    case_sensitive: req.case_sensitive,
-                    max_results: req.max_results,
-                },
-            ),
-        )?;
+        let res = tool_result(tool, "find events", install.find_events(&cwd, &req.inner))?;
 
         tracing::info!(
             tool = tool,
@@ -622,26 +503,14 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::ReplayListTexturesResponse>, String> {
         let tool = "renderdoc_replay_list_textures";
         let start = Instant::now();
-        tracing::info!(
-            tool = tool,
-            capture_path = %req.capture_path,
-            "start"
-        );
+        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
         let res = tool_result(
             tool,
             "replay list textures",
-            install.replay_list_textures(
-                &cwd,
-                &renderdog::ReplayListTexturesRequest {
-                    capture_path: capture_path.display().to_string(),
-                    event_id: req.event_id,
-                },
-            ),
+            install.replay_list_textures(&cwd, &req.inner),
         )?;
 
         tracing::info!(
@@ -665,30 +534,19 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            capture_path = %req.capture_path,
-            texture_index = req.texture_index,
-            x = req.x,
-            y = req.y,
+            capture_path = %req.inner.capture_path,
+            texture_index = req.inner.texture_index,
+            x = req.inner.x,
+            y = req.inner.y,
             "start"
         );
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
         let res = tool_result(
             tool,
             "replay pick pixel",
-            install.replay_pick_pixel(
-                &cwd,
-                &renderdog::ReplayPickPixelRequest {
-                    capture_path: capture_path.display().to_string(),
-                    event_id: req.event_id,
-                    texture_index: req.texture_index,
-                    x: req.x,
-                    y: req.y,
-                },
-            ),
+            install.replay_pick_pixel(&cwd, &req.inner),
         )?;
 
         tracing::info!(tool = tool, elapsed_ms = start.elapsed().as_millis(), "ok");
@@ -707,33 +565,17 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            capture_path = %req.capture_path,
-            texture_index = req.texture_index,
+            capture_path = %req.inner.capture_path,
+            texture_index = req.inner.texture_index,
             "start"
         );
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-        let output_path = resolve_path_from_base(&cwd, &req.output_path);
-
-        if let Some(parent) = output_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("create output dir failed: {e}"))?;
-        }
-
         let res = tool_result(
             tool,
             "replay save texture PNG",
-            install.replay_save_texture_png(
-                &cwd,
-                &renderdog::ReplaySaveTexturePngRequest {
-                    capture_path: capture_path.display().to_string(),
-                    event_id: req.event_id,
-                    texture_index: req.texture_index,
-                    output_path: output_path.display().to_string(),
-                },
-            ),
+            install.replay_save_texture_png(&cwd, &req.inner),
         )?;
 
         tracing::info!(
@@ -757,44 +599,18 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            capture_path = %req.capture_path,
-            event_id = req.event_id.unwrap_or(0),
-            include_depth = req.include_depth,
+            capture_path = %req.inner.capture_path,
+            event_id = req.inner.event_id.unwrap_or(0),
+            include_depth = req.inner.include_depth,
             "start"
         );
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
-        let output_dir = req
-            .output_dir
-            .map(|p| resolve_path_from_base(&cwd, &p).display().to_string())
-            .unwrap_or_else(|| renderdog::default_exports_dir(&cwd).display().to_string());
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("create output_dir failed: {e}"))?;
-
-        let basename = req.basename.unwrap_or_else(|| {
-            capture_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("capture")
-                .to_string()
-        });
-
         let res = tool_result(
             tool,
             "replay save outputs PNG",
-            install.replay_save_outputs_png(
-                &cwd,
-                &renderdog::ReplaySaveOutputsPngRequest {
-                    capture_path: capture_path.display().to_string(),
-                    event_id: req.event_id,
-                    output_dir,
-                    basename,
-                    include_depth: req.include_depth,
-                },
-            ),
+            install.replay_save_outputs_png(&cwd, &req.inner),
         )?;
 
         tracing::info!(

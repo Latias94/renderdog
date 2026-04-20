@@ -9,7 +9,3 @@ pub(crate) fn default_frames() -> u32 {
 pub(crate) fn default_timeout_s() -> u32 {
     60
 }
-
-pub(crate) fn default_max_results() -> Option<u32> {
-    Some(200)
-}

@@ -24,13 +24,12 @@ impl RenderDocInstallation {
         req: &ExportBundleRequest,
     ) -> Result<ExportBundleResponse, ExportBundleError> {
         let capture_path = resolve_path_string_from_cwd(cwd, &req.capture_path);
-        let output_dir = resolve_path_string_from_cwd(cwd, &req.output_dir);
 
         let actions = self.export_actions_jsonl(
             cwd,
             &ExportActionsRequest {
                 capture_path: capture_path.clone(),
-                output_dir: output_dir.clone(),
+                output_dir: req.output_dir.clone(),
                 basename: req.basename.clone(),
                 only_drawcalls: req.only_drawcalls,
                 marker_prefix: req.marker_prefix.clone(),
@@ -46,7 +45,7 @@ impl RenderDocInstallation {
             cwd,
             &ExportBindingsIndexRequest {
                 capture_path: capture_path.clone(),
-                output_dir: output_dir.clone(),
+                output_dir: req.output_dir.clone(),
                 basename: req.basename.clone(),
                 marker_prefix: req.marker_prefix.clone(),
                 event_id_min: req.event_id_min,

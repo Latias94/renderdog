@@ -280,8 +280,8 @@ impl RenderDocInstallation {
             cwd,
             &ExportActionsRequest {
                 capture_path: prepared.capture_path.clone(),
-                output_dir: prepared.output_dir.clone(),
-                basename: prepared.basename.clone(),
+                output_dir: Some(prepared.output_dir.clone()),
+                basename: Some(prepared.basename.clone()),
                 only_drawcalls: req.only_drawcalls,
                 marker_prefix: req.marker_prefix.clone(),
                 event_id_min: req.event_id_min,
@@ -330,8 +330,8 @@ impl RenderDocInstallation {
             cwd,
             &ExportBindingsIndexRequest {
                 capture_path: prepared.capture_path.clone(),
-                output_dir: prepared.output_dir.clone(),
-                basename: prepared.basename.clone(),
+                output_dir: Some(prepared.output_dir.clone()),
+                basename: Some(prepared.basename.clone()),
                 marker_prefix: req.marker_prefix.clone(),
                 event_id_min: req.event_id_min,
                 event_id_max: req.event_id_max,
@@ -380,8 +380,8 @@ impl RenderDocInstallation {
             cwd,
             &ExportBundleRequest {
                 capture_path: prepared.capture_path.clone(),
-                output_dir: prepared.output_dir.clone(),
-                basename: prepared.basename.clone(),
+                output_dir: Some(prepared.output_dir.clone()),
+                basename: Some(prepared.basename.clone()),
                 only_drawcalls: req.only_drawcalls,
                 marker_prefix: req.marker_prefix.clone(),
                 event_id_min: req.event_id_min,

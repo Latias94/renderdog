@@ -27,6 +27,10 @@ pub use trigger_capture::TriggerCaptureError;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+fn default_max_results() -> Option<u32> {
+    Some(200)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureRequest {
     pub host: String,
@@ -45,14 +49,23 @@ pub struct TriggerCaptureResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportActionsRequest {
     pub capture_path: String,
-    pub output_dir: String,
-    pub basename: String,
+    #[serde(default)]
+    pub output_dir: Option<String>,
+    #[serde(default)]
+    pub basename: Option<String>,
+    #[serde(default)]
     pub only_drawcalls: bool,
+    #[serde(default)]
     pub marker_prefix: Option<String>,
+    #[serde(default)]
     pub event_id_min: Option<u32>,
+    #[serde(default)]
     pub event_id_max: Option<u32>,
+    #[serde(default)]
     pub name_contains: Option<String>,
+    #[serde(default)]
     pub marker_contains: Option<String>,
+    #[serde(default)]
     pub case_sensitive: bool,
 }
 
@@ -68,13 +81,21 @@ pub struct ExportActionsResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FindEventsRequest {
     pub capture_path: String,
+    #[serde(default)]
     pub only_drawcalls: bool,
+    #[serde(default)]
     pub marker_prefix: Option<String>,
+    #[serde(default)]
     pub event_id_min: Option<u32>,
+    #[serde(default)]
     pub event_id_max: Option<u32>,
+    #[serde(default)]
     pub name_contains: Option<String>,
+    #[serde(default)]
     pub marker_contains: Option<String>,
+    #[serde(default)]
     pub case_sensitive: bool,
+    #[serde(default = "default_max_results")]
     pub max_results: Option<u32>,
 }
 
@@ -103,15 +124,25 @@ pub struct FindEventsResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportBindingsIndexRequest {
     pub capture_path: String,
-    pub output_dir: String,
-    pub basename: String,
+    #[serde(default)]
+    pub output_dir: Option<String>,
+    #[serde(default)]
+    pub basename: Option<String>,
+    #[serde(default)]
     pub marker_prefix: Option<String>,
+    #[serde(default)]
     pub event_id_min: Option<u32>,
+    #[serde(default)]
     pub event_id_max: Option<u32>,
+    #[serde(default)]
     pub name_contains: Option<String>,
+    #[serde(default)]
     pub marker_contains: Option<String>,
+    #[serde(default)]
     pub case_sensitive: bool,
+    #[serde(default)]
     pub include_cbuffers: bool,
+    #[serde(default)]
     pub include_outputs: bool,
 }
 
@@ -126,18 +157,29 @@ pub struct ExportBindingsIndexResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportBundleRequest {
     pub capture_path: String,
-    pub output_dir: String,
-    pub basename: String,
+    #[serde(default)]
+    pub output_dir: Option<String>,
+    #[serde(default)]
+    pub basename: Option<String>,
 
+    #[serde(default)]
     pub only_drawcalls: bool,
+    #[serde(default)]
     pub marker_prefix: Option<String>,
+    #[serde(default)]
     pub event_id_min: Option<u32>,
+    #[serde(default)]
     pub event_id_max: Option<u32>,
+    #[serde(default)]
     pub name_contains: Option<String>,
+    #[serde(default)]
     pub marker_contains: Option<String>,
+    #[serde(default)]
     pub case_sensitive: bool,
 
+    #[serde(default)]
     pub include_cbuffers: bool,
+    #[serde(default)]
     pub include_outputs: bool,
 }
 

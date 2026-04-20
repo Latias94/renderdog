@@ -123,6 +123,20 @@ pub fn default_exports_dir(cwd: &Path) -> PathBuf {
     cwd.join("artifacts").join("renderdoc").join("exports")
 }
 
+pub(crate) fn resolve_export_output_dir_from_cwd(cwd: &Path, value: Option<&str>) -> PathBuf {
+    value
+        .map(|path| resolve_path_from_cwd(cwd, path))
+        .unwrap_or_else(|| default_exports_dir(cwd))
+}
+
+pub(crate) fn default_capture_basename(capture_path: &str) -> String {
+    Path::new(capture_path)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("capture")
+        .to_string()
+}
+
 pub(crate) fn resolve_path_from_cwd(cwd: &Path, value: &str) -> PathBuf {
     if value.trim().is_empty() {
         return cwd.to_path_buf();

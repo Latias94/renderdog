@@ -9,19 +9,8 @@ fn main() -> anyhow::Result<()> {
     })?;
 
     let cwd = std::env::current_dir()?;
-    let out_dir = args
-        .next()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| renderdog::default_exports_dir(&cwd));
-    std::fs::create_dir_all(&out_dir)?;
-
-    let basename = args.next().unwrap_or_else(|| {
-        PathBuf::from(&capture_path)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("capture")
-            .to_string()
-    });
+    let out_dir = args.next().map(PathBuf::from);
+    let basename = args.next();
 
     let install = renderdog::RenderDocInstallation::detect()?;
 
@@ -29,7 +18,7 @@ fn main() -> anyhow::Result<()> {
         &cwd,
         &renderdog::ExportBundleRequest {
             capture_path,
-            output_dir: out_dir.display().to_string(),
+            output_dir: out_dir.map(|path| path.display().to_string()),
             basename,
             only_drawcalls: false,
             marker_prefix: None,
