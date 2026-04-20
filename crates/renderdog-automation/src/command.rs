@@ -1,20 +1,20 @@
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Output},
 };
 
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
-pub struct CommandSpec {
+pub(crate) struct CommandSpec {
     pub program: PathBuf,
     pub args: Vec<OsString>,
     pub cwd: Option<PathBuf>,
 }
 
 impl CommandSpec {
-    pub fn new(program: impl Into<PathBuf>) -> Self {
+    pub(crate) fn new(program: impl Into<PathBuf>) -> Self {
         Self {
             program: program.into(),
             args: Vec::new(),
@@ -22,46 +22,14 @@ impl CommandSpec {
         }
     }
 
-    pub fn arg(mut self, arg: impl Into<OsString>) -> Self {
+    pub(crate) fn arg(mut self, arg: impl Into<OsString>) -> Self {
         self.args.push(arg.into());
         self
-    }
-
-    pub fn args<I, S>(mut self, args: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<OsString>,
-    {
-        self.args.extend(args.into_iter().map(Into::into));
-        self
-    }
-
-    pub fn cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
-        self.cwd = Some(cwd.into());
-        self
-    }
-
-    pub fn display_command_line(&self) -> String {
-        fn quote_if_needed(s: &str) -> String {
-            if s.contains(' ') || s.contains('\t') {
-                format!("\"{s}\"")
-            } else {
-                s.to_string()
-            }
-        }
-
-        let mut out = String::new();
-        out.push_str(&quote_if_needed(&self.program.display().to_string()));
-        for arg in &self.args {
-            out.push(' ');
-            out.push_str(&quote_if_needed(arg.to_string_lossy().as_ref()));
-        }
-        out
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct CommandOutputText {
+pub(crate) struct CommandOutputText {
     pub status: i32,
     pub stdout: String,
     pub stderr: String,
@@ -110,7 +78,9 @@ impl CommandError {
     }
 }
 
-pub fn run_command_output_text(spec: &CommandSpec) -> Result<CommandOutputText, CommandError> {
+pub(crate) fn run_command_output_text(
+    spec: &CommandSpec,
+) -> Result<CommandOutputText, CommandError> {
     let mut cmd = Command::new(&spec.program);
     cmd.args(&spec.args);
     if let Some(cwd) = &spec.cwd {
@@ -155,7 +125,9 @@ pub fn run_command_output_text(spec: &CommandSpec) -> Result<CommandOutputText, 
     })
 }
 
-pub fn run_command_expect_success(spec: &CommandSpec) -> Result<CommandOutputText, CommandError> {
+pub(crate) fn run_command_expect_success(
+    spec: &CommandSpec,
+) -> Result<CommandOutputText, CommandError> {
     let out = run_command_output_text(spec)?;
     if out.status == 0 {
         Ok(out)
@@ -173,11 +145,4 @@ pub fn run_command_expect_success(spec: &CommandSpec) -> Result<CommandOutputTex
             stderr: out.stderr,
         })
     }
-}
-
-pub fn ensure_parent_dir(path: &Path) -> Result<(), std::io::Error> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    Ok(())
 }

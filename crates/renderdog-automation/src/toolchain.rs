@@ -115,11 +115,11 @@ pub fn default_artifacts_dir(cwd: &Path) -> PathBuf {
     cwd.join("artifacts").join("renderdoc")
 }
 
-pub fn default_scripts_dir(cwd: &Path) -> PathBuf {
+pub(crate) fn default_scripts_dir(cwd: &Path) -> PathBuf {
     cwd.join("artifacts").join("renderdoc").join("scripts")
 }
 
-pub fn default_exports_dir(cwd: &Path) -> PathBuf {
+pub(crate) fn default_exports_dir(cwd: &Path) -> PathBuf {
     cwd.join("artifacts").join("renderdoc").join("exports")
 }
 

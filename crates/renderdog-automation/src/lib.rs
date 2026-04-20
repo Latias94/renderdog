@@ -9,6 +9,10 @@
 //!
 //! To override the auto-detection of RenderDoc tools, set:
 //! - `RENDERDOG_RENDERDOC_DIR=<RenderDoc install root>`
+//!
+//! Low-level command execution and qrenderdoc scripting helpers are intentionally kept out of the
+//! public crate surface. Most consumers should use `RenderDocInstallation` plus the replay/workflow
+//! request/response types exported here.
 
 mod command;
 mod diagnostics;
@@ -19,11 +23,16 @@ mod toolchain;
 mod ui;
 mod workflows;
 
-pub use command::*;
+pub use command::CommandError;
+pub(crate) use command::{CommandSpec, run_command_expect_success, run_command_output_text};
 pub use diagnostics::*;
 pub use renderdoccmd::*;
 pub use replay::*;
-pub use scripting::*;
-pub use toolchain::*;
+pub use scripting::QRenderDocPythonError;
+pub use toolchain::{DetectInstallationError, RenderDocInstallation, default_artifacts_dir};
+pub(crate) use toolchain::{
+    default_capture_basename, default_exports_dir, default_scripts_dir,
+    resolve_export_output_dir_from_cwd, resolve_path_from_cwd, resolve_path_string_from_cwd,
+};
 pub use ui::*;
 pub use workflows::*;

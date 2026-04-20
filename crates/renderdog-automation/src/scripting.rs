@@ -139,17 +139,10 @@ pub(crate) struct QRenderDocJsonJobRequest<'a, T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct QRenderDocPythonRequest {
+pub(crate) struct QRenderDocPythonRequest {
     pub script_path: PathBuf,
     pub args: Vec<OsString>,
     pub working_dir: Option<PathBuf>,
-}
-
-#[derive(Debug, Clone)]
-pub struct QRenderDocPythonResult {
-    pub stdout: String,
-    pub stderr: String,
-    pub status: i32,
 }
 
 #[derive(Debug, Error)]
@@ -218,10 +211,10 @@ impl RenderDocInstallation {
         }
     }
 
-    pub fn run_qrenderdoc_python(
+    pub(crate) fn run_qrenderdoc_python(
         &self,
         req: &QRenderDocPythonRequest,
-    ) -> Result<QRenderDocPythonResult, QRenderDocPythonError> {
+    ) -> Result<(), QRenderDocPythonError> {
         if !req.script_path.is_file() {
             return Err(QRenderDocPythonError::ScriptNotFound(
                 req.script_path.clone(),
@@ -236,17 +229,13 @@ impl RenderDocInstallation {
             spec.cwd = Some(wd.clone());
         }
 
-        let output = run_command_expect_success(&spec)?;
+        let _ = run_command_expect_success(&spec)?;
 
-        Ok(QRenderDocPythonResult {
-            stdout: output.stdout,
-            stderr: output.stderr,
-            status: output.status,
-        })
+        Ok(())
     }
 }
 
-pub fn write_script_file(path: &Path, content: &str) -> Result<(), std::io::Error> {
+pub(crate) fn write_script_file(path: &Path, content: &str) -> Result<(), std::io::Error> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
