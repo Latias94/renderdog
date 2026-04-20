@@ -49,7 +49,7 @@ impl RenderdogMcpServer {
 
     #[tool(
         name = "renderdoc_diagnose_environment",
-        description = "Diagnose RenderDoc environment (paths, renderdoccmd version, Vulkan layer registration, and key Vulkan-related env vars) and return warnings + suggested fixes."
+        description = "Diagnose RenderDoc environment (paths, installed renderdoccmd version, workspace replay header version, Vulkan layer registration, and key Vulkan-related env vars) and return warnings + suggested fixes."
     )]
     async fn diagnose_environment(&self) -> Result<Json<renderdog::EnvironmentDiagnosis>, String> {
         let tool = "renderdoc_diagnose_environment";
