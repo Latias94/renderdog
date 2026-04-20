@@ -6,9 +6,7 @@ use thiserror::Error;
 
 use crate::RenderDocInstallation;
 use crate::scripting::{QRenderDocJsonJobRequest, define_qrenderdoc_json_job_error};
-use crate::{
-    default_capture_basename, resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
-};
+use crate::{normalize_capture_path, prepare_export_target, resolve_path_string_from_cwd};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayListTexturesRequest {
@@ -140,7 +138,7 @@ impl RenderDocInstallation {
         req: &ReplayListTexturesRequest,
     ) -> Result<ReplayListTexturesResponse, ReplayListTexturesError> {
         let req = ReplayListTexturesRequest {
-            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            capture_path: normalize_capture_path(cwd, &req.capture_path),
             ..req.clone()
         };
 
@@ -162,7 +160,7 @@ impl RenderDocInstallation {
         req: &ReplayPickPixelRequest,
     ) -> Result<ReplayPickPixelResponse, ReplayPickPixelError> {
         let req = ReplayPickPixelRequest {
-            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
+            capture_path: normalize_capture_path(cwd, &req.capture_path),
             ..req.clone()
         };
 
@@ -206,17 +204,18 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveOutputsPngRequest,
     ) -> Result<ReplaySaveOutputsPngResponse, ReplaySaveOutputsPngError> {
-        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture_path);
-        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output_dir.as_deref());
-        std::fs::create_dir_all(&output_dir).map_err(ReplaySaveOutputsPngError::CreateOutputDir)?;
-        let basename = req
-            .basename
-            .clone()
-            .unwrap_or_else(|| default_capture_basename(&capture_path));
+        let prepared = prepare_export_target(
+            cwd,
+            &req.capture_path,
+            req.output_dir.as_deref(),
+            req.basename.as_deref(),
+        )
+        .map_err(ReplaySaveOutputsPngError::CreateOutputDir)?;
+
         let req = ReplaySaveOutputsPngRequest {
-            capture_path,
-            output_dir: Some(output_dir.display().to_string()),
-            basename: Some(basename),
+            capture_path: prepared.capture_path,
+            output_dir: Some(prepared.output_dir),
+            basename: Some(prepared.basename),
             ..req.clone()
         };
 

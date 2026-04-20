@@ -3,6 +3,7 @@ use std::path::Path;
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
+use crate::normalize_capture_path;
 use crate::scripting::{QRenderDocJsonJobRequest, define_qrenderdoc_json_job_error};
 
 use super::{FindEventsRequest, FindEventsResponse};
@@ -24,7 +25,7 @@ impl RenderDocInstallation {
     ) -> Result<FindEventsResponse, FindEventsError> {
         let req = FindEventsRequest {
             capture: CaptureInput {
-                capture_path: crate::resolve_path_string_from_cwd(cwd, &req.capture.capture_path),
+                capture_path: normalize_capture_path(cwd, &req.capture.capture_path),
             },
             ..req.clone()
         };

@@ -7,8 +7,7 @@ use thiserror::Error;
 use crate::{
     CaptureInput, DrawcallScope, EventFilter, ExportOutput, FindEventsError, FindEventsLimit,
     FindEventsRequest, FindEventsResponse, RenderDocInstallation, ReplaySaveOutputsPngError,
-    ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse, default_capture_basename,
-    resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
+    ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse, normalize_capture_path,
 };
 
 fn default_true() -> bool {
@@ -57,7 +56,16 @@ pub enum FindEventsAndSaveOutputsPngError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
     #[error("save outputs PNG failed: {0}")]
-    Replay(#[from] ReplaySaveOutputsPngError),
+    Replay(ReplaySaveOutputsPngError),
+}
+
+impl From<ReplaySaveOutputsPngError> for FindEventsAndSaveOutputsPngError {
+    fn from(value: ReplaySaveOutputsPngError) -> Self {
+        match value {
+            ReplaySaveOutputsPngError::CreateOutputDir(err) => Self::CreateOutputDir(err),
+            other => Self::Replay(other),
+        }
+    }
 }
 
 impl RenderDocInstallation {
@@ -66,7 +74,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsAndSaveOutputsPngRequest,
     ) -> Result<FindEventsAndSaveOutputsPngResponse, FindEventsAndSaveOutputsPngError> {
-        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture.capture_path);
+        let capture_path = normalize_capture_path(cwd, &req.capture.capture_path);
 
         let find = self.find_events(
             cwd,
@@ -88,23 +96,13 @@ impl RenderDocInstallation {
         }
         .ok_or(FindEventsAndSaveOutputsPngError::NoMatchingEvents)?;
 
-        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output.output_dir.as_deref());
-        std::fs::create_dir_all(&output_dir)
-            .map_err(FindEventsAndSaveOutputsPngError::CreateOutputDir)?;
-
-        let basename = req
-            .output
-            .basename
-            .clone()
-            .unwrap_or_else(|| default_capture_basename(&capture_path));
-
         let replay = self.replay_save_outputs_png(
             cwd,
             &ReplaySaveOutputsPngRequest {
                 capture_path,
                 event_id: Some(selected_event_id),
-                output_dir: Some(output_dir.display().to_string()),
-                basename: Some(basename),
+                output_dir: req.output.output_dir.clone(),
+                basename: req.output.basename.clone(),
                 include_depth: req.include_depth,
             },
         )?;

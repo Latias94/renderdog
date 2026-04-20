@@ -2,7 +2,7 @@ use std::path::Path;
 
 use thiserror::Error;
 
-use crate::{RenderDocInstallation, resolve_path_string_from_cwd};
+use crate::{RenderDocInstallation, normalize_capture_path};
 
 use super::{
     CaptureInput, ExportActionsError, ExportActionsRequest, ExportBindingsIndexError,
@@ -23,7 +23,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBundleRequest,
     ) -> Result<ExportBundleResponse, ExportBundleError> {
-        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture.capture_path);
+        let capture_path = normalize_capture_path(cwd, &req.capture.capture_path);
 
         let actions = self.export_actions_jsonl(
             cwd,

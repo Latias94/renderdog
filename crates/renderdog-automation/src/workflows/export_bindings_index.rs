@@ -4,10 +4,7 @@ use thiserror::Error;
 
 use crate::RenderDocInstallation;
 use crate::scripting::{QRenderDocJsonJobRequest, define_qrenderdoc_json_job_error};
-use crate::{
-    CaptureInput, ExportOutput, default_capture_basename, resolve_export_output_dir_from_cwd,
-    resolve_path_string_from_cwd,
-};
+use crate::{CaptureInput, ExportOutput, prepare_export_target};
 
 use super::{ExportBindingsIndexRequest, ExportBindingsIndexResponse};
 
@@ -25,19 +22,21 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBindingsIndexRequest,
     ) -> Result<ExportBindingsIndexResponse, ExportBindingsIndexError> {
-        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture.capture_path);
-        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output.output_dir.as_deref());
-        std::fs::create_dir_all(&output_dir).map_err(ExportBindingsIndexError::CreateOutputDir)?;
-        let basename = req
-            .output
-            .basename
-            .clone()
-            .unwrap_or_else(|| default_capture_basename(&capture_path));
+        let prepared = prepare_export_target(
+            cwd,
+            &req.capture.capture_path,
+            req.output.output_dir.as_deref(),
+            req.output.basename.as_deref(),
+        )
+        .map_err(ExportBindingsIndexError::CreateOutputDir)?;
+
         let req = ExportBindingsIndexRequest {
-            capture: CaptureInput { capture_path },
+            capture: CaptureInput {
+                capture_path: prepared.capture_path,
+            },
             output: ExportOutput {
-                output_dir: Some(output_dir.display().to_string()),
-                basename: Some(basename),
+                output_dir: Some(prepared.output_dir),
+                basename: Some(prepared.basename),
             },
             ..req.clone()
         };
