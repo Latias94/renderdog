@@ -59,20 +59,11 @@ pub struct InstallationDetection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EnvironmentDiagnosis {
-    pub root_dir: String,
-    pub qrenderdoc_exe: String,
-    pub renderdoccmd_exe: String,
+    #[serde(flatten)]
+    pub installation: InstallationDetection,
     pub platform: String,
     pub arch: String,
     pub is_elevated: Option<bool>,
-    pub renderdoccmd_version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub renderdoccmd_version_error: Option<String>,
-    pub workspace_renderdoc_version: Option<String>,
-    pub replay_version_match: Option<bool>,
-    pub vulkan_layer: Option<VulkanLayerDiagnosis>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vulkan_layer_error: Option<String>,
     pub vulkan_layer_manifests: Vec<String>,
     pub env: Vec<EnvironmentVarInfo>,
     pub warnings: Vec<String>,
@@ -129,7 +120,7 @@ impl RenderDocInstallation {
     }
 
     pub fn diagnose_environment(&self) -> EnvironmentDiagnosis {
-        let probe = self.probe_installation();
+        let installation = self.describe_installation();
         let vulkan_layer_manifests = find_vulkan_layer_manifests(&self.root_dir);
         let is_elevated = is_process_elevated();
 
@@ -157,29 +148,21 @@ impl RenderDocInstallation {
             platform: &platform,
             arch: &arch,
             is_elevated,
-            renderdoccmd_version: probe.renderdoccmd_version.as_deref(),
-            renderdoccmd_version_error: probe.renderdoccmd_version_error.as_deref(),
-            workspace_renderdoc_version: probe.workspace_renderdoc_version.as_deref(),
-            replay_version_match: probe.replay_version_match,
-            vulkan_layer: probe.vulkan_layer.as_ref(),
-            vulkan_layer_error: probe.vulkan_layer_error.as_deref(),
+            renderdoccmd_version: installation.renderdoccmd_version.as_deref(),
+            renderdoccmd_version_error: installation.renderdoccmd_version_error.as_deref(),
+            workspace_renderdoc_version: installation.workspace_renderdoc_version.as_deref(),
+            replay_version_match: installation.replay_version_match,
+            vulkan_layer: installation.vulkan_layer.as_ref(),
+            vulkan_layer_error: installation.vulkan_layer_error.as_deref(),
             vulkan_layer_manifests: &vulkan_layer_manifests,
             env: &env,
         });
 
         EnvironmentDiagnosis {
-            root_dir: self.root_dir.display().to_string(),
-            qrenderdoc_exe: self.qrenderdoc_exe.display().to_string(),
-            renderdoccmd_exe: self.renderdoccmd_exe.display().to_string(),
+            installation,
             platform,
             arch,
             is_elevated,
-            renderdoccmd_version: probe.renderdoccmd_version,
-            renderdoccmd_version_error: probe.renderdoccmd_version_error,
-            workspace_renderdoc_version: probe.workspace_renderdoc_version,
-            replay_version_match: probe.replay_version_match,
-            vulkan_layer: probe.vulkan_layer,
-            vulkan_layer_error: probe.vulkan_layer_error,
             vulkan_layer_manifests,
             env,
             warnings: feedback.warnings,
