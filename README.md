@@ -122,6 +122,12 @@ Notes:
 - `max_results` defaults to `200` in `renderdog-mcp`. Set it to `null` to disable truncation.
 - Use `cwd` to control how relative paths (e.g. `capture_path`, `output_dir`, `output_path`) are resolved for this call.
 
+Diagnostics tools:
+
+- `renderdoc_detect_installation`: resolve the RenderDoc install root and executables, then probe `renderdoccmd` version, workspace replay version compatibility, and Vulkan layer status. Probe failures are returned in `renderdoccmd_version_error` / `vulkan_layer_error`.
+- `renderdoc_diagnose_environment`: extend installation detection with `platform`, `arch`, `is_elevated`, discovered Vulkan layer manifests, key Vulkan-related env vars, aggregated warnings, and suggested commands.
+- `renderdoc_vulkanlayer_diagnose`: return parsed `renderdoccmd vulkanlayer --explain` output, raw stdout/stderr, and suggested fix commands.
+
 ```json
 {
   "tool": "renderdoc_find_events_and_save_outputs_png",
@@ -230,7 +236,7 @@ Gemini CLI can manage MCP servers either via commands or by editing `settings.js
 - Automation one-shot capture + export bundle: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
 - Automation export bundle from capture: `cargo run -p renderdog-automation --example export_bundle_from_capture -- <capture.rdc> [out_dir] [basename]`
 - Automation save pipeline outputs to PNG: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [event_id] [out_dir] [basename]`
-- Automation diagnose environment (RenderDoc paths + Vulkan layer): `cargo run -p renderdog-automation --example diagnose_environment`
+- Automation diagnose environment (installation probe + replay version match + Vulkan layer): `cargo run -p renderdog-automation --example diagnose_environment`
 - Winit hotkey capture (F12): `cargo run -p renderdog-winit --example winit_hotkey_capture`
 
 ## MCP workflow (one-shot)
@@ -318,8 +324,9 @@ These are exposed as:
 If Vulkan capture doesn't work, RenderDoc's Vulkan layer registration may be missing or conflicting.
 You can diagnose it via:
 
+- MCP tool: `renderdoc_detect_installation` (installation probe + version/layer probe errors)
 - MCP tool: `renderdoc_vulkanlayer_diagnose`
-- MCP tool: `renderdoc_diagnose_environment` (includes env var hints and `platform`/`arch`)
+- MCP tool: `renderdoc_diagnose_environment` (adds manifests, env snapshot, warnings, and suggested fixes)
 - CLI: `"renderdoccmd" vulkanlayer --explain`
 
 If it needs attention, suggested fixes typically include:
