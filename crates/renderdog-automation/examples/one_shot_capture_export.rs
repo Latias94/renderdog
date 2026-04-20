@@ -14,11 +14,9 @@ fn main() -> anyhow::Result<()> {
 
     let install = renderdog::RenderDocInstallation::detect()?;
 
-    let env_diag = install.diagnose_environment().ok();
-    if let Some(diag) = &env_diag {
-        for w in &diag.warnings {
-            eprintln!("warning: {w}");
-        }
+    let env_diag = install.diagnose_environment();
+    for w in &env_diag.warnings {
+        eprintln!("warning: {w}");
     }
 
     let cwd = std::env::current_dir()?;

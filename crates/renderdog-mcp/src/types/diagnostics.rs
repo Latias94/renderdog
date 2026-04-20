@@ -10,5 +10,9 @@ pub(crate) struct DetectInstallationResponse {
     pub(crate) renderdoccmd_exe: String,
     pub(crate) version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) version_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) vulkan_layer: Option<renderdog::VulkanLayerDiagnosis>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) vulkan_layer_error: Option<String>,
 }

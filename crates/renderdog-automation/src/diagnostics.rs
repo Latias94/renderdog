@@ -36,9 +36,13 @@ pub struct EnvironmentDiagnosis {
     pub arch: String,
     pub is_elevated: Option<bool>,
     pub renderdoccmd_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renderdoccmd_version_error: Option<String>,
     pub workspace_renderdoc_version: Option<String>,
     pub replay_version_match: Option<bool>,
     pub vulkan_layer: Option<VulkanLayerDiagnosis>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vulkan_layer_error: Option<String>,
     pub vulkan_layer_manifests: Vec<String>,
     pub env: Vec<EnvironmentVarInfo>,
     pub warnings: Vec<String>,
@@ -60,9 +64,11 @@ struct EnvironmentAssessmentInputs<'a> {
     arch: &'a str,
     is_elevated: Option<bool>,
     renderdoccmd_version: Option<&'a str>,
+    renderdoccmd_version_error: Option<&'a str>,
     workspace_renderdoc_version: Option<&'a str>,
     replay_version_match: Option<bool>,
     vulkan_layer: Option<&'a VulkanLayerDiagnosis>,
+    vulkan_layer_error: Option<&'a str>,
     vulkan_layer_manifests: &'a [String],
     env: &'a [EnvironmentVarInfo],
 }
@@ -92,8 +98,11 @@ impl RenderDocInstallation {
         ))
     }
 
-    pub fn diagnose_environment(&self) -> Result<EnvironmentDiagnosis, VulkanLayerDiagnosisError> {
-        let renderdoccmd_version = self.version().ok().map(|s| s.trim().to_string());
+    pub fn diagnose_environment(&self) -> EnvironmentDiagnosis {
+        let (renderdoccmd_version, renderdoccmd_version_error) = match self.version() {
+            Ok(version) => (Some(version.trim().to_string()), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
         let workspace_renderdoc_version =
             renderdog_sys::workspace_renderdoc_replay_version().map(str::to_owned);
         let replay_version_match = compute_replay_version_match(
@@ -101,7 +110,10 @@ impl RenderDocInstallation {
             workspace_renderdoc_version.as_deref(),
         );
 
-        let vulkan_layer = self.diagnose_vulkan_layer().ok();
+        let (vulkan_layer, vulkan_layer_error) = match self.diagnose_vulkan_layer() {
+            Ok(diag) => (Some(diag), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
         let vulkan_layer_manifests = find_vulkan_layer_manifests(&self.root_dir);
         let is_elevated = is_process_elevated();
 
@@ -130,14 +142,16 @@ impl RenderDocInstallation {
             arch: &arch,
             is_elevated,
             renderdoccmd_version: renderdoccmd_version.as_deref(),
+            renderdoccmd_version_error: renderdoccmd_version_error.as_deref(),
             workspace_renderdoc_version: workspace_renderdoc_version.as_deref(),
             replay_version_match,
             vulkan_layer: vulkan_layer.as_ref(),
+            vulkan_layer_error: vulkan_layer_error.as_deref(),
             vulkan_layer_manifests: &vulkan_layer_manifests,
             env: &env,
         });
 
-        Ok(EnvironmentDiagnosis {
+        EnvironmentDiagnosis {
             root_dir: self.root_dir.display().to_string(),
             qrenderdoc_exe: self.qrenderdoc_exe.display().to_string(),
             renderdoccmd_exe: self.renderdoccmd_exe.display().to_string(),
@@ -145,14 +159,16 @@ impl RenderDocInstallation {
             arch,
             is_elevated,
             renderdoccmd_version,
+            renderdoccmd_version_error,
             workspace_renderdoc_version,
             replay_version_match,
             vulkan_layer,
+            vulkan_layer_error,
             vulkan_layer_manifests,
             env,
             warnings: feedback.warnings,
             suggested_commands: feedback.suggested_commands,
-        })
+        }
     }
 }
 
@@ -264,6 +280,16 @@ fn compute_replay_version_match(
 fn collect_environment_feedback(inputs: &EnvironmentAssessmentInputs<'_>) -> EnvironmentFeedback {
     let mut warnings: Vec<String> = Vec::new();
     let mut suggested_commands: Vec<String> = Vec::new();
+
+    if let Some(err) = inputs.renderdoccmd_version_error {
+        warnings.push(format!("Failed to query `renderdoccmd version`: {err}"));
+    }
+
+    if let Some(err) = inputs.vulkan_layer_error {
+        warnings.push(format!(
+            "Failed to diagnose Vulkan layer registration: {err}"
+        ));
+    }
 
     if inputs.platform == "macos" {
         warnings.push(
@@ -565,9 +591,11 @@ administrator privileges required"
             arch: "x86_64",
             is_elevated: None,
             renderdoccmd_version: Some("1.43"),
+            renderdoccmd_version_error: None,
             workspace_renderdoc_version: Some("1.44"),
             replay_version_match: Some(false),
             vulkan_layer: None,
+            vulkan_layer_error: None,
             vulkan_layer_manifests: &["/opt/renderdoc/renderdoc_capture.json".to_string()],
             env: &env,
         });
@@ -628,9 +656,11 @@ administrator privileges required"
             arch: "x86_64",
             is_elevated: Some(false),
             renderdoccmd_version: Some("1.44"),
+            renderdoccmd_version_error: None,
             workspace_renderdoc_version: Some("1.44"),
             replay_version_match: Some(true),
             vulkan_layer: Some(&vk),
+            vulkan_layer_error: None,
             vulkan_layer_manifests: &[],
             env: &[],
         });
@@ -659,5 +689,31 @@ administrator privileges required"
                 .iter()
                 .any(|cmd| cmd.contains("capture <your_exe> [args...]"))
         );
+    }
+
+    #[test]
+    fn collect_environment_feedback_surfaces_probe_errors() {
+        let feedback = collect_environment_feedback(&EnvironmentAssessmentInputs {
+            root_dir: Path::new("/renderdoc"),
+            renderdoccmd_exe: Path::new("/renderdoc/renderdoccmd"),
+            platform: "linux",
+            arch: "x86_64",
+            is_elevated: None,
+            renderdoccmd_version: None,
+            renderdoccmd_version_error: Some("spawn failed"),
+            workspace_renderdoc_version: Some("1.44"),
+            replay_version_match: None,
+            vulkan_layer: None,
+            vulkan_layer_error: Some("renderdoccmd output was not valid UTF-8"),
+            vulkan_layer_manifests: &[],
+            env: &[],
+        });
+
+        assert!(feedback.warnings.iter().any(|warning| {
+            warning.contains("Failed to query `renderdoccmd version`: spawn failed")
+        }));
+        assert!(feedback.warnings.iter().any(|warning| {
+            warning.contains("Failed to diagnose Vulkan layer registration: renderdoccmd output was not valid UTF-8")
+        }));
     }
 }

@@ -18,12 +18,22 @@ impl RenderdogMcpServer {
             tracing::info!(tool = tool, "start");
         });
         let res = run.with_install("detect installation", |install| {
+            let (version, version_error) = match install.version() {
+                Ok(version) => (Some(version.trim().to_string()), None),
+                Err(err) => (None, Some(err.to_string())),
+            };
+            let (vulkan_layer, vulkan_layer_error) = match install.diagnose_vulkan_layer() {
+                Ok(diag) => (Some(diag), None),
+                Err(err) => (None, Some(err.to_string())),
+            };
             Ok::<_, std::convert::Infallible>(DetectInstallationResponse {
                 root_dir: install.root_dir.display().to_string(),
                 qrenderdoc_exe: install.qrenderdoc_exe.display().to_string(),
                 renderdoccmd_exe: install.renderdoccmd_exe.display().to_string(),
-                version: install.version().ok().map(|s| s.trim().to_string()),
-                vulkan_layer: install.diagnose_vulkan_layer().ok(),
+                version,
+                version_error,
+                vulkan_layer,
+                vulkan_layer_error,
             })
         })?;
 
@@ -57,7 +67,7 @@ impl RenderdogMcpServer {
             tracing::info!(tool = tool, "start");
         });
         let diag = run.with_install("diagnose environment", |install| {
-            install.diagnose_environment()
+            Ok::<_, std::convert::Infallible>(install.diagnose_environment())
         })?;
         tracing::info!(tool = tool, elapsed_ms = run.elapsed_ms(), "ok");
         Ok(Json(diag))
