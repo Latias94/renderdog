@@ -1,0 +1,136 @@
+use std::time::Instant;
+
+use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
+
+use crate::{
+    paths::resolve_base_cwd,
+    types::{
+        CaptureAndExportActionsRequest as CaptureAndExportActionsToolRequest,
+        CaptureAndExportActionsResponse,
+        CaptureAndExportBindingsIndexRequest as CaptureAndExportBindingsIndexToolRequest,
+        CaptureAndExportBindingsIndexResponse,
+        CaptureAndExportBundleRequest as CaptureAndExportBundleToolRequest,
+        CaptureAndExportBundleResponse,
+    },
+};
+
+use super::{RenderdogMcpServer, require_installation, tool_result};
+
+#[tool_router(router = workflows_tool_router, vis = "pub(super)")]
+impl RenderdogMcpServer {
+    #[tool(
+        name = "renderdoc_capture_and_export_actions_jsonl",
+        description = "One-shot workflow: launch target under renderdoccmd capture, trigger capture via target control, then export <basename>.actions.jsonl and <basename>.summary.json."
+    )]
+    async fn capture_and_export_actions_jsonl(
+        &self,
+        Parameters(req): Parameters<CaptureAndExportActionsToolRequest>,
+    ) -> Result<Json<CaptureAndExportActionsResponse>, String> {
+        let tool = "renderdoc_capture_and_export_actions_jsonl";
+        let start = Instant::now();
+        tracing::info!(
+            tool = tool,
+            executable = %req.inner.target.executable,
+            args_len = req.inner.target.args.len(),
+            "start"
+        );
+
+        let install = require_installation(tool)?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let res = tool_result(
+            tool,
+            "one-shot capture/export actions",
+            install.capture_and_export_actions_jsonl(&cwd, &req.inner),
+        )?;
+
+        tracing::info!(
+            tool = tool,
+            elapsed_ms = start.elapsed().as_millis(),
+            target_ident = res.target_ident,
+            capture_path = %res.capture_path,
+            actions_jsonl_path = %res.actions_jsonl_path,
+            total_actions = res.total_actions,
+            "ok"
+        );
+
+        Ok(Json(res))
+    }
+
+    #[tool(
+        name = "renderdoc_capture_and_export_bindings_jsonl",
+        description = "One-shot workflow: launch target under renderdoccmd capture, trigger capture via target control, then export <basename>.bindings.jsonl and <basename>.bindings_summary.json."
+    )]
+    async fn capture_and_export_bindings_index_jsonl(
+        &self,
+        Parameters(req): Parameters<CaptureAndExportBindingsIndexToolRequest>,
+    ) -> Result<Json<CaptureAndExportBindingsIndexResponse>, String> {
+        let tool = "renderdoc_capture_and_export_bindings_jsonl";
+        let start = Instant::now();
+        tracing::info!(
+            tool = tool,
+            executable = %req.inner.target.executable,
+            args_len = req.inner.target.args.len(),
+            "start"
+        );
+
+        let install = require_installation(tool)?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let res = tool_result(
+            tool,
+            "one-shot capture/export bindings",
+            install.capture_and_export_bindings_index_jsonl(&cwd, &req.inner),
+        )?;
+
+        tracing::info!(
+            tool = tool,
+            elapsed_ms = start.elapsed().as_millis(),
+            target_ident = res.target_ident,
+            capture_path = %res.capture_path,
+            bindings_jsonl_path = %res.bindings_jsonl_path,
+            total_drawcalls = res.total_drawcalls,
+            "ok"
+        );
+
+        Ok(Json(res))
+    }
+
+    #[tool(
+        name = "renderdoc_capture_and_export_bundle_jsonl",
+        description = "One-shot workflow: launch target under renderdoccmd capture, trigger capture via target control, then export <basename>.actions.jsonl (+ summary) and <basename>.bindings.jsonl (+ bindings_summary)."
+    )]
+    async fn capture_and_export_bundle_jsonl(
+        &self,
+        Parameters(req): Parameters<CaptureAndExportBundleToolRequest>,
+    ) -> Result<Json<CaptureAndExportBundleResponse>, String> {
+        let tool = "renderdoc_capture_and_export_bundle_jsonl";
+        let start = Instant::now();
+        tracing::info!(
+            tool = tool,
+            executable = %req.inner.target.executable,
+            args_len = req.inner.target.args.len(),
+            "start"
+        );
+
+        let install = require_installation(tool)?;
+        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let res = tool_result(
+            tool,
+            "one-shot capture/export bundle",
+            install.capture_and_export_bundle_jsonl(&cwd, &req.inner),
+        )?;
+
+        tracing::info!(
+            tool = tool,
+            elapsed_ms = start.elapsed().as_millis(),
+            target_ident = res.target_ident,
+            capture_path = %res.capture_path,
+            actions_jsonl_path = %res.actions_jsonl_path,
+            bindings_jsonl_path = %res.bindings_jsonl_path,
+            total_actions = res.total_actions,
+            total_drawcalls = res.total_drawcalls,
+            "ok"
+        );
+
+        Ok(Json(res))
+    }
+}
