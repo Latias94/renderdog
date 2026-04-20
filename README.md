@@ -342,6 +342,9 @@ If it needs attention, suggested fixes typically include:
 `RENDERDOG_SYS_REGEN_BINDINGS=1 cargo build -p renderdog-sys --features bindgen`
 
 You can also point to a specific header via `RENDERDOG_SYS_HEADER=/path/to/renderdoc_app.h`.
+When doing so, `renderdog-sys` will infer the matching replay version header from the standard
+RenderDoc layout. If that inference does not work, also set
+`RENDERDOG_SYS_REPLAY_VERSION_HEADER=/path/to/renderdoc/api/replay/version.h`.
 
 Alternatively, use the helper script (maintainers):
 
