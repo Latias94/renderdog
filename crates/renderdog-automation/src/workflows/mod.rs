@@ -197,7 +197,7 @@ impl BundleExportArtifacts {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct OneShotTriggerOptions {
+pub struct TriggerCaptureOptions {
     #[serde(default = "default_host")]
     pub host: String,
     #[serde(default = "default_frames")]
@@ -206,7 +206,7 @@ pub struct OneShotTriggerOptions {
     pub timeout_s: u32,
 }
 
-impl Default for OneShotTriggerOptions {
+impl Default for TriggerCaptureOptions {
     fn default() -> Self {
         Self {
             host: default_host(),
@@ -216,15 +216,20 @@ impl Default for OneShotTriggerOptions {
     }
 }
 
+impl TriggerCaptureOptions {
+    pub(crate) fn for_target(&self, target_ident: u32) -> TriggerCaptureRequest {
+        TriggerCaptureRequest {
+            target_ident,
+            trigger: self.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureRequest {
-    #[serde(default = "default_host")]
-    pub host: String,
     pub target_ident: u32,
-    #[serde(default = "default_frames")]
-    pub num_frames: u32,
-    #[serde(default = "default_timeout_s")]
-    pub timeout_s: u32,
+    #[serde(flatten)]
+    pub trigger: TriggerCaptureOptions,
 }
 
 impl PrepareQRenderDocJsonRequest for TriggerCaptureRequest {
@@ -386,7 +391,7 @@ mod tests {
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
         CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter,
         ExportActionsResponse, ExportBindingsIndexResponse, ExportBundleRequest,
-        ExportBundleResponse, ExportOutput,
+        ExportBundleResponse, ExportOutput, TriggerCaptureOptions, TriggerCaptureRequest,
     };
 
     #[test]
@@ -417,6 +422,48 @@ mod tests {
             Some("/tmp/project/artifacts/renderdoc/exports")
         );
         assert_eq!(output.basename.as_deref(), Some("frame"));
+    }
+
+    #[test]
+    fn trigger_capture_options_build_request_for_target() {
+        let req = TriggerCaptureOptions {
+            host: "renderdoc-host".to_string(),
+            num_frames: 3,
+            timeout_s: 90,
+        }
+        .for_target(17);
+
+        assert_eq!(req.target_ident, 17);
+        assert_eq!(req.trigger.host, "renderdoc-host");
+        assert_eq!(req.trigger.num_frames, 3);
+        assert_eq!(req.trigger.timeout_s, 90);
+    }
+
+    #[test]
+    fn trigger_capture_request_serializes_options_flattened() {
+        let req = TriggerCaptureRequest {
+            target_ident: 17,
+            trigger: TriggerCaptureOptions {
+                host: "renderdoc-host".to_string(),
+                num_frames: 3,
+                timeout_s: 90,
+            },
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("target_ident"),
+            Some(&Value::Number(17_u32.into()))
+        );
+        assert_eq!(
+            object.get("host"),
+            Some(&Value::String("renderdoc-host".to_string()))
+        );
+        assert_eq!(object.get("num_frames"), Some(&Value::Number(3_u32.into())));
+        assert_eq!(object.get("timeout_s"), Some(&Value::Number(90_u32.into())));
+        assert!(!object.contains_key("trigger"));
     }
 
     #[test]

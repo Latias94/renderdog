@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
                 artifacts_dir: None,
                 capture_template_name: Some("capture_{app}_{timestamp}_{frame}".to_string()),
             },
-            trigger: renderdog::OneShotTriggerOptions::default(),
+            trigger: renderdog::TriggerCaptureOptions::default(),
             output: renderdog::ExportOutput::default(),
             bundle: renderdog::BundleExportOptions {
                 drawcall_scope: renderdog::DrawcallScope::default(),

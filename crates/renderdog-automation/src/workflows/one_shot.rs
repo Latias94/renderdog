@@ -7,8 +7,7 @@ use thiserror::Error;
 use crate::{
     BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureTargetRequest,
     ExportBundleError, ExportBundleRequest, ExportBundleResponse, ExportOutput,
-    OneShotTriggerOptions, RenderDocInstallation, ToolInvocationError, TriggerCaptureError,
-    TriggerCaptureRequest,
+    RenderDocInstallation, ToolInvocationError, TriggerCaptureError, TriggerCaptureOptions,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -16,7 +15,7 @@ pub struct CaptureAndExportBundleRequest {
     #[serde(flatten)]
     pub target: CaptureTargetRequest,
     #[serde(flatten)]
-    pub trigger: OneShotTriggerOptions,
+    pub trigger: TriggerCaptureOptions,
     #[serde(flatten)]
     pub output: ExportOutput,
     #[serde(flatten)]
@@ -122,7 +121,7 @@ impl RenderDocInstallation {
         &self,
         cwd: &Path,
         target: &CaptureTargetRequest,
-        trigger_options: &OneShotTriggerOptions,
+        trigger_options: &TriggerCaptureOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
         let prepared_target = self
@@ -134,12 +133,7 @@ impl RenderDocInstallation {
 
         let capture = self.trigger_capture_via_target_control(
             cwd,
-            &TriggerCaptureRequest {
-                host: trigger_options.host.clone(),
-                target_ident: launched_target.target_ident,
-                num_frames: trigger_options.num_frames,
-                timeout_s: trigger_options.timeout_s,
-            },
+            &trigger_options.for_target(launched_target.target_ident),
         )?;
 
         let (capture, output) = output
@@ -167,13 +161,12 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, OneShotTriggerOptions,
-        PreparedOneShotCapture,
+        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, PreparedOneShotCapture,
     };
     use crate::{
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
         CapturePostActionOutputs, CapturePostActions, CaptureTargetRequest, DrawcallScope,
-        EventFilter, ExportBundleResponse, ExportOutput,
+        EventFilter, ExportBundleResponse, ExportOutput, TriggerCaptureOptions,
     };
 
     #[test]
@@ -199,7 +192,7 @@ mod tests {
                 artifacts_dir: None,
                 capture_template_name: None,
             },
-            trigger: OneShotTriggerOptions::default(),
+            trigger: TriggerCaptureOptions::default(),
             output: ExportOutput::default(),
             bundle: BundleExportOptions {
                 drawcall_scope: DrawcallScope {
@@ -301,7 +294,7 @@ mod tests {
                 artifacts_dir: None,
                 capture_template_name: Some("capture".to_string()),
             },
-            trigger: OneShotTriggerOptions::default(),
+            trigger: TriggerCaptureOptions::default(),
             output: ExportOutput::default(),
             bundle: BundleExportOptions {
                 drawcall_scope: DrawcallScope {
