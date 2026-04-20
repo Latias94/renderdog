@@ -166,33 +166,52 @@ fn read_workspace_replay_version(
     vendor_replay_version: &Path,
 ) -> String {
     if submodule_version_header.is_file() {
-        let content = fs::read_to_string(submodule_version_header).unwrap_or_else(|err| {
+        let submodule_version = read_replay_version_header(submodule_version_header);
+        let vendored_version = read_replay_version_file(vendor_replay_version, manifest_dir);
+
+        if submodule_version != vendored_version {
             panic!(
-                "failed to read RenderDoc replay version header at {}: {err}",
-                submodule_version_header.display()
-            )
-        });
-        return parse_replay_version_header(&content).unwrap_or_else(|| {
-            panic!(
-                "failed to parse RenderDoc replay version header at {}",
-                submodule_version_header.display()
-            )
-        });
+                "RenderDoc replay version metadata is out of sync: submodule header at {} reports {}, \
+                 but vendored fallback at {} reports {}. Update the vendored version file before building.",
+                submodule_version_header.display(),
+                submodule_version,
+                vendor_replay_version.display(),
+                vendored_version
+            );
+        }
+
+        return submodule_version;
     }
 
-    let version = fs::read_to_string(vendor_replay_version).unwrap_or_else(|err| {
+    read_replay_version_file(vendor_replay_version, manifest_dir)
+}
+
+fn read_replay_version_header(path: &Path) -> String {
+    let content = fs::read_to_string(path).unwrap_or_else(|err| {
+        panic!(
+            "failed to read RenderDoc replay version header at {}: {err}",
+            path.display()
+        )
+    });
+    parse_replay_version_header(&content).unwrap_or_else(|| {
+        panic!(
+            "failed to parse RenderDoc replay version header at {}",
+            path.display()
+        )
+    })
+}
+
+fn read_replay_version_file(path: &Path, manifest_dir: &Path) -> String {
+    let version = fs::read_to_string(path).unwrap_or_else(|err| {
         panic!(
             "failed to read vendored replay version at {} (workspace root: {}): {err}",
-            vendor_replay_version.display(),
+            path.display(),
             workspace_root(manifest_dir).display()
         )
     });
     let version = version.trim();
     if version.is_empty() {
-        panic!(
-            "vendored replay version file is empty: {}",
-            vendor_replay_version.display()
-        );
+        panic!("vendored replay version file is empty: {}", path.display());
     }
     version.to_string()
 }

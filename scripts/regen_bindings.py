@@ -76,6 +76,54 @@ def find_out_dir(cargo_json_output: str, package_name: str) -> Path:
     return out_dir
 
 
+def parse_replay_version_header(content: str) -> str:
+    major: str | None = None
+    minor: str | None = None
+
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if line.startswith("#define RENDERDOC_VERSION_MAJOR"):
+            major = line.removeprefix("#define RENDERDOC_VERSION_MAJOR").strip()
+        elif line.startswith("#define RENDERDOC_VERSION_MINOR"):
+            minor = line.removeprefix("#define RENDERDOC_VERSION_MINOR").strip()
+
+    if not major or not minor:
+        raise RuntimeError("failed to parse replay version header")
+
+    return f"{major}.{minor}"
+
+
+def sync_vendored_replay_version(root: Path, *, check: bool) -> bool:
+    replay_version_header = (
+        root / "third-party" / "renderdoc" / "renderdoc" / "api" / "replay" / "version.h"
+    )
+    vendored_version_file = (
+        root / "crates" / "renderdog-sys" / "vendor" / "renderdoc_replay_version.txt"
+    )
+
+    if not replay_version_header.is_file():
+        return True
+
+    expected_version = parse_replay_version_header(replay_version_header.read_text())
+    current_version = (
+        vendored_version_file.read_text().strip() if vendored_version_file.is_file() else ""
+    )
+
+    if current_version == expected_version:
+        return True
+
+    if check:
+        print(
+            "vendored replay version is OUT OF DATE "
+            f"({vendored_version_file}: {current_version or '<missing>'} != {expected_version})."
+        )
+        return False
+
+    vendored_version_file.write_text(f"{expected_version}\n")
+    print(f"updated: {vendored_version_file}")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", default=".", help="Path to the workspace root (default: .)")
@@ -121,8 +169,11 @@ def main() -> int:
 
     if args.check:
         same = pregenerated.read_bytes() == generated.read_bytes()
+        versions_ok = sync_vendored_replay_version(root, check=True)
         if not same:
             print("bindings are OUT OF DATE (run without --check to update).")
+            return 1
+        if not versions_ok:
             return 1
         print("bindings are up-to-date.")
         return 0
@@ -131,6 +182,7 @@ def main() -> int:
     shutil.copyfile(generated, tmp)
     tmp.replace(pregenerated)
     print(f"updated: {pregenerated}")
+    sync_vendored_replay_version(root, check=False)
     return 0
 
 
