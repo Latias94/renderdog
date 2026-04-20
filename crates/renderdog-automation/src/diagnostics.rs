@@ -158,10 +158,15 @@ impl RenderDocInstallation {
         let renderdoccmd_version = self.version().ok().map(|s| s.trim().to_string());
         let workspace_renderdoc_version =
             renderdog_sys::workspace_renderdoc_replay_version().map(str::to_owned);
-        let replay_version_match = compute_replay_version_match(
+        let replay_version_match = match (
             renderdoccmd_version.as_deref(),
             workspace_renderdoc_version.as_deref(),
-        );
+        ) {
+            (Some(installed), Some(workspace)) => Some(renderdog_sys::renderdoc_versions_match(
+                installed, workspace,
+            )),
+            _ => None,
+        };
 
         let vulkan_layer = self.diagnose_vulkan_layer().ok();
         let vulkan_layer_manifests = find_vulkan_layer_manifests(&self.root_dir);
@@ -309,12 +314,6 @@ impl RenderDocInstallation {
     }
 }
 
-fn compute_replay_version_match(installed: Option<&str>, workspace: Option<&str>) -> Option<bool> {
-    let installed = installed.and_then(renderdog_sys::normalize_renderdoc_version)?;
-    let workspace = workspace.and_then(renderdog_sys::normalize_renderdoc_version)?;
-    Some(installed == workspace)
-}
-
 fn extract_manifest_paths(text: &str) -> Vec<String> {
     let mut set: BTreeSet<String> = BTreeSet::new();
     for line in text.lines() {
@@ -400,27 +399,6 @@ fn is_process_elevated() -> Option<bool> {
     #[cfg(not(windows))]
     {
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::compute_replay_version_match;
-
-    #[test]
-    fn compute_replay_version_match_compares_normalized_versions() {
-        assert_eq!(
-            compute_replay_version_match(Some("v1.43"), Some("1.43")),
-            Some(true)
-        );
-        assert_eq!(
-            compute_replay_version_match(Some("1.42"), Some("1.43")),
-            Some(false)
-        );
-        assert_eq!(
-            compute_replay_version_match(Some("dev"), Some("1.43")),
-            None
-        );
     }
 }
 
