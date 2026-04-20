@@ -51,6 +51,9 @@ process may crash due to C++ ABI/layout mismatches.
 `ReplaySession::new` now validates this version match up front and returns an error before replay
 work begins, instead of deferring the mismatch until later replay calls.
 
+`renderdog-replay` also treats the RenderDoc runtime as process-global: once one RenderDoc module
+has been loaded, switching to a different installation in the same process is rejected explicitly.
+
 If it cannot be found via the OS loader, set one of:
 
 - `RENDERDOG_REPLAY_RENDERDOC_DLL` (Windows, full path to `renderdoc.dll`)

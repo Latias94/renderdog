@@ -56,7 +56,16 @@ static std::atomic<pRENDERDOC_FreeArrayMem> g_free_array_mem{nullptr};
 static RenderdocModule store_renderdoc_module(RenderdocModule module)
 {
   if(module)
+  {
+    RenderdocModule existing = g_renderdoc_module.load();
+    if(existing && existing != module)
+    {
+      throw std::runtime_error(
+          "renderdog-replay only supports one RenderDoc module per process; restart the process before switching installations");
+    }
+
     g_renderdoc_module.store(module);
+  }
   return module;
 }
 
