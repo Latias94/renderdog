@@ -26,8 +26,8 @@ pub struct LaunchCaptureRequest {
     pub capture_template_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct LaunchCaptureResponse {
+#[derive(Debug, Clone)]
+pub(crate) struct LaunchCaptureResponse {
     pub target_ident: u32,
     pub capture_file_template: Option<String>,
     pub stdout: String,
@@ -82,15 +82,6 @@ pub(crate) struct PreparedLaunchCaptureRequest {
 }
 
 impl RenderDocInstallation {
-    pub fn launch_capture_in_cwd(
-        &self,
-        cwd: &Path,
-        req: &LaunchCaptureRequest,
-    ) -> Result<LaunchCaptureResponse, LaunchCaptureError> {
-        let prepared = self.prepare_launch_capture_request(cwd, req)?;
-        self.launch_capture_prepared(&prepared)
-    }
-
     pub(crate) fn prepare_launch_capture_request(
         &self,
         cwd: &Path,
