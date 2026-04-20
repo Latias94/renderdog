@@ -22,9 +22,9 @@ fn main() -> anyhow::Result<()> {
     }
 
     let cwd = std::env::current_dir()?;
-    let res = install.capture_and_export_actions_jsonl(
+    let res = install.capture_and_export_bundle_jsonl(
         &cwd,
-        &renderdog::CaptureAndExportActionsRequest {
+        &renderdog::CaptureAndExportBundleRequest {
             target: renderdog::LaunchCaptureRequest {
                 executable: executable.clone(),
                 args: exe_args.to_vec(),
@@ -36,6 +36,8 @@ fn main() -> anyhow::Result<()> {
             output: renderdog::ExportOutput::default(),
             drawcall_scope: renderdog::DrawcallScope::default(),
             filter: renderdog::EventFilter::default(),
+            bindings: renderdog::BindingsExportOptions::default(),
+            post_actions: renderdog::CapturePostActions::default(),
         },
     )?;
     println!("{}", serde_json::to_string_pretty(&res)?);

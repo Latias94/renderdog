@@ -85,7 +85,7 @@ Use this when you want a local/manual workflow (or your own automation) without 
     - optionally set capture path template (`set_capture_file_path_template...`)
     - trigger capture (`trigger_capture` or `start_frame_capture`/`end_frame_capture`)
 - Out-of-process automation from CLI (no MCP):
-  - Capture + export: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
+  - Capture + export bundle: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
   - Export from existing `.rdc`: `cargo run -p renderdog-automation --example export_bundle_from_capture -- <capture.rdc> [out_dir] [basename]`
   - Headless replay outputs: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [event_id] [out_dir] [basename]`
   - Note: relative paths are resolved against your current working directory.
@@ -227,7 +227,7 @@ Gemini CLI can manage MCP servers either via commands or by editing `settings.js
 
 - In-app connect (injected-only, Windows): `cargo run -p renderdog --example in_app_injected_only`
 - In-app options/overlay/output template: `cargo run -p renderdog --example in_app_options_overlay`
-- Automation one-shot capture + export: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
+- Automation one-shot capture + export bundle: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
 - Automation export bundle from capture: `cargo run -p renderdog-automation --example export_bundle_from_capture -- <capture.rdc> [out_dir] [basename]`
 - Automation save pipeline outputs to PNG: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [event_id] [out_dir] [basename]`
 - Automation diagnose environment (RenderDoc paths + Vulkan layer): `cargo run -p renderdog-automation --example diagnose_environment`
