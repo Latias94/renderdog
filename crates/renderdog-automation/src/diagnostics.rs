@@ -1,4 +1,10 @@
-use std::{collections::BTreeSet, path::Path, process::Command, string::String};
+use std::{
+    collections::BTreeSet,
+    ffi::OsStr,
+    path::{Component, Path, PathBuf},
+    process::Command,
+    string::String,
+};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -79,7 +85,6 @@ pub enum VulkanLayerDiagnosisError {
 }
 
 struct EnvironmentAssessmentInputs<'a> {
-    root_dir: &'a Path,
     renderdoccmd_exe: &'a Path,
     platform: &'a str,
     arch: &'a str,
@@ -143,7 +148,6 @@ impl RenderDocInstallation {
         .collect::<Vec<_>>();
 
         let feedback = collect_environment_feedback(&EnvironmentAssessmentInputs {
-            root_dir: &self.root_dir,
             renderdoccmd_exe: &self.renderdoccmd_exe,
             platform: &platform,
             arch: &arch,
@@ -394,25 +398,16 @@ fn collect_environment_feedback(inputs: &EnvironmentAssessmentInputs<'_>) -> Env
     }
 
     let vk_layer_path = env_var_value(inputs.env, "VK_LAYER_PATH").unwrap_or("");
-    if !vk_layer_path.is_empty() && !vk_layer_path.contains(&inputs.root_dir.display().to_string())
-    {
-        warnings.push("VK_LAYER_PATH is set; if Vulkan capture fails, ensure it includes the RenderDoc layer JSON location or unregister conflicting installs.".to_string());
-    }
-
-    let mut dirs: Vec<String> = inputs
-        .vulkan_layer_manifests
-        .iter()
-        .filter_map(|p| Path::new(p).parent().map(|d| d.display().to_string()))
-        .collect();
-    dirs.sort();
-    dirs.dedup();
-
-    if !dirs.is_empty() && !vk_layer_path.is_empty() {
-        let any_in_path = dirs.iter().any(|d| vk_layer_path.contains(d));
+    let manifest_dirs = vulkan_layer_manifest_dirs(inputs.vulkan_layer_manifests);
+    if !manifest_dirs.is_empty() && !vk_layer_path.is_empty() {
+        let search_paths = split_search_path_list(vk_layer_path);
+        let any_in_path = manifest_dirs
+            .iter()
+            .any(|dir| search_paths.iter().any(|entry| paths_match(entry, dir)));
         if !any_in_path {
             warnings.push(format!(
                 "VK_LAYER_PATH is set but does not appear to include the RenderDoc Vulkan layer manifest directory. Detected manifest dirs: {}",
-                dirs.join(" | ")
+                display_paths(&manifest_dirs).join(" | ")
             ));
             let sep = if cfg!(windows) { ";" } else { ":" };
             suggested_commands.push(format!(
@@ -431,6 +426,62 @@ fn env_var_value<'a>(env: &'a [EnvironmentVarInfo], name: &str) -> Option<&'a st
     env.iter()
         .find(|entry| entry.name == name)
         .and_then(|entry| entry.value.as_deref())
+}
+
+fn split_search_path_list(value: &str) -> Vec<PathBuf> {
+    std::env::split_paths(OsStr::new(value))
+        .map(|path| normalize_path_for_match(&path))
+        .collect()
+}
+
+fn vulkan_layer_manifest_dirs(manifests: &[String]) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    for manifest in manifests {
+        let Some(parent) = Path::new(manifest).parent() else {
+            continue;
+        };
+        let parent = normalize_path_for_match(parent);
+        if dirs.iter().any(|existing| paths_match(existing, &parent)) {
+            continue;
+        }
+        dirs.push(parent);
+    }
+    dirs.sort_by(|lhs, rhs| lhs.as_os_str().cmp(rhs.as_os_str()));
+    dirs
+}
+
+fn display_paths(paths: &[PathBuf]) -> Vec<String> {
+    paths
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect()
+}
+
+fn paths_match(lhs: &Path, rhs: &Path) -> bool {
+    let lhs = normalize_path_for_match(lhs);
+    let rhs = normalize_path_for_match(rhs);
+
+    if cfg!(windows) {
+        lhs.as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&rhs.as_os_str().to_string_lossy())
+    } else {
+        lhs == rhs
+    }
+}
+
+fn normalize_path_for_match(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
 }
 
 fn extract_manifest_paths(text: &str) -> Vec<String> {
@@ -538,6 +589,7 @@ mod tests {
     use super::{
         EnvironmentAssessmentInputs, EnvironmentVarInfo, VulkanLayerDiagnosis,
         collect_environment_feedback, compute_replay_version_match, parse_vulkan_layer_diagnosis,
+        paths_match, split_search_path_list, vulkan_layer_manifest_dirs,
     };
     use std::path::Path;
 
@@ -615,6 +667,10 @@ administrator privileges required"
 
     #[test]
     fn collect_environment_feedback_reports_version_and_layer_overrides() {
+        let vk_layer_path = std::env::join_paths([Path::new("custom/layers")])
+            .expect("valid path list")
+            .to_string_lossy()
+            .into_owned();
         let env = vec![
             EnvironmentVarInfo {
                 name: "VK_INSTANCE_LAYERS".to_string(),
@@ -622,12 +678,11 @@ administrator privileges required"
             },
             EnvironmentVarInfo {
                 name: "VK_LAYER_PATH".to_string(),
-                value: Some("/custom/layers".to_string()),
+                value: Some(vk_layer_path),
             },
         ];
         let feedback = collect_environment_feedback(&EnvironmentAssessmentInputs {
-            root_dir: Path::new("/renderdoc"),
-            renderdoccmd_exe: Path::new("/renderdoc/renderdoccmd"),
+            renderdoccmd_exe: Path::new("renderdoc/renderdoccmd"),
             platform: "linux",
             arch: "x86_64",
             is_elevated: None,
@@ -650,12 +705,6 @@ administrator privileges required"
         assert!(feedback.warnings.iter().any(|warning| warning.contains(
             "VK_INSTANCE_LAYERS is set but does not include VK_LAYER_RENDERDOC_Capture"
         )));
-        assert!(
-            feedback
-                .warnings
-                .iter()
-                .any(|warning| warning.contains("VK_LAYER_PATH is set; if Vulkan capture fails"))
-        );
         assert!(feedback.warnings.iter().any(|warning| {
             warning.contains(
                 "does not appear to include the RenderDoc Vulkan layer manifest directory",
@@ -691,7 +740,6 @@ administrator privileges required"
             ],
         };
         let feedback = collect_environment_feedback(&EnvironmentAssessmentInputs {
-            root_dir: Path::new("/renderdoc"),
             renderdoccmd_exe: Path::new("/renderdoc/renderdoccmd"),
             platform: "linux",
             arch: "x86_64",
@@ -735,7 +783,6 @@ administrator privileges required"
     #[test]
     fn collect_environment_feedback_surfaces_probe_errors() {
         let feedback = collect_environment_feedback(&EnvironmentAssessmentInputs {
-            root_dir: Path::new("/renderdoc"),
             renderdoccmd_exe: Path::new("/renderdoc/renderdoccmd"),
             platform: "linux",
             arch: "x86_64",
@@ -756,5 +803,25 @@ administrator privileges required"
         assert!(feedback.warnings.iter().any(|warning| {
             warning.contains("Failed to diagnose Vulkan layer registration: renderdoccmd output was not valid UTF-8")
         }));
+    }
+
+    #[test]
+    fn split_search_path_list_and_manifest_dirs_use_exact_path_matching() {
+        let vk_layer_path =
+            std::env::join_paths([Path::new("renderdoc-old/layers"), Path::new("other/layers")])
+                .expect("valid path list")
+                .to_string_lossy()
+                .into_owned();
+        let search_paths = split_search_path_list(&vk_layer_path);
+        let manifest_dirs =
+            vulkan_layer_manifest_dirs(&["renderdoc/layers/renderdoc_capture.json".to_string()]);
+
+        assert_eq!(manifest_dirs.len(), 1);
+        assert!(
+            !search_paths
+                .iter()
+                .any(|entry| paths_match(entry, &manifest_dirs[0])),
+            "substring path entries must not count as exact manifest dir matches"
+        );
     }
 }
