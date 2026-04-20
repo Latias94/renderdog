@@ -114,7 +114,7 @@ pub struct BindingsExportOptions {
     pub include_outputs: bool,
 }
 
-pub type OneShotCaptureTarget = crate::LaunchCaptureRequest;
+pub type OneShotCaptureTarget = crate::CaptureTargetRequest;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct OneShotCaptureOptions {

@@ -14,7 +14,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct LaunchCaptureRequest {
+pub struct CaptureTargetRequest {
     pub executable: String,
     #[serde(default)]
     pub args: Vec<String>,
@@ -85,7 +85,7 @@ impl RenderDocInstallation {
     pub(crate) fn prepare_launch_capture_request(
         &self,
         cwd: &Path,
-        req: &LaunchCaptureRequest,
+        req: &CaptureTargetRequest,
     ) -> Result<PreparedLaunchCaptureRequest, LaunchCaptureError> {
         let artifacts_dir = req
             .artifacts_dir
@@ -191,7 +191,7 @@ mod tests {
             qrenderdoc_exe: PathBuf::from("/renderdoc/qrenderdoc"),
             renderdoccmd_exe: PathBuf::from("/renderdoc/renderdoccmd"),
         };
-        let req = LaunchCaptureRequest {
+        let req = CaptureTargetRequest {
             executable: "bin/app".to_string(),
             args: vec!["--flag".to_string()],
             working_dir: Some("run".to_string()),
@@ -228,7 +228,7 @@ mod tests {
             qrenderdoc_exe: PathBuf::from("/renderdoc/qrenderdoc"),
             renderdoccmd_exe: PathBuf::from("/renderdoc/renderdoccmd"),
         };
-        let req = LaunchCaptureRequest {
+        let req = CaptureTargetRequest {
             executable: "app".to_string(),
             args: Vec::new(),
             working_dir: None,
