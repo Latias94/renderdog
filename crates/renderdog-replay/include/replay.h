@@ -23,6 +23,7 @@ public:
 
   ~ReplaySession();
 
+  rust::String runtime_version_string() const;
   void open_capture(rust::Str capture_path);
   void set_frame_event(uint32_t event_id);
 

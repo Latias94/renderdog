@@ -215,6 +215,17 @@ T load_symbol(void *lib, const char *name)
 #endif
 }
 
+std::string runtime_version_string_from_module(void *lib)
+{
+  using pRENDERDOC_GetVersionString = const char *(RENDERDOC_CC *)();
+  auto get_version =
+      load_symbol<pRENDERDOC_GetVersionString>(lib, "RENDERDOC_GetVersionString");
+  const char *version = get_version();
+  if(!version || !version[0])
+    throw std::runtime_error("RENDERDOC_GetVersionString returned an empty version");
+  return std::string(version);
+}
+
 std::string json_escape(const rdcstr &s)
 {
   const char *p = s.c_str();
@@ -284,6 +295,8 @@ std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path)
     sess->lib_ = renderdoc_module_ptr(load_renderdoc_module_or_throw(path.c_str()));
   }
 
+  sess->ensure_loaded();
+
   return sess;
 }
 
@@ -339,6 +352,14 @@ void ReplaySession::ensure_loaded()
   }
 
   lib_ = renderdoc_module_ptr(module);
+}
+
+rust::String ReplaySession::runtime_version_string() const
+{
+  if(!lib_)
+    throw std::runtime_error("RenderDoc module not loaded");
+
+  return runtime_version_string_from_module(lib_);
 }
 
 void ReplaySession::open_capture(rust::Str capture_path)
