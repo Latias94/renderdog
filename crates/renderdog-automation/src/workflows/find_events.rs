@@ -6,6 +6,7 @@ use crate::RenderDocInstallation;
 use crate::scripting::{QRenderDocJsonJobRequest, define_qrenderdoc_json_job_error};
 
 use super::{FindEventsRequest, FindEventsResponse};
+use crate::CaptureInput;
 
 define_qrenderdoc_json_job_error! {
     #[derive(Debug, Error)]
@@ -22,7 +23,9 @@ impl RenderDocInstallation {
         req: &FindEventsRequest,
     ) -> Result<FindEventsResponse, FindEventsError> {
         let req = FindEventsRequest {
-            capture_path: crate::resolve_path_string_from_cwd(cwd, &req.capture_path),
+            capture: CaptureInput {
+                capture_path: crate::resolve_path_string_from_cwd(cwd, &req.capture.capture_path),
+            },
             ..req.clone()
         };
 

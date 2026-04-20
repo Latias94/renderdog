@@ -17,18 +17,14 @@ fn main() -> anyhow::Result<()> {
     let res = install.export_bundle_jsonl(
         &cwd,
         &renderdog::ExportBundleRequest {
-            capture_path,
-            output_dir: out_dir.map(|path| path.display().to_string()),
-            basename,
-            only_drawcalls: false,
-            marker_prefix: None,
-            event_id_min: None,
-            event_id_max: None,
-            name_contains: None,
-            marker_contains: None,
-            case_sensitive: false,
-            include_cbuffers: false,
-            include_outputs: false,
+            capture: renderdog::CaptureInput { capture_path },
+            output: renderdog::ExportOutput {
+                output_dir: out_dir.map(|path| path.display().to_string()),
+                basename,
+            },
+            drawcall_scope: renderdog::DrawcallScope::default(),
+            filter: renderdog::EventFilter::default(),
+            bindings: renderdog::BindingsExportOptions::default(),
         },
     )?;
 

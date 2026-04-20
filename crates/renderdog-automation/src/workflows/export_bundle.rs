@@ -5,8 +5,8 @@ use thiserror::Error;
 use crate::{RenderDocInstallation, resolve_path_string_from_cwd};
 
 use super::{
-    ExportActionsError, ExportActionsRequest, ExportBindingsIndexError, ExportBindingsIndexRequest,
-    ExportBundleRequest, ExportBundleResponse,
+    CaptureInput, ExportActionsError, ExportActionsRequest, ExportBindingsIndexError,
+    ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse,
 };
 
 #[derive(Debug, Error)]
@@ -23,38 +23,29 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBundleRequest,
     ) -> Result<ExportBundleResponse, ExportBundleError> {
-        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture_path);
+        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture.capture_path);
 
         let actions = self.export_actions_jsonl(
             cwd,
             &ExportActionsRequest {
-                capture_path: capture_path.clone(),
-                output_dir: req.output_dir.clone(),
-                basename: req.basename.clone(),
-                only_drawcalls: req.only_drawcalls,
-                marker_prefix: req.marker_prefix.clone(),
-                event_id_min: req.event_id_min,
-                event_id_max: req.event_id_max,
-                name_contains: req.name_contains.clone(),
-                marker_contains: req.marker_contains.clone(),
-                case_sensitive: req.case_sensitive,
+                capture: CaptureInput {
+                    capture_path: capture_path.clone(),
+                },
+                output: req.output.clone(),
+                drawcall_scope: req.drawcall_scope,
+                filter: req.filter.clone(),
             },
         )?;
 
         let bindings = self.export_bindings_index_jsonl(
             cwd,
             &ExportBindingsIndexRequest {
-                capture_path: capture_path.clone(),
-                output_dir: req.output_dir.clone(),
-                basename: req.basename.clone(),
-                marker_prefix: req.marker_prefix.clone(),
-                event_id_min: req.event_id_min,
-                event_id_max: req.event_id_max,
-                name_contains: req.name_contains.clone(),
-                marker_contains: req.marker_contains.clone(),
-                case_sensitive: req.case_sensitive,
-                include_cbuffers: req.include_cbuffers,
-                include_outputs: req.include_outputs,
+                capture: CaptureInput {
+                    capture_path: capture_path.clone(),
+                },
+                output: req.output.clone(),
+                filter: req.filter.clone(),
+                bindings: req.bindings,
             },
         )?;
 

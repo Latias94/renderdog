@@ -14,15 +14,17 @@ fn main() -> anyhow::Result<()> {
     let res = install.find_events(
         &cwd,
         &renderdog::FindEventsRequest {
-            capture_path,
-            only_drawcalls: true,
-            marker_prefix: None,
-            event_id_min: None,
-            event_id_max: None,
-            name_contains: None,
-            marker_contains,
-            case_sensitive: false,
-            max_results: Some(200),
+            capture: renderdog::CaptureInput { capture_path },
+            drawcall_scope: renderdog::DrawcallScope {
+                only_drawcalls: true,
+            },
+            filter: renderdog::EventFilter {
+                marker_contains,
+                ..Default::default()
+            },
+            limit: renderdog::FindEventsLimit {
+                max_results: Some(200),
+            },
         },
     )?;
 

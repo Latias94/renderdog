@@ -55,16 +55,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let export = install.export_actions_jsonl(
         &cwd,
         &renderdog::ExportActionsRequest {
-            capture_path: capture.capture_path,
-            output_dir: None,
-            basename: None,
-            only_drawcalls: false,
-            marker_prefix: None,
-            event_id_min: None,
-            event_id_max: None,
-            name_contains: None,
-            marker_contains: None,
-            case_sensitive: false,
+            capture: renderdog::CaptureInput {
+                capture_path: capture.capture_path,
+            },
+            output: renderdog::ExportOutput::default(),
+            drawcall_scope: renderdog::DrawcallScope::default(),
+            filter: renderdog::EventFilter::default(),
         },
     )?;
 

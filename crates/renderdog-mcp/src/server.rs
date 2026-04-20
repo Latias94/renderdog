@@ -316,7 +316,7 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::ExportActionsResponse>, String> {
         let tool = "renderdoc_export_actions_jsonl";
         let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
+        tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
@@ -346,7 +346,7 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::ExportBindingsIndexResponse>, String> {
         let tool = "renderdoc_export_bindings_index_jsonl";
         let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
+        tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
@@ -376,7 +376,7 @@ impl RenderdogMcpServer {
     ) -> Result<Json<ExportBundleResponse>, String> {
         let tool = "renderdoc_export_bundle_jsonl";
         let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
+        tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
@@ -442,7 +442,7 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::FindEventsResponse>, String> {
         let tool = "renderdoc_find_events";
         let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
+        tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
@@ -470,7 +470,7 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            capture_path = %req.inner.capture_path,
+            capture_path = %req.inner.capture.capture_path,
             "start"
         );
         let install = require_installation(tool)?;
@@ -634,8 +634,8 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            executable = %req.inner.executable,
-            args_len = req.inner.args.len(),
+            executable = %req.inner.target.executable,
+            args_len = req.inner.target.args.len(),
             "start"
         );
 
@@ -673,8 +673,8 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            executable = %req.inner.executable,
-            args_len = req.inner.args.len(),
+            executable = %req.inner.target.executable,
+            args_len = req.inner.target.args.len(),
             "start"
         );
 
@@ -712,8 +712,8 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            executable = %req.inner.executable,
-            args_len = req.inner.args.len(),
+            executable = %req.inner.target.executable,
+            args_len = req.inner.target.args.len(),
             "start"
         );
 

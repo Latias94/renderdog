@@ -5,17 +5,14 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    FindEventsError, FindEventsRequest, FindEventsResponse, RenderDocInstallation,
-    ReplaySaveOutputsPngError, ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse,
-    default_capture_basename, resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
+    CaptureInput, DrawcallScope, EventFilter, ExportOutput, FindEventsError, FindEventsLimit,
+    FindEventsRequest, FindEventsResponse, RenderDocInstallation, ReplaySaveOutputsPngError,
+    ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse, default_capture_basename,
+    resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
 };
 
 fn default_true() -> bool {
     true
-}
-
-fn default_max_results() -> Option<u32> {
-    Some(200)
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
@@ -28,29 +25,18 @@ pub enum FindEventSelection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FindEventsAndSaveOutputsPngRequest {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
     #[serde(default)]
     pub selection: FindEventSelection,
     #[serde(default = "default_true")]
     pub only_drawcalls: bool,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
-    #[serde(default = "default_max_results")]
-    pub max_results: Option<u32>,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
+    #[serde(flatten)]
+    pub filter: EventFilter,
+    #[serde(flatten)]
+    pub limit: FindEventsLimit,
+    #[serde(flatten)]
+    pub output: ExportOutput,
     #[serde(default)]
     pub include_depth: bool,
 }
@@ -80,20 +66,19 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsAndSaveOutputsPngRequest,
     ) -> Result<FindEventsAndSaveOutputsPngResponse, FindEventsAndSaveOutputsPngError> {
-        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture_path);
+        let capture_path = resolve_path_string_from_cwd(cwd, &req.capture.capture_path);
 
         let find = self.find_events(
             cwd,
             &FindEventsRequest {
-                capture_path: capture_path.clone(),
-                only_drawcalls: req.only_drawcalls,
-                marker_prefix: req.marker_prefix.clone(),
-                event_id_min: req.event_id_min,
-                event_id_max: req.event_id_max,
-                name_contains: req.name_contains.clone(),
-                marker_contains: req.marker_contains.clone(),
-                case_sensitive: req.case_sensitive,
-                max_results: req.max_results,
+                capture: CaptureInput {
+                    capture_path: capture_path.clone(),
+                },
+                drawcall_scope: DrawcallScope {
+                    only_drawcalls: req.only_drawcalls,
+                },
+                filter: req.filter.clone(),
+                limit: req.limit,
             },
         )?;
 
@@ -103,11 +88,12 @@ impl RenderDocInstallation {
         }
         .ok_or(FindEventsAndSaveOutputsPngError::NoMatchingEvents)?;
 
-        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output_dir.as_deref());
+        let output_dir = resolve_export_output_dir_from_cwd(cwd, req.output.output_dir.as_deref());
         std::fs::create_dir_all(&output_dir)
             .map_err(FindEventsAndSaveOutputsPngError::CreateOutputDir)?;
 
         let basename = req
+            .output
             .basename
             .clone()
             .unwrap_or_else(|| default_capture_basename(&capture_path));

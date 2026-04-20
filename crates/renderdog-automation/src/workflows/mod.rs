@@ -31,6 +31,108 @@ fn default_max_results() -> Option<u32> {
     Some(200)
 }
 
+fn default_host() -> String {
+    "localhost".to_string()
+}
+
+fn default_frames() -> u32 {
+    1
+}
+
+fn default_timeout_s() -> u32 {
+    60
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CaptureInput {
+    pub capture_path: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ExportOutput {
+    #[serde(default)]
+    pub output_dir: Option<String>,
+    #[serde(default)]
+    pub basename: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EventFilter {
+    #[serde(default)]
+    pub marker_prefix: Option<String>,
+    #[serde(default)]
+    pub event_id_min: Option<u32>,
+    #[serde(default)]
+    pub event_id_max: Option<u32>,
+    #[serde(default)]
+    pub name_contains: Option<String>,
+    #[serde(default)]
+    pub marker_contains: Option<String>,
+    #[serde(default)]
+    pub case_sensitive: bool,
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+pub struct DrawcallScope {
+    #[serde(default)]
+    pub only_drawcalls: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+pub struct FindEventsLimit {
+    #[serde(default = "default_max_results")]
+    pub max_results: Option<u32>,
+}
+
+impl Default for FindEventsLimit {
+    fn default() -> Self {
+        Self {
+            max_results: default_max_results(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+pub struct BindingsExportOptions {
+    #[serde(default)]
+    pub include_cbuffers: bool,
+    #[serde(default)]
+    pub include_outputs: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OneShotCaptureTarget {
+    pub executable: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub working_dir: Option<String>,
+    #[serde(default)]
+    pub artifacts_dir: Option<String>,
+    #[serde(default)]
+    pub capture_template_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OneShotCaptureOptions {
+    #[serde(default = "default_host")]
+    pub host: String,
+    #[serde(default = "default_frames")]
+    pub num_frames: u32,
+    #[serde(default = "default_timeout_s")]
+    pub timeout_s: u32,
+}
+
+impl Default for OneShotCaptureOptions {
+    fn default() -> Self {
+        Self {
+            host: default_host(),
+            num_frames: default_frames(),
+            timeout_s: default_timeout_s(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureRequest {
     pub host: String,
@@ -48,25 +150,14 @@ pub struct TriggerCaptureResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportActionsRequest {
-    pub capture_path: String,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
-    #[serde(default)]
-    pub only_drawcalls: bool,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
+    #[serde(flatten)]
+    pub output: ExportOutput,
+    #[serde(flatten)]
+    pub drawcall_scope: DrawcallScope,
+    #[serde(flatten)]
+    pub filter: EventFilter,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -80,23 +171,14 @@ pub struct ExportActionsResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FindEventsRequest {
-    pub capture_path: String,
-    #[serde(default)]
-    pub only_drawcalls: bool,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
-    #[serde(default = "default_max_results")]
-    pub max_results: Option<u32>,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
+    #[serde(flatten)]
+    pub drawcall_scope: DrawcallScope,
+    #[serde(flatten)]
+    pub filter: EventFilter,
+    #[serde(flatten)]
+    pub limit: FindEventsLimit,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -123,27 +205,14 @@ pub struct FindEventsResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportBindingsIndexRequest {
-    pub capture_path: String,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
-    #[serde(default)]
-    pub include_cbuffers: bool,
-    #[serde(default)]
-    pub include_outputs: bool,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
+    #[serde(flatten)]
+    pub output: ExportOutput,
+    #[serde(flatten)]
+    pub filter: EventFilter,
+    #[serde(flatten)]
+    pub bindings: BindingsExportOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -156,31 +225,16 @@ pub struct ExportBindingsIndexResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportBundleRequest {
-    pub capture_path: String,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
-
-    #[serde(default)]
-    pub only_drawcalls: bool,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
-
-    #[serde(default)]
-    pub include_cbuffers: bool,
-    #[serde(default)]
-    pub include_outputs: bool,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
+    #[serde(flatten)]
+    pub output: ExportOutput,
+    #[serde(flatten)]
+    pub drawcall_scope: DrawcallScope,
+    #[serde(flatten)]
+    pub filter: EventFilter,
+    #[serde(flatten)]
+    pub bindings: BindingsExportOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

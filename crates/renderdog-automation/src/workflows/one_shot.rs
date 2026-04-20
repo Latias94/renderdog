@@ -5,139 +5,56 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    CaptureLaunchError, CaptureLaunchRequest, ExportActionsError, ExportActionsRequest,
-    ExportBindingsIndexError, ExportBindingsIndexRequest, ExportBundleError, ExportBundleRequest,
-    OpenCaptureUiError, RenderDocInstallation, TriggerCaptureError, TriggerCaptureRequest,
-    default_artifacts_dir, default_exports_dir, resolve_path_from_cwd,
+    BindingsExportOptions, CaptureInput, CaptureLaunchError, CaptureLaunchRequest, DrawcallScope,
+    EventFilter, ExportActionsError, ExportActionsRequest, ExportBindingsIndexError,
+    ExportBindingsIndexRequest, ExportBundleError, ExportBundleRequest, ExportOutput,
+    OneShotCaptureOptions, OneShotCaptureTarget, OpenCaptureUiError, RenderDocInstallation,
+    TriggerCaptureError, TriggerCaptureRequest, default_artifacts_dir, default_exports_dir,
+    resolve_path_from_cwd,
 };
-
-fn default_host() -> String {
-    "localhost".to_string()
-}
-
-fn default_frames() -> u32 {
-    1
-}
-
-fn default_timeout_s() -> u32 {
-    60
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureAndExportActionsRequest {
-    pub executable: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub working_dir: Option<String>,
-    #[serde(default)]
-    pub artifacts_dir: Option<String>,
-    #[serde(default)]
-    pub capture_template_name: Option<String>,
-    #[serde(default = "default_host")]
-    pub host: String,
-    #[serde(default = "default_frames")]
-    pub num_frames: u32,
-    #[serde(default = "default_timeout_s")]
-    pub timeout_s: u32,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
-    #[serde(default)]
-    pub only_drawcalls: bool,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
+    #[serde(flatten)]
+    pub target: OneShotCaptureTarget,
+    #[serde(flatten)]
+    pub capture: OneShotCaptureOptions,
+    #[serde(flatten)]
+    pub output: ExportOutput,
+    #[serde(flatten)]
+    pub drawcall_scope: DrawcallScope,
+    #[serde(flatten)]
+    pub filter: EventFilter,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureAndExportBindingsIndexRequest {
-    pub executable: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub working_dir: Option<String>,
-    #[serde(default)]
-    pub artifacts_dir: Option<String>,
-    #[serde(default)]
-    pub capture_template_name: Option<String>,
-    #[serde(default = "default_host")]
-    pub host: String,
-    #[serde(default = "default_frames")]
-    pub num_frames: u32,
-    #[serde(default = "default_timeout_s")]
-    pub timeout_s: u32,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
-    #[serde(default)]
-    pub include_cbuffers: bool,
-    #[serde(default)]
-    pub include_outputs: bool,
+    #[serde(flatten)]
+    pub target: OneShotCaptureTarget,
+    #[serde(flatten)]
+    pub capture: OneShotCaptureOptions,
+    #[serde(flatten)]
+    pub output: ExportOutput,
+    #[serde(flatten)]
+    pub filter: EventFilter,
+    #[serde(flatten)]
+    pub bindings: BindingsExportOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureAndExportBundleRequest {
-    pub executable: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub working_dir: Option<String>,
-    #[serde(default)]
-    pub artifacts_dir: Option<String>,
-    #[serde(default)]
-    pub capture_template_name: Option<String>,
-    #[serde(default = "default_host")]
-    pub host: String,
-    #[serde(default = "default_frames")]
-    pub num_frames: u32,
-    #[serde(default = "default_timeout_s")]
-    pub timeout_s: u32,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
-    #[serde(default)]
-    pub only_drawcalls: bool,
-    #[serde(default)]
-    pub marker_prefix: Option<String>,
-    #[serde(default)]
-    pub event_id_min: Option<u32>,
-    #[serde(default)]
-    pub event_id_max: Option<u32>,
-    #[serde(default)]
-    pub name_contains: Option<String>,
-    #[serde(default)]
-    pub marker_contains: Option<String>,
-    #[serde(default)]
-    pub case_sensitive: bool,
-    #[serde(default)]
-    pub include_cbuffers: bool,
-    #[serde(default)]
-    pub include_outputs: bool,
+    #[serde(flatten)]
+    pub target: OneShotCaptureTarget,
+    #[serde(flatten)]
+    pub capture: OneShotCaptureOptions,
+    #[serde(flatten)]
+    pub output: ExportOutput,
+    #[serde(flatten)]
+    pub drawcall_scope: DrawcallScope,
+    #[serde(flatten)]
+    pub filter: EventFilter,
+    #[serde(flatten)]
+    pub bindings: BindingsExportOptions,
     #[serde(default)]
     pub save_thumbnail: bool,
     #[serde(default)]
@@ -263,32 +180,31 @@ impl RenderDocInstallation {
         let prepared = self.prepare_one_shot_capture(
             cwd,
             OneShotCaptureRequest {
-                executable: &req.executable,
-                args: &req.args,
-                working_dir: req.working_dir.as_deref(),
-                artifacts_dir: req.artifacts_dir.as_deref(),
-                capture_template_name: req.capture_template_name.as_deref(),
-                host: &req.host,
-                num_frames: req.num_frames,
-                timeout_s: req.timeout_s,
-                output_dir: req.output_dir.as_deref(),
-                basename: req.basename.as_deref(),
+                executable: &req.target.executable,
+                args: &req.target.args,
+                working_dir: req.target.working_dir.as_deref(),
+                artifacts_dir: req.target.artifacts_dir.as_deref(),
+                capture_template_name: req.target.capture_template_name.as_deref(),
+                host: &req.capture.host,
+                num_frames: req.capture.num_frames,
+                timeout_s: req.capture.timeout_s,
+                output_dir: req.output.output_dir.as_deref(),
+                basename: req.output.basename.as_deref(),
             },
         )?;
 
         let export = self.export_actions_jsonl(
             cwd,
             &ExportActionsRequest {
-                capture_path: prepared.capture_path.clone(),
-                output_dir: Some(prepared.output_dir.clone()),
-                basename: Some(prepared.basename.clone()),
-                only_drawcalls: req.only_drawcalls,
-                marker_prefix: req.marker_prefix.clone(),
-                event_id_min: req.event_id_min,
-                event_id_max: req.event_id_max,
-                name_contains: req.name_contains.clone(),
-                marker_contains: req.marker_contains.clone(),
-                case_sensitive: req.case_sensitive,
+                capture: CaptureInput {
+                    capture_path: prepared.capture_path.clone(),
+                },
+                output: ExportOutput {
+                    output_dir: Some(prepared.output_dir.clone()),
+                    basename: Some(prepared.basename.clone()),
+                },
+                drawcall_scope: req.drawcall_scope,
+                filter: req.filter.clone(),
             },
         )?;
 
@@ -313,33 +229,31 @@ impl RenderDocInstallation {
         let prepared = self.prepare_one_shot_capture(
             cwd,
             OneShotCaptureRequest {
-                executable: &req.executable,
-                args: &req.args,
-                working_dir: req.working_dir.as_deref(),
-                artifacts_dir: req.artifacts_dir.as_deref(),
-                capture_template_name: req.capture_template_name.as_deref(),
-                host: &req.host,
-                num_frames: req.num_frames,
-                timeout_s: req.timeout_s,
-                output_dir: req.output_dir.as_deref(),
-                basename: req.basename.as_deref(),
+                executable: &req.target.executable,
+                args: &req.target.args,
+                working_dir: req.target.working_dir.as_deref(),
+                artifacts_dir: req.target.artifacts_dir.as_deref(),
+                capture_template_name: req.target.capture_template_name.as_deref(),
+                host: &req.capture.host,
+                num_frames: req.capture.num_frames,
+                timeout_s: req.capture.timeout_s,
+                output_dir: req.output.output_dir.as_deref(),
+                basename: req.output.basename.as_deref(),
             },
         )?;
 
         let export = self.export_bindings_index_jsonl(
             cwd,
             &ExportBindingsIndexRequest {
-                capture_path: prepared.capture_path.clone(),
-                output_dir: Some(prepared.output_dir.clone()),
-                basename: Some(prepared.basename.clone()),
-                marker_prefix: req.marker_prefix.clone(),
-                event_id_min: req.event_id_min,
-                event_id_max: req.event_id_max,
-                name_contains: req.name_contains.clone(),
-                marker_contains: req.marker_contains.clone(),
-                case_sensitive: req.case_sensitive,
-                include_cbuffers: req.include_cbuffers,
-                include_outputs: req.include_outputs,
+                capture: CaptureInput {
+                    capture_path: prepared.capture_path.clone(),
+                },
+                output: ExportOutput {
+                    output_dir: Some(prepared.output_dir.clone()),
+                    basename: Some(prepared.basename.clone()),
+                },
+                filter: req.filter.clone(),
+                bindings: req.bindings,
             },
         )?;
 
@@ -363,34 +277,32 @@ impl RenderDocInstallation {
         let prepared = self.prepare_one_shot_capture(
             cwd,
             OneShotCaptureRequest {
-                executable: &req.executable,
-                args: &req.args,
-                working_dir: req.working_dir.as_deref(),
-                artifacts_dir: req.artifacts_dir.as_deref(),
-                capture_template_name: req.capture_template_name.as_deref(),
-                host: &req.host,
-                num_frames: req.num_frames,
-                timeout_s: req.timeout_s,
-                output_dir: req.output_dir.as_deref(),
-                basename: req.basename.as_deref(),
+                executable: &req.target.executable,
+                args: &req.target.args,
+                working_dir: req.target.working_dir.as_deref(),
+                artifacts_dir: req.target.artifacts_dir.as_deref(),
+                capture_template_name: req.target.capture_template_name.as_deref(),
+                host: &req.capture.host,
+                num_frames: req.capture.num_frames,
+                timeout_s: req.capture.timeout_s,
+                output_dir: req.output.output_dir.as_deref(),
+                basename: req.output.basename.as_deref(),
             },
         )?;
 
         let export = self.export_bundle_jsonl(
             cwd,
             &ExportBundleRequest {
-                capture_path: prepared.capture_path.clone(),
-                output_dir: Some(prepared.output_dir.clone()),
-                basename: Some(prepared.basename.clone()),
-                only_drawcalls: req.only_drawcalls,
-                marker_prefix: req.marker_prefix.clone(),
-                event_id_min: req.event_id_min,
-                event_id_max: req.event_id_max,
-                name_contains: req.name_contains.clone(),
-                marker_contains: req.marker_contains.clone(),
-                case_sensitive: req.case_sensitive,
-                include_cbuffers: req.include_cbuffers,
-                include_outputs: req.include_outputs,
+                capture: CaptureInput {
+                    capture_path: prepared.capture_path.clone(),
+                },
+                output: ExportOutput {
+                    output_dir: Some(prepared.output_dir.clone()),
+                    basename: Some(prepared.basename.clone()),
+                },
+                drawcall_scope: req.drawcall_scope,
+                filter: req.filter.clone(),
+                bindings: req.bindings,
             },
         )?;
 
