@@ -12,6 +12,7 @@ description = "Experimental RenderDoc replay-session bindings (C++/cxx). Not for
 
 [dependencies]
 cxx = "1.0"
+renderdog-sys = { version = "0.2.0", path = "../renderdog-sys" }
 thiserror = "2"
 anyhow = "1"
 

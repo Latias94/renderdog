@@ -156,7 +156,8 @@ impl RenderDocInstallation {
 
     pub fn diagnose_environment(&self) -> Result<EnvironmentDiagnosis, VulkanLayerDiagnosisError> {
         let renderdoccmd_version = self.version().ok().map(|s| s.trim().to_string());
-        let workspace_renderdoc_version = workspace_renderdoc_version();
+        let workspace_renderdoc_version =
+            renderdog_sys::workspace_renderdoc_replay_version().map(str::to_owned);
         let replay_version_match = compute_replay_version_match(
             renderdoccmd_version.as_deref(),
             workspace_renderdoc_version.as_deref(),
@@ -308,72 +309,10 @@ impl RenderDocInstallation {
     }
 }
 
-fn workspace_renderdoc_version() -> Option<String> {
-    let version_header = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("third-party")
-        .join("renderdoc")
-        .join("renderdoc")
-        .join("api")
-        .join("replay")
-        .join("version.h");
-    let content = std::fs::read_to_string(version_header).ok()?;
-    parse_workspace_renderdoc_version(&content)
-}
-
-fn parse_workspace_renderdoc_version(content: &str) -> Option<String> {
-    let mut major: Option<String> = None;
-    let mut minor: Option<String> = None;
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if let Some(value) = trimmed.strip_prefix("#define RENDERDOC_VERSION_MAJOR") {
-            major = Some(value.trim().to_string());
-        } else if let Some(value) = trimmed.strip_prefix("#define RENDERDOC_VERSION_MINOR") {
-            minor = Some(value.trim().to_string());
-        }
-    }
-
-    match (major, minor) {
-        (Some(major), Some(minor)) => Some(format!("{major}.{minor}")),
-        _ => None,
-    }
-}
-
 fn compute_replay_version_match(installed: Option<&str>, workspace: Option<&str>) -> Option<bool> {
-    let installed = installed.and_then(normalize_renderdoc_version)?;
-    let workspace = workspace.and_then(normalize_renderdoc_version)?;
+    let installed = installed.and_then(renderdog_sys::normalize_renderdoc_version)?;
+    let workspace = workspace.and_then(renderdog_sys::normalize_renderdoc_version)?;
     Some(installed == workspace)
-}
-
-fn normalize_renderdoc_version(value: &str) -> Option<String> {
-    let mut parts: Vec<String> = Vec::new();
-    let mut current = String::new();
-
-    for ch in value.chars() {
-        if ch.is_ascii_digit() {
-            current.push(ch);
-            continue;
-        }
-
-        if !current.is_empty() {
-            parts.push(std::mem::take(&mut current));
-            if parts.len() == 2 {
-                break;
-            }
-        }
-    }
-
-    if !current.is_empty() && parts.len() < 2 {
-        parts.push(current);
-    }
-
-    if parts.len() >= 2 {
-        Some(format!("{}.{}", parts[0], parts[1]))
-    } else {
-        None
-    }
 }
 
 fn extract_manifest_paths(text: &str) -> Vec<String> {
@@ -466,23 +405,7 @@ fn is_process_elevated() -> Option<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        compute_replay_version_match, normalize_renderdoc_version,
-        parse_workspace_renderdoc_version,
-    };
-
-    #[test]
-    fn normalize_renderdoc_version_extracts_major_minor() {
-        assert_eq!(
-            normalize_renderdoc_version("1.43"),
-            Some("1.43".to_string())
-        );
-        assert_eq!(
-            normalize_renderdoc_version("RenderDoc v1.43 loaded"),
-            Some("1.43".to_string())
-        );
-        assert_eq!(normalize_renderdoc_version("unknown"), None);
-    }
+    use super::compute_replay_version_match;
 
     #[test]
     fn compute_replay_version_match_compares_normalized_versions() {
@@ -497,19 +420,6 @@ mod tests {
         assert_eq!(
             compute_replay_version_match(Some("dev"), Some("1.43")),
             None
-        );
-    }
-
-    #[test]
-    fn parse_workspace_renderdoc_version_reads_version_header_macros() {
-        let content = r#"
-#define RENDERDOC_VERSION_MAJOR 1
-#define RENDERDOC_VERSION_MINOR 43
-"#;
-
-        assert_eq!(
-            parse_workspace_renderdoc_version(content),
-            Some("1.43".to_string())
         );
     }
 }
