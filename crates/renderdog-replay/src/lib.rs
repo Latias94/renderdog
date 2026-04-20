@@ -6,8 +6,9 @@
 
 mod ffi;
 
+use renderdog_sys::renderdoc_versions_match;
 #[cfg(feature = "cxx-replay")]
-use renderdog_sys::{renderdoc_versions_match, workspace_renderdoc_replay_version};
+use renderdog_sys::workspace_renderdoc_replay_version;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -41,6 +42,22 @@ pub enum ReplaySessionError {
     Cxx(#[from] cxx::Exception),
 }
 
+fn validate_runtime_version(
+    runtime_version: String,
+    workspace_version: Option<&str>,
+) -> Result<String, ReplayRuntimeError> {
+    let expected_version = workspace_version.ok_or(ReplayRuntimeError::WorkspaceVersionUnknown)?;
+
+    if !renderdoc_versions_match(&runtime_version, expected_version) {
+        return Err(ReplayRuntimeError::VersionMismatch {
+            expected: expected_version.to_string(),
+            actual: runtime_version,
+        });
+    }
+
+    Ok(runtime_version)
+}
+
 #[cfg(feature = "cxx-replay")]
 pub struct ReplayRuntime {
     runtime_version: String,
@@ -55,17 +72,10 @@ pub struct ReplaySession {
 impl ReplayRuntime {
     pub fn new(renderdoc_path: Option<&str>) -> Result<Self, ReplayRuntimeError> {
         let path = renderdoc_path.unwrap_or("");
-        let runtime_version = ffi::cxx_ffi::replay_runtime_probe(path)?;
-        let expected_version = workspace_renderdoc_replay_version()
-            .ok_or(ReplayRuntimeError::WorkspaceVersionUnknown)?
-            .to_string();
-
-        if !renderdoc_versions_match(&runtime_version, &expected_version) {
-            return Err(ReplayRuntimeError::VersionMismatch {
-                expected: expected_version,
-                actual: runtime_version,
-            });
-        }
+        let runtime_version = validate_runtime_version(
+            ffi::cxx_ffi::replay_runtime_probe(path)?,
+            workspace_renderdoc_replay_version(),
+        )?;
 
         Ok(Self { runtime_version })
     }
@@ -135,5 +145,41 @@ impl ReplayRuntime {
 
     pub fn new_session(&self) -> Result<ReplaySession, ReplaySessionError> {
         Err(ReplaySessionError::FeatureNotEnabled)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ReplayRuntimeError, validate_runtime_version};
+
+    #[test]
+    fn validate_runtime_version_accepts_normalized_match() {
+        let runtime_version =
+            validate_runtime_version("RenderDoc v1.44 loaded".to_string(), Some("1.44"))
+                .expect("version should match");
+
+        assert_eq!(runtime_version, "RenderDoc v1.44 loaded");
+    }
+
+    #[test]
+    fn validate_runtime_version_rejects_mismatch() {
+        let err = validate_runtime_version("1.43".to_string(), Some("1.44"))
+            .expect_err("version mismatch should fail fast");
+
+        match err {
+            ReplayRuntimeError::VersionMismatch { expected, actual } => {
+                assert_eq!(expected, "1.44");
+                assert_eq!(actual, "1.43");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+    }
+
+    #[test]
+    fn validate_runtime_version_requires_workspace_version() {
+        let err = validate_runtime_version("1.44".to_string(), None)
+            .expect_err("missing workspace version should fail");
+
+        assert!(matches!(err, ReplayRuntimeError::WorkspaceVersionUnknown));
     }
 }
