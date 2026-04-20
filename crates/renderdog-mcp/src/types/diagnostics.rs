@@ -8,9 +8,13 @@ pub(crate) struct DetectInstallationResponse {
     pub(crate) root_dir: String,
     pub(crate) qrenderdoc_exe: String,
     pub(crate) renderdoccmd_exe: String,
-    pub(crate) version: Option<String>,
+    pub(crate) renderdoccmd_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) version_error: Option<String>,
+    pub(crate) renderdoccmd_version_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) workspace_renderdoc_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) replay_version_match: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) vulkan_layer: Option<renderdog::VulkanLayerDiagnosis>,
     #[serde(skip_serializing_if = "Option::is_none")]

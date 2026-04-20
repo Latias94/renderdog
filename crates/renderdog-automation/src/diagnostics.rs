@@ -28,6 +28,18 @@ pub struct EnvironmentVarInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct InstallationProbeSummary {
+    pub renderdoccmd_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renderdoccmd_version_error: Option<String>,
+    pub workspace_renderdoc_version: Option<String>,
+    pub replay_version_match: Option<bool>,
+    pub vulkan_layer: Option<VulkanLayerDiagnosis>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vulkan_layer_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EnvironmentDiagnosis {
     pub root_dir: String,
     pub qrenderdoc_exe: String,
@@ -99,21 +111,7 @@ impl RenderDocInstallation {
     }
 
     pub fn diagnose_environment(&self) -> EnvironmentDiagnosis {
-        let (renderdoccmd_version, renderdoccmd_version_error) = match self.version() {
-            Ok(version) => (Some(version.trim().to_string()), None),
-            Err(err) => (None, Some(err.to_string())),
-        };
-        let workspace_renderdoc_version =
-            renderdog_sys::workspace_renderdoc_replay_version().map(str::to_owned);
-        let replay_version_match = compute_replay_version_match(
-            renderdoccmd_version.as_deref(),
-            workspace_renderdoc_version.as_deref(),
-        );
-
-        let (vulkan_layer, vulkan_layer_error) = match self.diagnose_vulkan_layer() {
-            Ok(diag) => (Some(diag), None),
-            Err(err) => (None, Some(err.to_string())),
-        };
+        let probe = self.probe_installation();
         let vulkan_layer_manifests = find_vulkan_layer_manifests(&self.root_dir);
         let is_elevated = is_process_elevated();
 
@@ -141,12 +139,12 @@ impl RenderDocInstallation {
             platform: &platform,
             arch: &arch,
             is_elevated,
-            renderdoccmd_version: renderdoccmd_version.as_deref(),
-            renderdoccmd_version_error: renderdoccmd_version_error.as_deref(),
-            workspace_renderdoc_version: workspace_renderdoc_version.as_deref(),
-            replay_version_match,
-            vulkan_layer: vulkan_layer.as_ref(),
-            vulkan_layer_error: vulkan_layer_error.as_deref(),
+            renderdoccmd_version: probe.renderdoccmd_version.as_deref(),
+            renderdoccmd_version_error: probe.renderdoccmd_version_error.as_deref(),
+            workspace_renderdoc_version: probe.workspace_renderdoc_version.as_deref(),
+            replay_version_match: probe.replay_version_match,
+            vulkan_layer: probe.vulkan_layer.as_ref(),
+            vulkan_layer_error: probe.vulkan_layer_error.as_deref(),
             vulkan_layer_manifests: &vulkan_layer_manifests,
             env: &env,
         });
@@ -158,16 +156,42 @@ impl RenderDocInstallation {
             platform,
             arch,
             is_elevated,
+            renderdoccmd_version: probe.renderdoccmd_version,
+            renderdoccmd_version_error: probe.renderdoccmd_version_error,
+            workspace_renderdoc_version: probe.workspace_renderdoc_version,
+            replay_version_match: probe.replay_version_match,
+            vulkan_layer: probe.vulkan_layer,
+            vulkan_layer_error: probe.vulkan_layer_error,
+            vulkan_layer_manifests,
+            env,
+            warnings: feedback.warnings,
+            suggested_commands: feedback.suggested_commands,
+        }
+    }
+
+    pub fn probe_installation(&self) -> InstallationProbeSummary {
+        let (renderdoccmd_version, renderdoccmd_version_error) = match self.version() {
+            Ok(version) => (Some(version.trim().to_string()), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
+        let workspace_renderdoc_version =
+            renderdog_sys::workspace_renderdoc_replay_version().map(str::to_owned);
+        let replay_version_match = compute_replay_version_match(
+            renderdoccmd_version.as_deref(),
+            workspace_renderdoc_version.as_deref(),
+        );
+        let (vulkan_layer, vulkan_layer_error) = match self.diagnose_vulkan_layer() {
+            Ok(diag) => (Some(diag), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
+
+        InstallationProbeSummary {
             renderdoccmd_version,
             renderdoccmd_version_error,
             workspace_renderdoc_version,
             replay_version_match,
             vulkan_layer,
             vulkan_layer_error,
-            vulkan_layer_manifests,
-            env,
-            warnings: feedback.warnings,
-            suggested_commands: feedback.suggested_commands,
         }
     }
 }
