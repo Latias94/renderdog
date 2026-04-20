@@ -84,89 +84,67 @@ impl PreparedOneShotCapture {
     }
 }
 
-struct OneShotCaptureRequest<'a> {
-    target: &'a OneShotCaptureTarget,
-    capture: &'a OneShotCaptureOptions,
-    output: &'a ExportOutput,
-}
-
-impl<'a> OneShotCaptureRequest<'a> {
-    fn new(
-        target: &'a OneShotCaptureTarget,
-        capture: &'a OneShotCaptureOptions,
-        output: &'a ExportOutput,
-    ) -> Self {
-        Self {
-            target,
-            capture,
-            output,
-        }
-    }
-}
-
 impl RenderDocInstallation {
     pub fn capture_and_export_bundle_jsonl(
         &self,
         cwd: &Path,
         req: &CaptureAndExportBundleRequest,
     ) -> Result<CaptureAndExportBundleResponse, CaptureAndExportBundleError> {
-        self.with_prepared_one_shot_capture(
+        let prepared =
+            self.prepare_one_shot_capture(cwd, &req.target, &req.capture, &req.output)?;
+        let export = self.export_bundle_jsonl(
             cwd,
-            OneShotCaptureRequest::new(&req.target, &req.capture, &req.output),
-            |install, prepared| {
-                let export = install.export_bundle_jsonl(
-                    cwd,
-                    &ExportBundleRequest {
-                        capture: prepared.capture_input(),
-                        output: prepared.export_output(),
-                        drawcall_scope: req.drawcall_scope,
-                        filter: req.filter.clone(),
-                        bindings: req.bindings,
-                        post_actions: req.post_actions.clone(),
-                    },
-                )?;
-
-                Ok(CaptureAndExportBundleResponse {
-                    target_ident: prepared.target_ident,
-                    capture_path: export.capture_path,
-                    capture_file_template: prepared.capture_file_template,
-                    stdout: prepared.stdout,
-                    stderr: prepared.stderr,
-                    actions_jsonl_path: export.actions_jsonl_path,
-                    actions_summary_json_path: export.actions_summary_json_path,
-                    total_actions: export.total_actions,
-                    drawcall_actions: export.drawcall_actions,
-                    bindings_jsonl_path: export.bindings_jsonl_path,
-                    bindings_summary_json_path: export.bindings_summary_json_path,
-                    total_drawcalls: export.total_drawcalls,
-                    post_actions: export.post_actions,
-                })
+            &ExportBundleRequest {
+                capture: prepared.capture_input(),
+                output: prepared.export_output(),
+                drawcall_scope: req.drawcall_scope,
+                filter: req.filter.clone(),
+                bindings: req.bindings,
+                post_actions: req.post_actions.clone(),
             },
-        )
+        )?;
+
+        Ok(CaptureAndExportBundleResponse {
+            target_ident: prepared.target_ident,
+            capture_path: export.capture_path,
+            capture_file_template: prepared.capture_file_template,
+            stdout: prepared.stdout,
+            stderr: prepared.stderr,
+            actions_jsonl_path: export.actions_jsonl_path,
+            actions_summary_json_path: export.actions_summary_json_path,
+            total_actions: export.total_actions,
+            drawcall_actions: export.drawcall_actions,
+            bindings_jsonl_path: export.bindings_jsonl_path,
+            bindings_summary_json_path: export.bindings_summary_json_path,
+            total_drawcalls: export.total_drawcalls,
+            post_actions: export.post_actions,
+        })
     }
 
     fn prepare_one_shot_capture(
         &self,
         cwd: &Path,
-        req: OneShotCaptureRequest<'_>,
+        target: &OneShotCaptureTarget,
+        capture_options: &OneShotCaptureOptions,
+        output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let launch = self.launch_capture_in_cwd(cwd, req.target)?;
+        let launch = self.launch_capture_in_cwd(cwd, target)?;
 
         let capture = self.trigger_capture_via_target_control(
             cwd,
             &TriggerCaptureRequest {
-                host: req.capture.host.clone(),
+                host: capture_options.host.clone(),
                 target_ident: launch.target_ident,
-                num_frames: req.capture.num_frames,
-                timeout_s: req.capture.timeout_s,
+                num_frames: capture_options.num_frames,
+                timeout_s: capture_options.timeout_s,
             },
         )?;
 
         let prepared_export = prepare_export_target(
             cwd,
             &capture.capture_path,
-            req.output.output_dir.as_deref(),
-            req.output.basename.as_deref(),
+            output.output_dir.as_deref(),
+            output.basename.as_deref(),
         )
         .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
 
@@ -183,19 +161,5 @@ impl RenderDocInstallation {
             stdout: launch.stdout,
             stderr: launch.stderr,
         })
-    }
-
-    fn with_prepared_one_shot_capture<T, E, F>(
-        &self,
-        cwd: &Path,
-        req: OneShotCaptureRequest<'_>,
-        op: F,
-    ) -> Result<T, E>
-    where
-        E: From<PrepareOneShotCaptureError>,
-        F: FnOnce(&RenderDocInstallation, PreparedOneShotCapture) -> Result<T, E>,
-    {
-        let prepared = self.prepare_one_shot_capture(cwd, req)?;
-        op(self, prepared)
     }
 }
