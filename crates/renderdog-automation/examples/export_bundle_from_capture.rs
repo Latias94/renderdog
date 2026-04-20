@@ -25,6 +25,7 @@ fn main() -> anyhow::Result<()> {
             drawcall_scope: renderdog::DrawcallScope::default(),
             filter: renderdog::EventFilter::default(),
             bindings: renderdog::BindingsExportOptions::default(),
+            post_actions: renderdog::CapturePostActions::default(),
         },
     )?;
 

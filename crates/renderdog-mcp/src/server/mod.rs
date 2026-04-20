@@ -5,7 +5,7 @@ mod find;
 mod replay;
 mod workflows;
 
-use std::{fmt::Display, path::Path};
+use std::fmt::Display;
 
 use rmcp::{handler::server::router::tool::ToolRouter, tool_handler};
 
@@ -55,21 +55,4 @@ pub(super) fn require_installation(
         "detect installation",
         renderdog::RenderDocInstallation::detect(),
     )
-}
-
-pub(super) fn default_thumbnail_output_path(actions_jsonl_path: &str) -> String {
-    let actions_path = Path::new(actions_jsonl_path);
-    let basename = actions_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .and_then(|name| name.strip_suffix(".actions.jsonl"))
-        .or_else(|| actions_path.file_stem().and_then(|name| name.to_str()))
-        .unwrap_or("capture");
-
-    actions_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join(format!("{basename}.thumb.png"))
-        .display()
-        .to_string()
 }

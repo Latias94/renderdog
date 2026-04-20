@@ -8,12 +8,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BindingsExportOptions, CaptureInput, CaptureLaunchError, CaptureLaunchRequest, DrawcallScope,
-    EventFilter, ExportActionsError, ExportActionsRequest, ExportBindingsIndexError,
-    ExportBindingsIndexRequest, ExportBundleError, ExportBundleRequest, ExportOutput,
-    OneShotCaptureOptions, OneShotCaptureTarget, OpenCaptureUiError, RenderDocInstallation,
-    TriggerCaptureError, TriggerCaptureRequest, default_artifacts_dir, default_exports_dir,
-    resolve_path_from_cwd,
+    BindingsExportOptions, CaptureInput, CaptureLaunchError, CaptureLaunchRequest,
+    CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter, ExportActionsError,
+    ExportActionsRequest, ExportBindingsIndexError, ExportBindingsIndexRequest, ExportBundleError,
+    ExportBundleRequest, ExportOutput, OneShotCaptureOptions, OneShotCaptureTarget,
+    RenderDocInstallation, TriggerCaptureError, TriggerCaptureRequest, default_artifacts_dir,
+    default_exports_dir, resolve_path_from_cwd,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -58,12 +58,8 @@ pub struct CaptureAndExportBundleRequest {
     pub filter: EventFilter,
     #[serde(flatten)]
     pub bindings: BindingsExportOptions,
-    #[serde(default)]
-    pub save_thumbnail: bool,
-    #[serde(default)]
-    pub thumbnail_output_path: Option<String>,
-    #[serde(default)]
-    pub open_capture_ui: bool,
+    #[serde(flatten)]
+    pub post_actions: CapturePostActions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -105,10 +101,8 @@ pub struct CaptureAndExportBundleResponse {
     pub bindings_jsonl_path: String,
     pub bindings_summary_json_path: String,
     pub total_drawcalls: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbnail_output_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ui_pid: Option<u32>,
+    #[serde(flatten)]
+    pub post_actions: CapturePostActionOutputs,
 }
 
 #[derive(Debug, Error)]
@@ -145,10 +139,6 @@ pub enum CaptureAndExportBundleError {
     Prepare(#[from] PrepareOneShotCaptureError),
     #[error("export bundle failed: {0}")]
     Export(#[from] ExportBundleError),
-    #[error("save thumbnail failed: {0}")]
-    SaveThumbnail(std::io::Error),
-    #[error("open capture UI failed: {0}")]
-    OpenCaptureUi(#[from] OpenCaptureUiError),
 }
 
 struct OneShotCaptureResponseBase {
@@ -180,10 +170,6 @@ impl PreparedOneShotCapture {
             output_dir: Some(self.output_dir.display().to_string()),
             basename: Some(self.basename.clone()),
         }
-    }
-
-    fn default_thumbnail_output_path(&self) -> PathBuf {
-        self.output_dir.join(format!("{}.thumb.png", self.basename))
     }
 
     fn into_response_base(self) -> OneShotCaptureResponseBase {
@@ -319,33 +305,9 @@ impl RenderDocInstallation {
                         drawcall_scope: req.drawcall_scope,
                         filter: req.filter.clone(),
                         bindings: req.bindings,
+                        post_actions: req.post_actions.clone(),
                     },
                 )?;
-
-                let mut thumbnail_output_path = None;
-                if req.save_thumbnail {
-                    let output_path = req
-                        .thumbnail_output_path
-                        .as_deref()
-                        .map(|path| resolve_path_from_cwd(cwd, path))
-                        .unwrap_or_else(|| prepared.default_thumbnail_output_path());
-
-                    if let Some(parent) = output_path.parent() {
-                        std::fs::create_dir_all(parent)
-                            .map_err(CaptureAndExportBundleError::SaveThumbnail)?;
-                    }
-
-                    install
-                        .save_thumbnail(prepared.capture_path.as_path(), &output_path)
-                        .map_err(CaptureAndExportBundleError::SaveThumbnail)?;
-                    thumbnail_output_path = Some(output_path.display().to_string());
-                }
-
-                let mut ui_pid = None;
-                if req.open_capture_ui {
-                    let child = install.open_capture_in_ui(prepared.capture_path.as_path())?;
-                    ui_pid = Some(child.id());
-                }
 
                 let base = prepared.into_response_base();
                 Ok(CaptureAndExportBundleResponse {
@@ -361,8 +323,7 @@ impl RenderDocInstallation {
                     bindings_jsonl_path: export.bindings_jsonl_path,
                     bindings_summary_json_path: export.bindings_summary_json_path,
                     total_drawcalls: export.total_drawcalls,
-                    thumbnail_output_path,
-                    ui_pid,
+                    post_actions: export.post_actions,
                 })
             },
         )

@@ -57,6 +57,24 @@ pub struct ExportOutput {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CapturePostActions {
+    #[serde(default)]
+    pub save_thumbnail: bool,
+    #[serde(default)]
+    pub thumbnail_output_path: Option<String>,
+    #[serde(default)]
+    pub open_capture_ui: bool,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CapturePostActionOutputs {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_output_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_pid: Option<u32>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EventFilter {
     #[serde(default)]
     pub marker_prefix: Option<String>,
@@ -235,6 +253,8 @@ pub struct ExportBundleRequest {
     pub filter: EventFilter,
     #[serde(flatten)]
     pub bindings: BindingsExportOptions,
+    #[serde(flatten)]
+    pub post_actions: CapturePostActions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -249,4 +269,6 @@ pub struct ExportBundleResponse {
     pub bindings_jsonl_path: String,
     pub bindings_summary_json_path: String,
     pub total_drawcalls: u64,
+    #[serde(flatten)]
+    pub post_actions: CapturePostActionOutputs,
 }
