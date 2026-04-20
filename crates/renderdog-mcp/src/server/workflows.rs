@@ -11,7 +11,7 @@ use super::{RenderdogMcpServer, ToolRun};
 impl RenderdogMcpServer {
     #[tool(
         name = "renderdoc_capture_and_export_bundle_jsonl",
-        description = "One-shot workflow: launch target under renderdoccmd capture, trigger capture via target control, then export <basename>.actions.jsonl (+ summary) and <basename>.bindings.jsonl (+ bindings_summary)."
+        description = "One-shot workflow: start target under renderdoccmd capture, trigger capture via target control, then export <basename>.actions.jsonl (+ summary) and <basename>.bindings.jsonl (+ bindings_summary)."
     )]
     async fn capture_and_export_bundle_jsonl(
         &self,

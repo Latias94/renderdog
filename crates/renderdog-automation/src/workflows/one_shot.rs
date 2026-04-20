@@ -51,8 +51,8 @@ pub struct CaptureAndExportBundleResponse {
 pub enum PrepareOneShotCaptureError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
-    #[error("launch capture failed: {0}")]
-    Launch(#[from] CaptureTargetError),
+    #[error("capture target setup failed: {0}")]
+    Target(#[from] CaptureTargetError),
     #[error("trigger capture failed: {0}")]
     Trigger(#[from] TriggerCaptureError),
 }
@@ -128,14 +128,14 @@ impl RenderDocInstallation {
         capture_options: &OneShotCaptureOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let launch = self.prepare_capture_target(cwd, target)?;
-        let launch = self.launch_prepared_capture_target(&launch)?;
+        let prepared_target = self.prepare_capture_target(cwd, target)?;
+        let launched_target = self.launch_prepared_capture_target(&prepared_target)?;
 
         let capture = self.trigger_capture_via_target_control(
             cwd,
             &TriggerCaptureRequest {
                 host: capture_options.host.clone(),
-                target_ident: launch.target_ident,
+                target_ident: launched_target.target_ident,
                 num_frames: capture_options.num_frames,
                 timeout_s: capture_options.timeout_s,
             },
@@ -150,7 +150,7 @@ impl RenderDocInstallation {
         .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
 
         Ok(PreparedOneShotCapture {
-            target_ident: launch.target_ident,
+            target_ident: launched_target.target_ident,
             capture: CaptureInput {
                 capture_path: prepared_export.capture_path,
             },
@@ -158,9 +158,9 @@ impl RenderDocInstallation {
                 output_dir: Some(prepared_export.output_dir),
                 basename: Some(prepared_export.basename),
             },
-            capture_file_template: launch.capture_file_template,
-            stdout: launch.stdout,
-            stderr: launch.stderr,
+            capture_file_template: launched_target.capture_file_template,
+            stdout: launched_target.stdout,
+            stderr: launched_target.stderr,
         })
     }
 }
