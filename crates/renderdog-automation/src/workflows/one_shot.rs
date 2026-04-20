@@ -128,7 +128,8 @@ impl RenderDocInstallation {
         capture_options: &OneShotCaptureOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let launch = self.launch_capture_in_cwd(cwd, target)?;
+        let launch = self.prepare_launch_capture_request(cwd, target)?;
+        let launch = self.launch_capture_prepared(&launch)?;
 
         let capture = self.trigger_capture_via_target_control(
             cwd,
