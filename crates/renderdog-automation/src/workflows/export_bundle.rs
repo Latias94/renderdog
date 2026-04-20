@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::{
-    OpenCaptureUiError, QRenderDocExecutionError, RenderDocInstallation, normalize_capture_path,
+    OpenCaptureUiError, QRenderDocExecutionError, RenderDocInstallation, prepare_export_target,
     resolve_path_from_cwd,
 };
 
@@ -11,7 +11,7 @@ use super::export_actions::ExportActionsError;
 use super::export_bindings_index::ExportBindingsIndexError;
 use super::{
     CaptureInput, CapturePostActionOutputs, CapturePostActions, ExportActionsRequest,
-    ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse,
+    ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse, ExportOutput,
 };
 
 #[derive(Debug, Error)]
@@ -85,27 +85,37 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBundleRequest,
     ) -> Result<ExportBundleResponse, ExportBundleError> {
-        let capture_path = normalize_capture_path(cwd, &req.capture.capture_path);
+        let prepared = prepare_export_target(
+            cwd,
+            &req.capture.capture_path,
+            req.output.output_dir.as_deref(),
+            req.output.basename.as_deref(),
+        )
+        .map_err(ExportBundleError::CreateOutputDir)?;
 
-        let actions = self.export_actions_jsonl(
+        let capture = CaptureInput {
+            capture_path: prepared.capture_path.clone(),
+        };
+        let output = ExportOutput {
+            output_dir: Some(prepared.output_dir),
+            basename: Some(prepared.basename),
+        };
+
+        let actions = self.export_actions_jsonl_prepared(
             cwd,
             &ExportActionsRequest {
-                capture: CaptureInput {
-                    capture_path: capture_path.clone(),
-                },
-                output: req.output.clone(),
+                capture: capture.clone(),
+                output: output.clone(),
                 drawcall_scope: req.drawcall_scope,
                 filter: req.filter.clone(),
             },
         )?;
 
-        let bindings = self.export_bindings_index_jsonl(
+        let bindings = self.export_bindings_index_jsonl_prepared(
             cwd,
             &ExportBindingsIndexRequest {
-                capture: CaptureInput {
-                    capture_path: capture_path.clone(),
-                },
-                output: req.output.clone(),
+                capture,
+                output,
                 filter: req.filter.clone(),
                 bindings: req.bindings,
             },
@@ -113,13 +123,13 @@ impl RenderDocInstallation {
 
         let post_actions = self.apply_capture_post_actions(
             cwd,
-            Path::new(&capture_path),
+            Path::new(&prepared.capture_path),
             &actions.actions_jsonl_path,
             &req.post_actions,
         )?;
 
         Ok(ExportBundleResponse {
-            capture_path,
+            capture_path: prepared.capture_path,
 
             actions_jsonl_path: actions.actions_jsonl_path,
             actions_summary_json_path: actions.summary_json_path,

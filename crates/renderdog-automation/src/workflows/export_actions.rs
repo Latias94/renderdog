@@ -7,7 +7,6 @@ use crate::scripting::{
     QRenderDocJsonJob, define_qrenderdoc_json_job_error_enum,
     impl_qrenderdoc_json_job_error_conversion,
 };
-use crate::{CaptureInput, ExportOutput, prepare_export_target};
 
 use super::{ExportActionsRequest, ExportActionsResponse};
 
@@ -24,31 +23,12 @@ impl_qrenderdoc_json_job_error_conversion!(
 );
 
 impl RenderDocInstallation {
-    pub(crate) fn export_actions_jsonl(
+    pub(super) fn export_actions_jsonl_prepared(
         &self,
         cwd: &Path,
         req: &ExportActionsRequest,
     ) -> Result<ExportActionsResponse, ExportActionsError> {
-        let prepared = prepare_export_target(
-            cwd,
-            &req.capture.capture_path,
-            req.output.output_dir.as_deref(),
-            req.output.basename.as_deref(),
-        )
-        .map_err(ExportActionsError::CreateOutputDir)?;
-
-        let req = ExportActionsRequest {
-            capture: CaptureInput {
-                capture_path: prepared.capture_path,
-            },
-            output: ExportOutput {
-                output_dir: Some(prepared.output_dir),
-                basename: Some(prepared.basename),
-            },
-            ..req.clone()
-        };
-
-        self.run_qrenderdoc_json_job(cwd, EXPORT_ACTIONS_JSONL_JOB, &req)
+        self.run_qrenderdoc_json_job(cwd, EXPORT_ACTIONS_JSONL_JOB, req)
             .map_err(ExportActionsError::from)
     }
 }
