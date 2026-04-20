@@ -32,16 +32,20 @@ pub enum ReplaySessionError {
 }
 
 #[cfg(feature = "cxx-replay")]
+pub struct ReplayRuntime {
+    runtime_version: String,
+}
+
+#[cfg(feature = "cxx-replay")]
 pub struct ReplaySession {
     inner: cxx::UniquePtr<ffi::cxx_ffi::ReplaySession>,
 }
 
 #[cfg(feature = "cxx-replay")]
-impl ReplaySession {
+impl ReplayRuntime {
     pub fn new(renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
         let path = renderdoc_path.unwrap_or("");
-        let inner = ffi::cxx_ffi::replay_session_new(path)?;
-        let runtime_version = inner.runtime_version_string()?;
+        let runtime_version = ffi::cxx_ffi::replay_runtime_probe(path)?;
         let expected_version = workspace_renderdoc_replay_version()
             .ok_or(ReplaySessionError::WorkspaceVersionUnknown)?
             .to_string();
@@ -53,7 +57,23 @@ impl ReplaySession {
             });
         }
 
-        Ok(Self { inner })
+        Ok(Self { runtime_version })
+    }
+
+    pub fn runtime_version(&self) -> &str {
+        &self.runtime_version
+    }
+
+    pub fn new_session(&self) -> Result<ReplaySession, ReplaySessionError> {
+        let inner = ffi::cxx_ffi::replay_session_new("")?;
+        Ok(ReplaySession { inner })
+    }
+}
+
+#[cfg(feature = "cxx-replay")]
+impl ReplaySession {
+    pub fn new(renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
+        ReplayRuntime::new(renderdoc_path)?.new_session()
     }
 
     pub fn open_capture(&mut self, capture_path: &str) -> Result<(), ReplaySessionError> {
@@ -96,7 +116,17 @@ impl ReplaySession {
 }
 
 #[cfg(not(feature = "cxx-replay"))]
+pub struct ReplayRuntime;
+
+#[cfg(not(feature = "cxx-replay"))]
 pub struct ReplaySession;
+
+#[cfg(not(feature = "cxx-replay"))]
+impl ReplayRuntime {
+    pub fn new(_renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
+        Err(ReplaySessionError::FeatureNotEnabled)
+    }
+}
 
 #[cfg(not(feature = "cxx-replay"))]
 impl ReplaySession {

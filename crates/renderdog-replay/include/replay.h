@@ -12,6 +12,7 @@ namespace replay {
 
 class ReplaySession;
 
+rust::String replay_runtime_probe(rust::Str renderdoc_path);
 std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path);
 
 class ReplaySession

@@ -7,6 +7,7 @@ pub(crate) mod cxx_ffi {
 
         type ReplaySession;
 
+        fn replay_runtime_probe(renderdoc_path: &str) -> Result<String>;
         fn replay_session_new(renderdoc_path: &str) -> Result<UniquePtr<ReplaySession>>;
         fn runtime_version_string(self: &ReplaySession) -> Result<String>;
         fn open_capture(self: Pin<&mut ReplaySession>, capture_path: &str) -> Result<()>;

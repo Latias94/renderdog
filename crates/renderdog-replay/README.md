@@ -48,8 +48,9 @@ If your installed RenderDoc version does not match the workspace pin, switch the
 matching version and rebuild, or install the matching RenderDoc version locally. Otherwise the
 process may crash due to C++ ABI/layout mismatches.
 
-`ReplaySession::new` now validates this version match up front and returns an error before replay
-work begins, instead of deferring the mismatch until later replay calls.
+Prefer `ReplayRuntime::new(...)` when selecting or validating a RenderDoc installation. It
+validates the version match up front, and then `ReplayRuntime::new_session()` creates lightweight
+sessions against that already-selected process-global runtime.
 
 `renderdog-replay` also treats the RenderDoc runtime as process-global: once one RenderDoc module
 has been loaded, switching to a different installation in the same process is rejected explicitly.

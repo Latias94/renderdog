@@ -162,6 +162,23 @@ static RenderdocModule get_renderdoc_module()
   return try_load_default_renderdoc_module();
 }
 
+static RenderdocModule ensure_renderdoc_module_loaded(const char *path)
+{
+  if(path && path[0])
+    return store_renderdoc_module(load_renderdoc_module_or_throw(path));
+
+  RenderdocModule module = get_renderdoc_module();
+  if(module)
+    return module;
+
+#if defined(_WIN32)
+  throw std::runtime_error("failed to load renderdoc.dll (set explicit path)");
+#else
+  throw std::runtime_error(
+      "failed to load librenderdoc.so (install RenderDoc or set explicit path)");
+#endif
+}
+
 static void ensure_array_allocators()
 {
   if(g_alloc_array_mem.load() && g_free_array_mem.load())
@@ -296,17 +313,17 @@ extern "C" void RENDERDOC_CC RENDERDOC_FreeArrayMem(void *mem)
 std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path)
 {
   auto sess = std::make_unique<ReplaySession>();
-  if(renderdoc_path.size() > 0)
-  {
-    // We store the path via environment? For now just load eagerly from this path.
-    // This keeps behaviour deterministic for experiments.
-    std::string path(renderdoc_path.data(), renderdoc_path.size());
-    sess->lib_ = renderdoc_module_ptr(load_renderdoc_module_or_throw(path.c_str()));
-  }
-
-  sess->ensure_loaded();
+  std::string path(renderdoc_path.data(), renderdoc_path.size());
+  sess->lib_ = renderdoc_module_ptr(ensure_renderdoc_module_loaded(path.c_str()));
 
   return sess;
+}
+
+rust::String replay_runtime_probe(rust::Str renderdoc_path)
+{
+  std::string path(renderdoc_path.data(), renderdoc_path.size());
+  RenderdocModule module = ensure_renderdoc_module_loaded(path.c_str());
+  return runtime_version_string_from_module(renderdoc_module_ptr(module));
 }
 
 ReplaySession::~ReplaySession()
@@ -348,19 +365,7 @@ void ReplaySession::ensure_loaded()
 {
   if(lib_)
     return;
-
-  RenderdocModule module = get_renderdoc_module();
-  if(!module)
-  {
-#if defined(_WIN32)
-    throw std::runtime_error("failed to load renderdoc.dll (set explicit path)");
-#else
-    throw std::runtime_error(
-        "failed to load librenderdoc.so (install RenderDoc or set explicit path)");
-#endif
-  }
-
-  lib_ = renderdoc_module_ptr(module);
+  lib_ = renderdoc_module_ptr(ensure_renderdoc_module_loaded(nullptr));
 }
 
 rust::String ReplaySession::runtime_version_string() const
