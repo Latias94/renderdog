@@ -17,10 +17,8 @@ pub use find_and_save_outputs::{
 };
 pub use find_events::FindEventsError;
 pub use one_shot::{
-    CaptureAndExportActionsError, CaptureAndExportActionsRequest, CaptureAndExportActionsResponse,
-    CaptureAndExportBindingsIndexError, CaptureAndExportBindingsIndexRequest,
-    CaptureAndExportBindingsIndexResponse, CaptureAndExportBundleError,
-    CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, PrepareOneShotCaptureError,
+    CaptureAndExportBundleError, CaptureAndExportBundleRequest, CaptureAndExportBundleResponse,
+    PrepareOneShotCaptureError,
 };
 pub use trigger_capture::TriggerCaptureError;
 

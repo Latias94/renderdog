@@ -6,39 +6,10 @@ use thiserror::Error;
 
 use crate::{
     BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
-    DrawcallScope, EventFilter, ExportActionsError, ExportActionsRequest, ExportBindingsIndexError,
-    ExportBindingsIndexRequest, ExportBundleError, ExportBundleRequest, ExportOutput,
+    DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest, ExportOutput,
     LaunchCaptureError, OneShotCaptureOptions, OneShotCaptureTarget, RenderDocInstallation,
     TriggerCaptureError, TriggerCaptureRequest, default_exports_dir, resolve_path_from_cwd,
 };
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CaptureAndExportActionsRequest {
-    #[serde(flatten)]
-    pub target: OneShotCaptureTarget,
-    #[serde(flatten)]
-    pub capture: OneShotCaptureOptions,
-    #[serde(flatten)]
-    pub output: ExportOutput,
-    #[serde(flatten)]
-    pub drawcall_scope: DrawcallScope,
-    #[serde(flatten)]
-    pub filter: EventFilter,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CaptureAndExportBindingsIndexRequest {
-    #[serde(flatten)]
-    pub target: OneShotCaptureTarget,
-    #[serde(flatten)]
-    pub capture: OneShotCaptureOptions,
-    #[serde(flatten)]
-    pub output: ExportOutput,
-    #[serde(flatten)]
-    pub filter: EventFilter,
-    #[serde(flatten)]
-    pub bindings: BindingsExportOptions,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureAndExportBundleRequest {
@@ -56,31 +27,6 @@ pub struct CaptureAndExportBundleRequest {
     pub bindings: BindingsExportOptions,
     #[serde(flatten)]
     pub post_actions: CapturePostActions,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CaptureAndExportActionsResponse {
-    pub target_ident: u32,
-    pub capture_path: String,
-    pub capture_file_template: Option<String>,
-    pub stdout: String,
-    pub stderr: String,
-    pub actions_jsonl_path: String,
-    pub summary_json_path: String,
-    pub total_actions: u64,
-    pub drawcall_actions: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CaptureAndExportBindingsIndexResponse {
-    pub target_ident: u32,
-    pub capture_path: String,
-    pub capture_file_template: Option<String>,
-    pub stdout: String,
-    pub stderr: String,
-    pub bindings_jsonl_path: String,
-    pub summary_json_path: String,
-    pub total_drawcalls: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -109,22 +55,6 @@ pub enum PrepareOneShotCaptureError {
     Launch(#[from] LaunchCaptureError),
     #[error("trigger capture failed: {0}")]
     Trigger(#[from] TriggerCaptureError),
-}
-
-#[derive(Debug, Error)]
-pub enum CaptureAndExportActionsError {
-    #[error(transparent)]
-    Prepare(#[from] PrepareOneShotCaptureError),
-    #[error("export actions failed: {0}")]
-    Export(#[from] ExportActionsError),
-}
-
-#[derive(Debug, Error)]
-pub enum CaptureAndExportBindingsIndexError {
-    #[error(transparent)]
-    Prepare(#[from] PrepareOneShotCaptureError),
-    #[error("export bindings index failed: {0}")]
-    Export(#[from] ExportBindingsIndexError),
 }
 
 #[derive(Debug, Error)]
@@ -199,75 +129,6 @@ impl<'a> OneShotCaptureRequest<'a> {
 }
 
 impl RenderDocInstallation {
-    pub fn capture_and_export_actions_jsonl(
-        &self,
-        cwd: &Path,
-        req: &CaptureAndExportActionsRequest,
-    ) -> Result<CaptureAndExportActionsResponse, CaptureAndExportActionsError> {
-        self.with_prepared_one_shot_capture(
-            cwd,
-            OneShotCaptureRequest::new(&req.target, &req.capture, &req.output),
-            |install, prepared| {
-                let export = install.export_actions_jsonl(
-                    cwd,
-                    &ExportActionsRequest {
-                        capture: prepared.capture_input(),
-                        output: prepared.export_output(),
-                        drawcall_scope: req.drawcall_scope,
-                        filter: req.filter.clone(),
-                    },
-                )?;
-
-                let base = prepared.into_response_base();
-                Ok(CaptureAndExportActionsResponse {
-                    target_ident: base.target_ident,
-                    capture_path: export.capture_path,
-                    capture_file_template: base.capture_file_template,
-                    stdout: base.stdout,
-                    stderr: base.stderr,
-                    actions_jsonl_path: export.actions_jsonl_path,
-                    summary_json_path: export.summary_json_path,
-                    total_actions: export.total_actions,
-                    drawcall_actions: export.drawcall_actions,
-                })
-            },
-        )
-    }
-
-    pub fn capture_and_export_bindings_index_jsonl(
-        &self,
-        cwd: &Path,
-        req: &CaptureAndExportBindingsIndexRequest,
-    ) -> Result<CaptureAndExportBindingsIndexResponse, CaptureAndExportBindingsIndexError> {
-        self.with_prepared_one_shot_capture(
-            cwd,
-            OneShotCaptureRequest::new(&req.target, &req.capture, &req.output),
-            |install, prepared| {
-                let export = install.export_bindings_index_jsonl(
-                    cwd,
-                    &ExportBindingsIndexRequest {
-                        capture: prepared.capture_input(),
-                        output: prepared.export_output(),
-                        filter: req.filter.clone(),
-                        bindings: req.bindings,
-                    },
-                )?;
-
-                let base = prepared.into_response_base();
-                Ok(CaptureAndExportBindingsIndexResponse {
-                    target_ident: base.target_ident,
-                    capture_path: export.capture_path,
-                    capture_file_template: base.capture_file_template,
-                    stdout: base.stdout,
-                    stderr: base.stderr,
-                    bindings_jsonl_path: export.bindings_jsonl_path,
-                    summary_json_path: export.summary_json_path,
-                    total_drawcalls: export.total_drawcalls,
-                })
-            },
-        )
-    }
-
     pub fn capture_and_export_bundle_jsonl(
         &self,
         cwd: &Path,
