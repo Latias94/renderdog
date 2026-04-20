@@ -8,7 +8,7 @@ use crate::{
     BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
     CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest,
     ExportOutput, OneShotCaptureTarget, OneShotTriggerOptions, RenderDocInstallation,
-    ToolInvocationError, TriggerCaptureError, TriggerCaptureRequest, prepare_export_target,
+    ToolInvocationError, TriggerCaptureError, TriggerCaptureRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -176,23 +176,19 @@ impl RenderDocInstallation {
             },
         )?;
 
-        let prepared_export = prepare_export_target(
-            cwd,
-            &capture.capture_path,
-            output.output_dir.as_deref(),
-            output.basename.as_deref(),
-        )
-        .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
+        let (capture, output) = output
+            .normalized_for_capture(
+                cwd,
+                &CaptureInput {
+                    capture_path: capture.capture_path,
+                },
+            )
+            .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
 
         Ok(PreparedOneShotCapture {
             target_ident: launched_target.target_ident,
-            capture: CaptureInput {
-                capture_path: prepared_export.capture_path,
-            },
-            output: ExportOutput {
-                output_dir: Some(prepared_export.output_dir),
-                basename: Some(prepared_export.basename),
-            },
+            capture,
+            output,
             capture_file_template: launched_target.capture_file_template,
             stdout: launched_target.stdout,
             stderr: launched_target.stderr,

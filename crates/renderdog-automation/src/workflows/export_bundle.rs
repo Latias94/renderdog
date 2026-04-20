@@ -3,15 +3,14 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::{
-    OpenCaptureUiError, QRenderDocExecutionError, RenderDocInstallation, prepare_export_target,
-    resolve_path_from_cwd,
+    OpenCaptureUiError, QRenderDocExecutionError, RenderDocInstallation, resolve_path_from_cwd,
 };
 
 use super::export_actions::ExportActionsError;
 use super::export_bindings_index::ExportBindingsIndexError;
 use super::{
-    CaptureInput, CapturePostActionOutputs, CapturePostActions, ExportActionsRequest,
-    ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse, ExportOutput,
+    CapturePostActionOutputs, CapturePostActions, ExportActionsRequest, ExportBindingsIndexRequest,
+    ExportBundleRequest, ExportBundleResponse,
 };
 
 #[derive(Debug, Error)]
@@ -85,21 +84,11 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ExportBundleRequest,
     ) -> Result<ExportBundleResponse, ExportBundleError> {
-        let prepared = prepare_export_target(
-            cwd,
-            &req.capture.capture_path,
-            req.output.output_dir.as_deref(),
-            req.output.basename.as_deref(),
-        )
-        .map_err(ExportBundleError::CreateOutputDir)?;
-
-        let capture = CaptureInput {
-            capture_path: prepared.capture_path.clone(),
-        };
-        let output = ExportOutput {
-            output_dir: Some(prepared.output_dir),
-            basename: Some(prepared.basename),
-        };
+        let (capture, output) = req
+            .output
+            .normalized_for_capture(cwd, &req.capture)
+            .map_err(ExportBundleError::CreateOutputDir)?;
+        let capture_path = capture.capture_path.clone();
 
         let actions = self.export_actions_jsonl_prepared(
             cwd,
@@ -123,13 +112,13 @@ impl RenderDocInstallation {
 
         let post_actions = self.apply_capture_post_actions(
             cwd,
-            Path::new(&prepared.capture_path),
+            Path::new(&capture_path),
             &actions.actions_jsonl_path,
             &req.post_actions,
         )?;
 
         Ok(ExportBundleResponse {
-            capture_path: prepared.capture_path,
+            capture_path,
 
             actions_jsonl_path: actions.actions_jsonl_path,
             actions_summary_json_path: actions.summary_json_path,

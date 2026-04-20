@@ -17,6 +17,15 @@ pub struct ReplayListTexturesRequest {
     pub event_id: Option<u32>,
 }
 
+impl ReplayListTexturesRequest {
+    pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            capture_path: normalize_capture_path(cwd, &self.capture_path),
+            ..self.clone()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayTextureInfo {
     pub index: u32,
@@ -47,6 +56,15 @@ pub struct ReplayPickPixelRequest {
     pub y: u32,
 }
 
+impl ReplayPickPixelRequest {
+    pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            capture_path: normalize_capture_path(cwd, &self.capture_path),
+            ..self.clone()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayPickPixelResponse {
     pub capture_path: String,
@@ -63,6 +81,16 @@ pub struct ReplaySaveTexturePngRequest {
     pub event_id: Option<u32>,
     pub texture_index: u32,
     pub output_path: String,
+}
+
+impl ReplaySaveTexturePngRequest {
+    pub(crate) fn resolved_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            capture_path: resolve_path_string_from_cwd(cwd, &self.capture_path),
+            output_path: resolve_path_string_from_cwd(cwd, &self.output_path),
+            ..self.clone()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -84,6 +112,24 @@ pub struct ReplaySaveOutputsPngRequest {
     pub basename: Option<String>,
     #[serde(default)]
     pub include_depth: bool,
+}
+
+impl ReplaySaveOutputsPngRequest {
+    pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Result<Self, std::io::Error> {
+        let prepared = prepare_export_target(
+            cwd,
+            &self.capture_path,
+            self.output_dir.as_deref(),
+            self.basename.as_deref(),
+        )?;
+
+        Ok(Self {
+            capture_path: prepared.capture_path,
+            output_dir: Some(prepared.output_dir),
+            basename: Some(prepared.basename),
+            ..self.clone()
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -156,10 +202,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayListTexturesRequest,
     ) -> Result<ReplayListTexturesResponse, ReplayListTexturesError> {
-        let req = ReplayListTexturesRequest {
-            capture_path: normalize_capture_path(cwd, &req.capture_path),
-            ..req.clone()
-        };
+        let req = req.normalized_in_cwd(cwd);
 
         self.run_qrenderdoc_json_job(cwd, REPLAY_LIST_TEXTURES_JOB, &req)
             .map_err(ReplayListTexturesError::from)
@@ -170,10 +213,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayPickPixelRequest,
     ) -> Result<ReplayPickPixelResponse, ReplayPickPixelError> {
-        let req = ReplayPickPixelRequest {
-            capture_path: normalize_capture_path(cwd, &req.capture_path),
-            ..req.clone()
-        };
+        let req = req.normalized_in_cwd(cwd);
 
         self.run_qrenderdoc_json_job(cwd, REPLAY_PICK_PIXEL_JOB, &req)
             .map_err(ReplayPickPixelError::from)
@@ -184,11 +224,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveTexturePngRequest,
     ) -> Result<ReplaySaveTexturePngResponse, ReplaySaveTexturePngError> {
-        let req = ReplaySaveTexturePngRequest {
-            capture_path: resolve_path_string_from_cwd(cwd, &req.capture_path),
-            output_path: resolve_path_string_from_cwd(cwd, &req.output_path),
-            ..req.clone()
-        };
+        let req = req.resolved_in_cwd(cwd);
 
         self.run_qrenderdoc_json_job(cwd, REPLAY_SAVE_TEXTURE_PNG_JOB, &req)
             .map_err(ReplaySaveTexturePngError::from)
@@ -199,20 +235,9 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveOutputsPngRequest,
     ) -> Result<ReplaySaveOutputsPngResponse, ReplaySaveOutputsPngError> {
-        let prepared = prepare_export_target(
-            cwd,
-            &req.capture_path,
-            req.output_dir.as_deref(),
-            req.basename.as_deref(),
-        )
-        .map_err(ReplaySaveOutputsPngError::CreateOutputDir)?;
-
-        let req = ReplaySaveOutputsPngRequest {
-            capture_path: prepared.capture_path,
-            output_dir: Some(prepared.output_dir),
-            basename: Some(prepared.basename),
-            ..req.clone()
-        };
+        let req = req
+            .normalized_in_cwd(cwd)
+            .map_err(ReplaySaveOutputsPngError::CreateOutputDir)?;
 
         self.run_qrenderdoc_json_job(cwd, REPLAY_SAVE_OUTPUTS_PNG_JOB, &req)
             .map_err(ReplaySaveOutputsPngError::from)

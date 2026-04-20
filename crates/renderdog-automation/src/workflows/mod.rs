@@ -20,8 +20,12 @@ pub use one_shot::{
 };
 pub use trigger_capture::TriggerCaptureError;
 
+use std::path::Path;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::{normalize_capture_path, prepare_export_target};
 
 fn default_max_results() -> Option<u32> {
     Some(200)
@@ -44,12 +48,45 @@ pub struct CaptureInput {
     pub capture_path: String,
 }
 
+impl CaptureInput {
+    pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            capture_path: normalize_capture_path(cwd, &self.capture_path),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportOutput {
     #[serde(default)]
     pub output_dir: Option<String>,
     #[serde(default)]
     pub basename: Option<String>,
+}
+
+impl ExportOutput {
+    pub(crate) fn normalized_for_capture(
+        &self,
+        cwd: &Path,
+        capture: &CaptureInput,
+    ) -> Result<(CaptureInput, Self), std::io::Error> {
+        let prepared = prepare_export_target(
+            cwd,
+            &capture.capture_path,
+            self.output_dir.as_deref(),
+            self.basename.as_deref(),
+        )?;
+
+        Ok((
+            CaptureInput {
+                capture_path: prepared.capture_path,
+            },
+            Self {
+                output_dir: Some(prepared.output_dir),
+                basename: Some(prepared.basename),
+            },
+        ))
+    }
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
@@ -198,6 +235,15 @@ pub struct FindEventsRequest {
     pub limit: FindEventsLimit,
 }
 
+impl FindEventsRequest {
+    pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            capture: self.capture.normalized_in_cwd(cwd),
+            ..self.clone()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FoundEvent {
     pub event_id: u32,
@@ -270,4 +316,41 @@ pub struct ExportBundleResponse {
     pub total_drawcalls: u64,
     #[serde(flatten)]
     pub post_actions: CapturePostActionOutputs,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::{CaptureInput, ExportOutput};
+
+    #[test]
+    fn capture_input_normalizes_relative_path_in_cwd() {
+        let capture = CaptureInput {
+            capture_path: "captures/frame.rdc".to_string(),
+        };
+
+        let normalized = capture.normalized_in_cwd(Path::new("/tmp/project"));
+
+        assert_eq!(normalized.capture_path, "/tmp/project/captures/frame.rdc");
+    }
+
+    #[test]
+    fn export_output_normalization_uses_capture_basename_when_missing() {
+        let capture = CaptureInput {
+            capture_path: "captures/frame.rdc".to_string(),
+        };
+        let output = ExportOutput::default();
+
+        let (capture, output) = output
+            .normalized_for_capture(Path::new("/tmp/project"), &capture)
+            .expect("normalize export target");
+
+        assert_eq!(capture.capture_path, "/tmp/project/captures/frame.rdc");
+        assert_eq!(
+            output.output_dir.as_deref(),
+            Some("/tmp/project/artifacts/renderdoc/exports")
+        );
+        assert_eq!(output.basename.as_deref(), Some("frame"));
+    }
 }

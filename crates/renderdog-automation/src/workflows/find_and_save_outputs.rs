@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::{
     CaptureInput, DrawcallScope, EventFilter, ExportOutput, FindEventsError, FindEventsLimit,
     FindEventsRequest, FindEventsResponse, RenderDocInstallation, ReplaySaveOutputsPngError,
-    ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse, normalize_capture_path,
+    ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse,
 };
 
 fn default_true() -> bool {
@@ -74,14 +74,12 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsAndSaveOutputsPngRequest,
     ) -> Result<FindEventsAndSaveOutputsPngResponse, FindEventsAndSaveOutputsPngError> {
-        let capture_path = normalize_capture_path(cwd, &req.capture.capture_path);
+        let capture = req.capture.normalized_in_cwd(cwd);
 
         let find = self.find_events(
             cwd,
             &FindEventsRequest {
-                capture: CaptureInput {
-                    capture_path: capture_path.clone(),
-                },
+                capture: capture.clone(),
                 drawcall_scope: DrawcallScope {
                     only_drawcalls: req.only_drawcalls,
                 },
@@ -99,7 +97,7 @@ impl RenderDocInstallation {
         let replay = self.replay_save_outputs_png(
             cwd,
             &ReplaySaveOutputsPngRequest {
-                capture_path,
+                capture_path: capture.capture_path,
                 event_id: Some(selected_event_id),
                 output_dir: req.output.output_dir.clone(),
                 basename: req.output.basename.clone(),
