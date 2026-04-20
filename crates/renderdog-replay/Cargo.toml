@@ -24,6 +24,6 @@ default = []
 cxx-replay = []
 
 [[example]]
-name = "replay_pick_pixel"
-path = "examples/replay_pick_pixel.rs"
+name = "cxx_replay_pick_pixel"
+path = "examples/cxx_replay_pick_pixel.rs"
 required-features = ["cxx-replay"]

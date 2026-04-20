@@ -3,7 +3,9 @@ use renderdog_automation as renderdog;
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
     let capture_path = args.next().ok_or_else(|| {
-        anyhow::anyhow!("usage: replay_pick_pixel <capture.rdc> <texture_index> <x> <y> [event_id]")
+        anyhow::anyhow!(
+            "usage: qrenderdoc_replay_pick_pixel <capture.rdc> <texture_index> <x> <y> [event_id]"
+        )
     })?;
     let texture_index: u32 = args
         .next()
