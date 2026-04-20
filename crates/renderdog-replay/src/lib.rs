@@ -65,17 +65,13 @@ impl ReplayRuntime {
     }
 
     pub fn new_session(&self) -> Result<ReplaySession, ReplaySessionError> {
-        let inner = ffi::cxx_ffi::replay_session_new("")?;
+        let inner = ffi::cxx_ffi::replay_session_new_current()?;
         Ok(ReplaySession { inner })
     }
 }
 
 #[cfg(feature = "cxx-replay")]
 impl ReplaySession {
-    pub fn new(renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
-        ReplayRuntime::new(renderdoc_path)?.new_session()
-    }
-
     pub fn open_capture(&mut self, capture_path: &str) -> Result<(), ReplaySessionError> {
         let pinned = self.inner.pin_mut();
         pinned.open_capture(capture_path)?;
@@ -123,13 +119,6 @@ pub struct ReplaySession;
 
 #[cfg(not(feature = "cxx-replay"))]
 impl ReplayRuntime {
-    pub fn new(_renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
-        Err(ReplaySessionError::FeatureNotEnabled)
-    }
-}
-
-#[cfg(not(feature = "cxx-replay"))]
-impl ReplaySession {
     pub fn new(_renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
         Err(ReplaySessionError::FeatureNotEnabled)
     }

@@ -13,7 +13,7 @@ namespace replay {
 class ReplaySession;
 
 rust::String replay_runtime_probe(rust::Str renderdoc_path);
-std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path);
+std::unique_ptr<ReplaySession> replay_session_new_current();
 
 class ReplaySession
 {
@@ -24,7 +24,6 @@ public:
 
   ~ReplaySession();
 
-  rust::String runtime_version_string() const;
   void open_capture(rust::Str capture_path);
   void set_frame_event(uint32_t event_id);
 
@@ -33,7 +32,7 @@ public:
   void save_texture_png(uint32_t texture_index, rust::Str output_path) const;
 
 private:
-  friend std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path);
+  friend std::unique_ptr<ReplaySession> replay_session_new_current();
 
   void ensure_loaded();
   void ensure_opened() const;

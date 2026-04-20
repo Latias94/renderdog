@@ -16,7 +16,7 @@ See the [workspace README](../../README.md) for the stable crates and the MCP wo
   (e.g. list textures, pick pixels, save textures).
 - Approach: dynamically load the local RenderDoc library (`renderdoc.dll` / `librenderdoc.so`) and call replay APIs.
 
-The primary Rust entrypoint is `ReplaySession`.
+The primary Rust entrypoint is `ReplayRuntime`.
 
 ## Build
 

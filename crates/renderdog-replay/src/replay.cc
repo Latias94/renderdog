@@ -310,11 +310,10 @@ extern "C" void RENDERDOC_CC RENDERDOC_FreeArrayMem(void *mem)
   }
 }
 
-std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path)
+std::unique_ptr<ReplaySession> replay_session_new_current()
 {
   auto sess = std::make_unique<ReplaySession>();
-  std::string path(renderdoc_path.data(), renderdoc_path.size());
-  sess->lib_ = renderdoc_module_ptr(ensure_renderdoc_module_loaded(path.c_str()));
+  sess->lib_ = renderdoc_module_ptr(ensure_renderdoc_module_loaded(nullptr));
 
   return sess;
 }
@@ -366,14 +365,6 @@ void ReplaySession::ensure_loaded()
   if(lib_)
     return;
   lib_ = renderdoc_module_ptr(ensure_renderdoc_module_loaded(nullptr));
-}
-
-rust::String ReplaySession::runtime_version_string() const
-{
-  if(!lib_)
-    throw std::runtime_error("RenderDoc module not loaded");
-
-  return runtime_version_string_from_module(lib_);
 }
 
 void ReplaySession::open_capture(rust::Str capture_path)
