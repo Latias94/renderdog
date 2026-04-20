@@ -6,8 +6,8 @@ use thiserror::Error;
 
 use crate::{
     BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
-    DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest, ExportOutput,
-    LaunchCaptureError, OneShotCaptureOptions, OneShotCaptureTarget, RenderDocInstallation,
+    CaptureTargetError, DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest,
+    ExportOutput, OneShotCaptureOptions, OneShotCaptureTarget, RenderDocInstallation,
     TriggerCaptureError, TriggerCaptureRequest, prepare_export_target,
 };
 
@@ -52,7 +52,7 @@ pub enum PrepareOneShotCaptureError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
     #[error("launch capture failed: {0}")]
-    Launch(#[from] LaunchCaptureError),
+    Launch(#[from] CaptureTargetError),
     #[error("trigger capture failed: {0}")]
     Trigger(#[from] TriggerCaptureError),
 }
@@ -128,8 +128,8 @@ impl RenderDocInstallation {
         capture_options: &OneShotCaptureOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let launch = self.prepare_launch_capture_request(cwd, target)?;
-        let launch = self.launch_capture_prepared(&launch)?;
+        let launch = self.prepare_capture_target(cwd, target)?;
+        let launch = self.launch_prepared_capture_target(&launch)?;
 
         let capture = self.trigger_capture_via_target_control(
             cwd,

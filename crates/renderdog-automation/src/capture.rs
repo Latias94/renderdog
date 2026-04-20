@@ -27,7 +27,7 @@ pub struct CaptureTargetRequest {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct LaunchCaptureResponse {
+pub(crate) struct LaunchedCaptureTarget {
     pub target_ident: u32,
     pub capture_file_template: Option<String>,
     pub stdout: String,
@@ -57,7 +57,7 @@ pub struct OpenCaptureUiResponse {
 }
 
 #[derive(Debug, Error)]
-pub enum LaunchCaptureError {
+pub enum CaptureTargetError {
     #[error("failed to create artifacts dir: {0}")]
     CreateArtifactsDir(std::io::Error),
     #[error(transparent)]
@@ -66,7 +66,7 @@ pub enum LaunchCaptureError {
     InvalidTargetIdent(i32),
 }
 
-impl From<CommandCaptureLaunchError> for LaunchCaptureError {
+impl From<CommandCaptureLaunchError> for CaptureTargetError {
     fn from(value: CommandCaptureLaunchError) -> Self {
         match value {
             CommandCaptureLaunchError::Tool(err) => Self::Tool(err),
@@ -76,30 +76,30 @@ impl From<CommandCaptureLaunchError> for LaunchCaptureError {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct PreparedLaunchCaptureRequest {
+pub(crate) struct PreparedCaptureTarget {
     command: CommandCaptureLaunchRequest,
     capture_file_template: Option<String>,
 }
 
 impl RenderDocInstallation {
-    pub(crate) fn prepare_launch_capture_request(
+    pub(crate) fn prepare_capture_target(
         &self,
         cwd: &Path,
         req: &CaptureTargetRequest,
-    ) -> Result<PreparedLaunchCaptureRequest, LaunchCaptureError> {
+    ) -> Result<PreparedCaptureTarget, CaptureTargetError> {
         let artifacts_dir = req
             .artifacts_dir
             .as_deref()
             .map(|path| resolve_path_from_cwd(cwd, path))
             .unwrap_or_else(|| default_artifacts_dir(cwd));
-        std::fs::create_dir_all(&artifacts_dir).map_err(LaunchCaptureError::CreateArtifactsDir)?;
+        std::fs::create_dir_all(&artifacts_dir).map_err(CaptureTargetError::CreateArtifactsDir)?;
 
         let capture_file_template = req
             .capture_template_name
             .as_deref()
             .map(|name| artifacts_dir.join(format!("{name}.rdc")));
 
-        Ok(PreparedLaunchCaptureRequest {
+        Ok(PreparedCaptureTarget {
             command: CommandCaptureLaunchRequest {
                 executable: resolve_path_from_cwd(cwd, &req.executable),
                 args: req.args.iter().map(OsString::from).collect(),
@@ -113,13 +113,13 @@ impl RenderDocInstallation {
         })
     }
 
-    pub(crate) fn launch_capture_prepared(
+    pub(crate) fn launch_prepared_capture_target(
         &self,
-        req: &PreparedLaunchCaptureRequest,
-    ) -> Result<LaunchCaptureResponse, LaunchCaptureError> {
+        req: &PreparedCaptureTarget,
+    ) -> Result<LaunchedCaptureTarget, CaptureTargetError> {
         let res = self.launch_capture(&req.command)?;
 
-        Ok(LaunchCaptureResponse {
+        Ok(LaunchedCaptureTarget {
             target_ident: res.target_ident,
             capture_file_template: req.capture_file_template.clone(),
             stdout: res.stdout,
@@ -184,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn prepare_launch_capture_request_resolves_relative_paths() {
+    fn prepare_capture_target_resolves_relative_paths() {
         let cwd = make_temp_dir();
         let install = RenderDocInstallation {
             root_dir: PathBuf::from("/renderdoc"),
@@ -200,7 +200,7 @@ mod tests {
         };
 
         let prepared = install
-            .prepare_launch_capture_request(&cwd, &req)
+            .prepare_capture_target(&cwd, &req)
             .expect("prepare should succeed");
         let expected_template_path = cwd.join("captures").join("capture_{frame}.rdc");
 
@@ -221,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn prepare_launch_capture_request_uses_default_artifacts_dir() {
+    fn prepare_capture_target_uses_default_artifacts_dir() {
         let cwd = make_temp_dir();
         let install = RenderDocInstallation {
             root_dir: PathBuf::from("/renderdoc"),
@@ -237,7 +237,7 @@ mod tests {
         };
 
         let prepared = install
-            .prepare_launch_capture_request(&cwd, &req)
+            .prepare_capture_target(&cwd, &req)
             .expect("prepare should succeed");
 
         assert_eq!(prepared.command.executable, cwd.join("app"));
