@@ -51,20 +51,20 @@ mod tests {
     #[test]
     fn normalize_renderdoc_version_extracts_major_minor() {
         assert_eq!(
-            normalize_renderdoc_version("RenderDoc v1.43 loaded"),
-            Some("1.43".to_string())
+            normalize_renderdoc_version("RenderDoc v12.34 loaded"),
+            Some("12.34".to_string())
         );
         assert_eq!(
-            normalize_renderdoc_version("1.43"),
-            Some("1.43".to_string())
+            normalize_renderdoc_version("12.34"),
+            Some("12.34".to_string())
         );
         assert_eq!(normalize_renderdoc_version("unknown"), None);
     }
 
     #[test]
     fn renderdoc_versions_match_uses_normalized_major_minor() {
-        assert!(renderdoc_versions_match("v1.43", "1.43"));
-        assert!(!renderdoc_versions_match("v1.42", "1.43"));
-        assert!(!renderdoc_versions_match("custom-build", "1.43"));
+        assert!(renderdoc_versions_match("v12.34", "12.34"));
+        assert!(!renderdoc_versions_match("v12.33", "12.34"));
+        assert!(!renderdoc_versions_match("custom-build", "12.34"));
     }
 }

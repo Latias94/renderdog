@@ -91,7 +91,7 @@ fn generate_bindings(manifest_dir: &Path, out: &Path) {
     let bindings = bindgen::Builder::default()
         .header(header.to_string_lossy())
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        // RenderDoc v1.43 introduced annotation types that use `bool` in the C API.
+        // Recent RenderDoc versions expose annotation types that use `bool` in the C API.
         // Clang needs `stdbool.h` preincluded when parsing the header as C.
         .clang_arg("-include")
         .clang_arg("stdbool.h")
