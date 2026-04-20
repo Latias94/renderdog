@@ -18,18 +18,7 @@ impl RenderdogMcpServer {
             tracing::info!(tool = tool, "start");
         });
         let res = run.with_install("detect installation", |install| {
-            let probe = install.probe_installation();
-            Ok::<_, std::convert::Infallible>(DetectInstallationResponse {
-                root_dir: install.root_dir.display().to_string(),
-                qrenderdoc_exe: install.qrenderdoc_exe.display().to_string(),
-                renderdoccmd_exe: install.renderdoccmd_exe.display().to_string(),
-                renderdoccmd_version: probe.renderdoccmd_version,
-                renderdoccmd_version_error: probe.renderdoccmd_version_error,
-                workspace_renderdoc_version: probe.workspace_renderdoc_version,
-                replay_version_match: probe.replay_version_match,
-                vulkan_layer: probe.vulkan_layer,
-                vulkan_layer_error: probe.vulkan_layer_error,
-            })
+            Ok::<_, std::convert::Infallible>(install.describe_installation())
         })?;
 
         tracing::info!(tool = tool, elapsed_ms = run.elapsed_ms(), "ok");

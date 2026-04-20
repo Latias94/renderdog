@@ -1,22 +1,3 @@
-use schemars::JsonSchema;
-use serde::Serialize;
-
 use renderdog_automation as renderdog;
 
-#[derive(Debug, Serialize, JsonSchema)]
-pub(crate) struct DetectInstallationResponse {
-    pub(crate) root_dir: String,
-    pub(crate) qrenderdoc_exe: String,
-    pub(crate) renderdoccmd_exe: String,
-    pub(crate) renderdoccmd_version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) renderdoccmd_version_error: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) workspace_renderdoc_version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) replay_version_match: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) vulkan_layer: Option<renderdog::VulkanLayerDiagnosis>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) vulkan_layer_error: Option<String>,
-}
+pub(crate) type DetectInstallationResponse = renderdog::InstallationDetection;

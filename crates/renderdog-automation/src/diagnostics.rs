@@ -40,6 +40,24 @@ pub struct InstallationProbeSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct InstallationDetection {
+    pub root_dir: String,
+    pub qrenderdoc_exe: String,
+    pub renderdoccmd_exe: String,
+    pub renderdoccmd_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renderdoccmd_version_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_renderdoc_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replay_version_match: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vulkan_layer: Option<VulkanLayerDiagnosis>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vulkan_layer_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EnvironmentDiagnosis {
     pub root_dir: String,
     pub qrenderdoc_exe: String,
@@ -192,6 +210,22 @@ impl RenderDocInstallation {
             replay_version_match,
             vulkan_layer,
             vulkan_layer_error,
+        }
+    }
+
+    pub fn describe_installation(&self) -> InstallationDetection {
+        let probe = self.probe_installation();
+
+        InstallationDetection {
+            root_dir: self.root_dir.display().to_string(),
+            qrenderdoc_exe: self.qrenderdoc_exe.display().to_string(),
+            renderdoccmd_exe: self.renderdoccmd_exe.display().to_string(),
+            renderdoccmd_version: probe.renderdoccmd_version,
+            renderdoccmd_version_error: probe.renderdoccmd_version_error,
+            workspace_renderdoc_version: probe.workspace_renderdoc_version,
+            replay_version_match: probe.replay_version_match,
+            vulkan_layer: probe.vulkan_layer,
+            vulkan_layer_error: probe.vulkan_layer_error,
         }
     }
 }
