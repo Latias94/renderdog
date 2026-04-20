@@ -7,8 +7,8 @@ use thiserror::Error;
 use crate::{
     BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
     CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleError, ExportBundleRequest,
-    ExportOutput, OneShotCaptureTarget, OneShotTriggerOptions, RenderDocInstallation,
-    ToolInvocationError, TriggerCaptureError, TriggerCaptureRequest,
+    ExportBundleResponse, ExportOutput, OneShotCaptureTarget, OneShotTriggerOptions,
+    RenderDocInstallation, ToolInvocationError, TriggerCaptureError, TriggerCaptureRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -79,12 +79,33 @@ struct PreparedOneShotCapture {
 }
 
 impl PreparedOneShotCapture {
-    fn capture_input(&self) -> CaptureInput {
-        self.capture.clone()
+    fn export_bundle_request(&self, req: &CaptureAndExportBundleRequest) -> ExportBundleRequest {
+        ExportBundleRequest {
+            capture: self.capture.clone(),
+            output: self.output.clone(),
+            drawcall_scope: req.drawcall_scope,
+            filter: req.filter.clone(),
+            bindings: req.bindings,
+            post_actions: req.post_actions.clone(),
+        }
     }
 
-    fn export_output(&self) -> ExportOutput {
-        self.output.clone()
+    fn into_response(self, export: ExportBundleResponse) -> CaptureAndExportBundleResponse {
+        CaptureAndExportBundleResponse {
+            target_ident: self.target_ident,
+            capture_path: export.capture_path,
+            capture_file_template: self.capture_file_template,
+            stdout: self.stdout,
+            stderr: self.stderr,
+            actions_jsonl_path: export.actions_jsonl_path,
+            actions_summary_json_path: export.actions_summary_json_path,
+            total_actions: export.total_actions,
+            drawcall_actions: export.drawcall_actions,
+            bindings_jsonl_path: export.bindings_jsonl_path,
+            bindings_summary_json_path: export.bindings_summary_json_path,
+            total_drawcalls: export.total_drawcalls,
+            post_actions: export.post_actions,
+        }
     }
 }
 
@@ -122,33 +143,9 @@ impl RenderDocInstallation {
     ) -> Result<CaptureAndExportBundleResponse, CaptureAndExportBundleError> {
         let prepared =
             self.prepare_one_shot_capture(cwd, &req.target, &req.trigger, &req.output)?;
-        let export = self.export_bundle_jsonl(
-            cwd,
-            &ExportBundleRequest {
-                capture: prepared.capture_input(),
-                output: prepared.export_output(),
-                drawcall_scope: req.drawcall_scope,
-                filter: req.filter.clone(),
-                bindings: req.bindings,
-                post_actions: req.post_actions.clone(),
-            },
-        )?;
+        let export = self.export_bundle_jsonl(cwd, &prepared.export_bundle_request(req))?;
 
-        Ok(CaptureAndExportBundleResponse {
-            target_ident: prepared.target_ident,
-            capture_path: export.capture_path,
-            capture_file_template: prepared.capture_file_template,
-            stdout: prepared.stdout,
-            stderr: prepared.stderr,
-            actions_jsonl_path: export.actions_jsonl_path,
-            actions_summary_json_path: export.actions_summary_json_path,
-            total_actions: export.total_actions,
-            drawcall_actions: export.drawcall_actions,
-            bindings_jsonl_path: export.bindings_jsonl_path,
-            bindings_summary_json_path: export.bindings_summary_json_path,
-            total_drawcalls: export.total_drawcalls,
-            post_actions: export.post_actions,
-        })
+        Ok(prepared.into_response(export))
     }
 
     fn prepare_one_shot_capture(
@@ -193,5 +190,118 @@ impl RenderDocInstallation {
             stdout: launched_target.stdout,
             stderr: launched_target.stderr,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, OneShotCaptureTarget,
+        OneShotTriggerOptions, PreparedOneShotCapture,
+    };
+    use crate::{
+        BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
+        DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput,
+    };
+
+    #[test]
+    fn prepared_one_shot_capture_builds_export_bundle_request() {
+        let prepared = PreparedOneShotCapture {
+            target_ident: 7,
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+            output: ExportOutput {
+                output_dir: Some("/tmp/out".to_string()),
+                basename: Some("frame".to_string()),
+            },
+            capture_file_template: Some("/tmp/frame".to_string()),
+            stdout: "stdout".to_string(),
+            stderr: "stderr".to_string(),
+        };
+        let req = CaptureAndExportBundleRequest {
+            target: OneShotCaptureTarget {
+                executable: "game".to_string(),
+                args: vec!["--flag".to_string()],
+                working_dir: None,
+                artifacts_dir: None,
+                capture_template_name: None,
+            },
+            trigger: OneShotTriggerOptions::default(),
+            output: ExportOutput::default(),
+            drawcall_scope: DrawcallScope {
+                only_drawcalls: true,
+            },
+            filter: EventFilter {
+                marker_contains: Some("fret".to_string()),
+                ..EventFilter::default()
+            },
+            bindings: BindingsExportOptions {
+                include_cbuffers: true,
+                include_outputs: false,
+            },
+            post_actions: CapturePostActions {
+                save_thumbnail: true,
+                thumbnail_output_path: Some("thumb.png".to_string()),
+                open_capture_ui: false,
+            },
+        };
+
+        let export_req = prepared.export_bundle_request(&req);
+
+        assert_eq!(export_req.capture.capture_path, "/tmp/frame.rdc");
+        assert_eq!(export_req.output.output_dir.as_deref(), Some("/tmp/out"));
+        assert_eq!(export_req.output.basename.as_deref(), Some("frame"));
+        assert!(export_req.drawcall_scope.only_drawcalls);
+        assert_eq!(export_req.filter.marker_contains.as_deref(), Some("fret"));
+        assert!(export_req.bindings.include_cbuffers);
+        assert!(export_req.post_actions.save_thumbnail);
+    }
+
+    #[test]
+    fn prepared_one_shot_capture_merges_export_response() {
+        let prepared = PreparedOneShotCapture {
+            target_ident: 9,
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+            output: ExportOutput {
+                output_dir: Some("/tmp/out".to_string()),
+                basename: Some("frame".to_string()),
+            },
+            capture_file_template: Some("/tmp/frame".to_string()),
+            stdout: "stdout".to_string(),
+            stderr: "stderr".to_string(),
+        };
+        let export = ExportBundleResponse {
+            capture_path: "/tmp/frame.rdc".to_string(),
+            actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
+            actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
+            total_actions: 10,
+            drawcall_actions: 4,
+            bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
+            bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
+            total_drawcalls: 4,
+            post_actions: CapturePostActionOutputs {
+                thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
+                ui_pid: Some(123),
+            },
+        };
+
+        let response: CaptureAndExportBundleResponse = prepared.into_response(export);
+
+        assert_eq!(response.target_ident, 9);
+        assert_eq!(response.capture_path, "/tmp/frame.rdc");
+        assert_eq!(
+            response.capture_file_template.as_deref(),
+            Some("/tmp/frame")
+        );
+        assert_eq!(response.actions_jsonl_path, "/tmp/out/frame.actions.jsonl");
+        assert_eq!(response.total_drawcalls, 4);
+        assert_eq!(
+            response.post_actions.thumbnail_output_path.as_deref(),
+            Some("/tmp/out/frame.thumb.png")
+        );
+        assert_eq!(response.post_actions.ui_pid, Some(123));
     }
 }

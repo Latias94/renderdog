@@ -351,6 +351,27 @@ pub struct ExportBundleResponse {
     pub post_actions: CapturePostActionOutputs,
 }
 
+impl ExportBundleResponse {
+    pub(crate) fn from_parts(
+        capture_path: String,
+        actions: ExportActionsResponse,
+        bindings: ExportBindingsIndexResponse,
+        post_actions: CapturePostActionOutputs,
+    ) -> Self {
+        Self {
+            capture_path,
+            actions_jsonl_path: actions.actions_jsonl_path,
+            actions_summary_json_path: actions.summary_json_path,
+            total_actions: actions.total_actions,
+            drawcall_actions: actions.drawcall_actions,
+            bindings_jsonl_path: bindings.bindings_jsonl_path,
+            bindings_summary_json_path: bindings.summary_json_path,
+            total_drawcalls: bindings.total_drawcalls,
+            post_actions,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;

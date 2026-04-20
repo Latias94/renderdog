@@ -76,19 +76,12 @@ impl RenderDocInstallation {
             &req.post_actions,
         )?;
 
-        Ok(ExportBundleResponse {
+        Ok(ExportBundleResponse::from_parts(
             capture_path,
-
-            actions_jsonl_path: actions.actions_jsonl_path,
-            actions_summary_json_path: actions.summary_json_path,
-            total_actions: actions.total_actions,
-            drawcall_actions: actions.drawcall_actions,
-
-            bindings_jsonl_path: bindings.bindings_jsonl_path,
-            bindings_summary_json_path: bindings.summary_json_path,
-            total_drawcalls: bindings.total_drawcalls,
+            actions,
+            bindings,
             post_actions,
-        })
+        ))
     }
 
     fn apply_capture_post_actions(
