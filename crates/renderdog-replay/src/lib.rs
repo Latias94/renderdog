@@ -11,7 +11,7 @@ use renderdog_sys::{renderdoc_versions_match, workspace_renderdoc_replay_version
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum ReplaySessionError {
+pub enum ReplayRuntimeError {
     #[error("`renderdog-replay` requires the `cxx-replay` feature")]
     FeatureNotEnabled,
 
@@ -22,6 +22,16 @@ pub enum ReplaySessionError {
         "RenderDoc replay version mismatch: workspace headers expect `{expected}`, runtime library reports `{actual}`"
     )]
     VersionMismatch { expected: String, actual: String },
+
+    #[cfg(feature = "cxx-replay")]
+    #[error(transparent)]
+    Cxx(#[from] cxx::Exception),
+}
+
+#[derive(Debug, Error)]
+pub enum ReplaySessionError {
+    #[error("`renderdog-replay` requires the `cxx-replay` feature")]
+    FeatureNotEnabled,
 
     #[error("pick_pixel returned {0} values (expected 4)")]
     InvalidPickPixelReturnLen(usize),
@@ -43,15 +53,15 @@ pub struct ReplaySession {
 
 #[cfg(feature = "cxx-replay")]
 impl ReplayRuntime {
-    pub fn new(renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
+    pub fn new(renderdoc_path: Option<&str>) -> Result<Self, ReplayRuntimeError> {
         let path = renderdoc_path.unwrap_or("");
         let runtime_version = ffi::cxx_ffi::replay_runtime_probe(path)?;
         let expected_version = workspace_renderdoc_replay_version()
-            .ok_or(ReplaySessionError::WorkspaceVersionUnknown)?
+            .ok_or(ReplayRuntimeError::WorkspaceVersionUnknown)?
             .to_string();
 
         if !renderdoc_versions_match(&runtime_version, &expected_version) {
-            return Err(ReplaySessionError::VersionMismatch {
+            return Err(ReplayRuntimeError::VersionMismatch {
                 expected: expected_version,
                 actual: runtime_version,
             });
@@ -119,7 +129,11 @@ pub struct ReplaySession;
 
 #[cfg(not(feature = "cxx-replay"))]
 impl ReplayRuntime {
-    pub fn new(_renderdoc_path: Option<&str>) -> Result<Self, ReplaySessionError> {
+    pub fn new(_renderdoc_path: Option<&str>) -> Result<Self, ReplayRuntimeError> {
+        Err(ReplayRuntimeError::FeatureNotEnabled)
+    }
+
+    pub fn new_session(&self) -> Result<ReplaySession, ReplaySessionError> {
         Err(ReplaySessionError::FeatureNotEnabled)
     }
 }
