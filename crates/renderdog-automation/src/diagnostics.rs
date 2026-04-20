@@ -500,39 +500,90 @@ fn extract_manifest_paths(text: &str) -> Vec<String> {
 }
 
 fn find_vulkan_layer_manifests(root_dir: &std::path::Path) -> Vec<String> {
-    let mut hits: Vec<String> = Vec::new();
+    let home_dir = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from));
+    let xdg_data_home = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from);
 
-    let mut stack: Vec<(std::path::PathBuf, usize)> = vec![(root_dir.to_path_buf(), 0)];
-    while let Some((dir, depth)) = stack.pop() {
-        if depth > 6 {
-            continue;
-        }
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push((path, depth + 1));
-                continue;
-            }
-            if path.extension().and_then(|s| s.to_str()).unwrap_or("") != "json" {
-                continue;
-            }
-            let content = match std::fs::read_to_string(&path) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-            if content.contains("VK_LAYER_RENDERDOC_Capture") {
-                hits.push(path.display().to_string());
-            }
-        }
-    }
+    find_vulkan_layer_manifests_with_hints(root_dir, home_dir.as_deref(), xdg_data_home.as_deref())
+}
+
+fn find_vulkan_layer_manifests_with_hints(
+    root_dir: &Path,
+    home_dir: Option<&Path>,
+    xdg_data_home: Option<&Path>,
+) -> Vec<String> {
+    let mut hits: Vec<String> =
+        candidate_vulkan_layer_manifest_paths(root_dir, home_dir, xdg_data_home)
+            .into_iter()
+            .filter(|path| path.is_file())
+            .filter_map(|path| {
+                let content = std::fs::read_to_string(&path).ok()?;
+                if content.contains("VK_LAYER_RENDERDOC_Capture") {
+                    Some(path.display().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
     hits.sort();
     hits.dedup();
     hits
+}
+
+fn candidate_vulkan_layer_manifest_paths(
+    root_dir: &Path,
+    home_dir: Option<&Path>,
+    xdg_data_home: Option<&Path>,
+) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = vec![
+        root_dir.to_path_buf(),
+        root_dir
+            .join("share")
+            .join("vulkan")
+            .join("implicit_layer.d"),
+        root_dir.join("etc").join("vulkan").join("implicit_layer.d"),
+    ];
+
+    #[cfg(not(windows))]
+    {
+        dirs.push(PathBuf::from("/usr/share/vulkan/implicit_layer.d"));
+        dirs.push(PathBuf::from("/etc/vulkan/implicit_layer.d"));
+    }
+
+    if let Some(xdg_data_home) = xdg_data_home.filter(|path| !path.as_os_str().is_empty()) {
+        dirs.push(xdg_data_home.join("vulkan").join("implicit_layer.d"));
+    } else if let Some(home_dir) = home_dir.filter(|path| !path.as_os_str().is_empty()) {
+        dirs.push(
+            home_dir
+                .join(".local")
+                .join("share")
+                .join("vulkan")
+                .join("implicit_layer.d"),
+        );
+    }
+
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for dir in dirs {
+        let dir = normalize_path_for_match(&dir);
+        for basename in vulkan_layer_manifest_basenames() {
+            let candidate = dir.join(basename);
+            if paths
+                .iter()
+                .any(|existing| paths_match(existing, &candidate))
+            {
+                continue;
+            }
+            paths.push(candidate);
+        }
+    }
+
+    paths
+}
+
+fn vulkan_layer_manifest_basenames() -> &'static [&'static str] {
+    &["renderdoc_capture.json", "renderdoc.json"]
 }
 
 fn is_process_elevated() -> Option<bool> {
@@ -588,10 +639,28 @@ impl Drop for HandleGuard {
 mod tests {
     use super::{
         EnvironmentAssessmentInputs, EnvironmentVarInfo, VulkanLayerDiagnosis,
-        collect_environment_feedback, compute_replay_version_match, parse_vulkan_layer_diagnosis,
-        paths_match, split_search_path_list, vulkan_layer_manifest_dirs,
+        candidate_vulkan_layer_manifest_paths, collect_environment_feedback,
+        compute_replay_version_match, find_vulkan_layer_manifests_with_hints,
+        parse_vulkan_layer_diagnosis, paths_match, split_search_path_list,
+        vulkan_layer_manifest_dirs,
     };
-    use std::path::Path;
+    use std::{
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn make_temp_dir() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "renderdog-diagnostics-test-{}-{unique}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("failed to create temp dir");
+        dir
+    }
 
     #[test]
     fn parse_vulkan_layer_diagnosis_detects_unsupported_command() {
@@ -823,5 +892,93 @@ administrator privileges required"
                 .any(|entry| paths_match(entry, &manifest_dirs[0])),
             "substring path entries must not count as exact manifest dir matches"
         );
+    }
+
+    #[test]
+    fn candidate_vulkan_layer_manifest_paths_include_known_install_locations() {
+        let root_dir = Path::new("/opt/renderdoc");
+        let home_dir = Path::new("/home/tester");
+        let xdg_data_home = Path::new("/tmp/xdg-data");
+
+        let candidates =
+            candidate_vulkan_layer_manifest_paths(root_dir, Some(home_dir), Some(xdg_data_home));
+        assert!(
+            candidates
+                .iter()
+                .any(|path| paths_match(path, &root_dir.join("renderdoc.json")))
+        );
+        assert!(
+            candidates
+                .iter()
+                .any(|path| paths_match(path, &root_dir.join("renderdoc_capture.json")))
+        );
+        assert!(candidates.iter().any(|path| {
+            paths_match(
+                path,
+                &root_dir
+                    .join("share")
+                    .join("vulkan")
+                    .join("implicit_layer.d")
+                    .join("renderdoc_capture.json"),
+            )
+        }));
+        assert!(candidates.iter().any(|path| {
+            paths_match(
+                path,
+                &xdg_data_home
+                    .join("vulkan")
+                    .join("implicit_layer.d")
+                    .join("renderdoc_capture.json"),
+            )
+        }));
+    }
+
+    #[test]
+    fn find_vulkan_layer_manifests_with_hints_only_reads_known_candidates() {
+        let root_dir = make_temp_dir();
+        let home_dir = root_dir.join("home");
+        let xdg_data_home = root_dir.join("xdg");
+
+        let candidate_manifest = xdg_data_home
+            .join("vulkan")
+            .join("implicit_layer.d")
+            .join("renderdoc_capture.json");
+        std::fs::create_dir_all(
+            candidate_manifest
+                .parent()
+                .expect("candidate manifest should have parent"),
+        )
+        .expect("failed to create candidate dir");
+        std::fs::write(
+            &candidate_manifest,
+            r#"{"layer":{"name":"VK_LAYER_RENDERDOC_Capture"}}"#,
+        )
+        .expect("failed to write candidate manifest");
+
+        let unrelated_manifest = root_dir
+            .join("deep")
+            .join("nested")
+            .join("renderdoc_capture.json");
+        std::fs::create_dir_all(
+            unrelated_manifest
+                .parent()
+                .expect("unrelated manifest should have parent"),
+        )
+        .expect("failed to create unrelated dir");
+        std::fs::write(
+            &unrelated_manifest,
+            r#"{"layer":{"name":"VK_LAYER_RENDERDOC_Capture"}}"#,
+        )
+        .expect("failed to write unrelated manifest");
+
+        let hits = find_vulkan_layer_manifests_with_hints(
+            &root_dir,
+            Some(&home_dir),
+            Some(&xdg_data_home),
+        );
+
+        assert_eq!(hits, vec![candidate_manifest.display().to_string()]);
+
+        std::fs::remove_dir_all(&root_dir).expect("cleanup should succeed");
     }
 }
