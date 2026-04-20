@@ -14,6 +14,7 @@
 //! public crate surface. Most consumers should use `RenderDocInstallation` plus the replay/workflow
 //! request/response types exported here.
 
+mod capture;
 mod command;
 mod diagnostics;
 mod normalize;
@@ -24,6 +25,7 @@ mod toolchain;
 mod ui;
 mod workflows;
 
+pub use capture::*;
 pub use command::ToolInvocationError;
 pub(crate) use command::{CommandSpec, run_command_expect_success, run_command_output_text};
 pub use diagnostics::*;

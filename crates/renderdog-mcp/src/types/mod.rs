@@ -4,7 +4,6 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 pub(crate) mod capture;
-pub(crate) mod defaults;
 pub(crate) mod diagnostics;
 pub(crate) mod export;
 pub(crate) mod find;
@@ -27,10 +26,6 @@ pub(crate) struct CwdRequest<T> {
 }
 
 impl<T> CwdRequest<T> {
-    pub(crate) fn resolve_cwd(&self) -> Result<PathBuf, String> {
-        crate::paths::resolve_base_cwd(self.cwd.clone())
-    }
-
     pub(crate) fn into_parts(self) -> Result<(PathBuf, T), String> {
         Ok((crate::paths::resolve_base_cwd(self.cwd)?, self.inner))
     }

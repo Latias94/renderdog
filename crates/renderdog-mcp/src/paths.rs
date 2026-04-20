@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(crate) fn resolve_base_cwd(cwd: Option<String>) -> Result<PathBuf, String> {
     let current = std::env::current_dir().map_err(|e| format!("get cwd failed: {e}"))?;
@@ -12,9 +12,4 @@ pub(crate) fn resolve_base_cwd(cwd: Option<String>) -> Result<PathBuf, String> {
     } else {
         Ok(current.join(p))
     }
-}
-
-pub(crate) fn resolve_path_from_base(base: &Path, value: &str) -> PathBuf {
-    let p = PathBuf::from(value);
-    if p.is_absolute() { p } else { base.join(p) }
 }

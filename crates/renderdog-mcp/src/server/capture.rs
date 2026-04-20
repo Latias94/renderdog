@@ -1,16 +1,13 @@
-use std::{ffi::OsString, time::Instant};
+use std::time::Instant;
 
 use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use renderdog_automation as renderdog;
 
-use crate::{
-    paths::resolve_path_from_base,
-    types::{
-        LaunchCaptureRequest, LaunchCaptureResponse, OpenCaptureUiRequest, OpenCaptureUiResponse,
-        SaveThumbnailRequest, SaveThumbnailResponse,
-        TriggerCaptureRequest as TriggerCaptureToolRequest,
-    },
+use crate::types::{
+    LaunchCaptureRequest, LaunchCaptureResponse, OpenCaptureUiRequest, OpenCaptureUiResponse,
+    SaveThumbnailRequest, SaveThumbnailResponse,
+    TriggerCaptureRequest as TriggerCaptureToolRequest,
 };
 
 use super::{RenderdogMcpServer, require_installation, tool_result};
@@ -35,33 +32,12 @@ impl RenderdogMcpServer {
         );
         let install = require_installation(tool)?;
 
-        let cwd = req.resolve_cwd()?;
-        let req = req.inner;
-
-        let artifacts_dir = req
-            .artifacts_dir
-            .as_deref()
-            .map(|path| resolve_path_from_base(&cwd, path))
-            .unwrap_or_else(|| renderdog::default_artifacts_dir(&cwd));
-
-        std::fs::create_dir_all(&artifacts_dir)
-            .map_err(|err| format!("create artifacts_dir failed: {err}"))?;
-
-        let capture_file_template = req
-            .capture_template_name
-            .as_deref()
-            .map(|name| artifacts_dir.join(format!("{name}.rdc")));
-
-        let request = renderdog::CaptureLaunchRequest {
-            executable: resolve_path_from_base(&cwd, &req.executable),
-            args: req.args.into_iter().map(OsString::from).collect(),
-            working_dir: req
-                .working_dir
-                .map(|path| resolve_path_from_base(&cwd, &path)),
-            capture_file_template: capture_file_template.clone(),
-        };
-
-        let res = tool_result(tool, "launch capture", install.launch_capture(&request))?;
+        let (cwd, req) = req.into_parts()?;
+        let res = tool_result(
+            tool,
+            "launch capture",
+            install.launch_capture_in_cwd(&cwd, &req),
+        )?;
 
         tracing::info!(
             tool = tool,
@@ -69,12 +45,7 @@ impl RenderdogMcpServer {
             target_ident = res.target_ident,
             "ok"
         );
-        Ok(Json(LaunchCaptureResponse {
-            target_ident: res.target_ident,
-            capture_file_template: capture_file_template.map(|path| path.display().to_string()),
-            stdout: res.stdout,
-            stderr: res.stderr,
-        }))
+        Ok(Json(res))
     }
 
     #[tool(
@@ -91,29 +62,19 @@ impl RenderdogMcpServer {
         let install = require_installation(tool)?;
 
         let (cwd, req) = req.into_parts()?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-        let output_path = resolve_path_from_base(&cwd, &req.output_path);
-
-        if let Some(parent) = output_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|err| format!("create output dir failed: {err}"))?;
-        }
-
-        tool_result(
+        let res = tool_result(
             tool,
             "save thumbnail",
-            install.save_thumbnail(&capture_path, &output_path),
+            install.save_thumbnail_in_cwd(&cwd, &req),
         )?;
 
         tracing::info!(
             tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
-            output_path = %output_path.display(),
+            output_path = %res.output_path,
             "ok"
         );
-        Ok(Json(SaveThumbnailResponse {
-            output_path: output_path.display().to_string(),
-        }))
+        Ok(Json(res))
     }
 
     #[tool(
@@ -130,25 +91,18 @@ impl RenderdogMcpServer {
         let install = require_installation(tool)?;
 
         let (cwd, req) = req.into_parts()?;
-        let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
-
-        let child = tool_result(
+        let res = tool_result(
             tool,
             "open capture UI",
-            install.open_capture_in_ui(&capture_path),
+            install.open_capture_ui_in_cwd(&cwd, &req),
         )?;
-
-        let pid = child.id();
         tracing::info!(
             tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
-            pid,
+            pid = res.pid,
             "ok"
         );
-        Ok(Json(OpenCaptureUiResponse {
-            capture_path: capture_path.display().to_string(),
-            pid,
-        }))
+        Ok(Json(res))
     }
 
     #[tool(
@@ -173,15 +127,7 @@ impl RenderdogMcpServer {
         let res = tool_result(
             tool,
             "trigger capture",
-            install.trigger_capture_via_target_control(
-                &cwd,
-                &renderdog::TriggerCaptureRequest {
-                    host: req.host,
-                    target_ident: req.target_ident,
-                    num_frames: req.num_frames,
-                    timeout_s: req.timeout_s,
-                },
-            ),
+            install.trigger_capture_via_target_control(&cwd, &req),
         )?;
 
         tracing::info!(

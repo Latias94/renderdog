@@ -118,18 +118,7 @@ pub struct BindingsExportOptions {
     pub include_outputs: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct OneShotCaptureTarget {
-    pub executable: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub working_dir: Option<String>,
-    #[serde(default)]
-    pub artifacts_dir: Option<String>,
-    #[serde(default)]
-    pub capture_template_name: Option<String>,
-}
+pub type OneShotCaptureTarget = crate::LaunchCaptureRequest;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct OneShotCaptureOptions {
@@ -153,9 +142,12 @@ impl Default for OneShotCaptureOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureRequest {
+    #[serde(default = "default_host")]
     pub host: String,
     pub target_ident: u32,
+    #[serde(default = "default_frames")]
     pub num_frames: u32,
+    #[serde(default = "default_timeout_s")]
     pub timeout_s: u32,
 }
 

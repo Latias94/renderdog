@@ -1,19 +1,15 @@
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BindingsExportOptions, CaptureInput, CaptureLaunchError, CaptureLaunchRequest,
-    CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter, ExportActionsError,
-    ExportActionsRequest, ExportBindingsIndexError, ExportBindingsIndexRequest, ExportBundleError,
-    ExportBundleRequest, ExportOutput, OneShotCaptureOptions, OneShotCaptureTarget,
-    RenderDocInstallation, TriggerCaptureError, TriggerCaptureRequest, default_artifacts_dir,
-    default_exports_dir, resolve_path_from_cwd,
+    BindingsExportOptions, CaptureInput, CapturePostActionOutputs, CapturePostActions,
+    DrawcallScope, EventFilter, ExportActionsError, ExportActionsRequest, ExportBindingsIndexError,
+    ExportBindingsIndexRequest, ExportBundleError, ExportBundleRequest, ExportOutput,
+    LaunchCaptureError, OneShotCaptureOptions, OneShotCaptureTarget, RenderDocInstallation,
+    TriggerCaptureError, TriggerCaptureRequest, default_exports_dir, resolve_path_from_cwd,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -107,12 +103,10 @@ pub struct CaptureAndExportBundleResponse {
 
 #[derive(Debug, Error)]
 pub enum PrepareOneShotCaptureError {
-    #[error("failed to create artifacts dir: {0}")]
-    CreateArtifactsDir(std::io::Error),
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
     #[error("launch capture failed: {0}")]
-    Launch(#[from] CaptureLaunchError),
+    Launch(#[from] LaunchCaptureError),
     #[error("trigger capture failed: {0}")]
     Trigger(#[from] TriggerCaptureError),
 }
@@ -185,16 +179,9 @@ impl PreparedOneShotCapture {
 }
 
 struct OneShotCaptureRequest<'a> {
-    executable: &'a str,
-    args: &'a [String],
-    working_dir: Option<&'a str>,
-    artifacts_dir: Option<&'a str>,
-    capture_template_name: Option<&'a str>,
-    host: &'a str,
-    num_frames: u32,
-    timeout_s: u32,
-    output_dir: Option<&'a str>,
-    basename: Option<&'a str>,
+    target: &'a OneShotCaptureTarget,
+    capture: &'a OneShotCaptureOptions,
+    output: &'a ExportOutput,
 }
 
 impl<'a> OneShotCaptureRequest<'a> {
@@ -204,16 +191,9 @@ impl<'a> OneShotCaptureRequest<'a> {
         output: &'a ExportOutput,
     ) -> Self {
         Self {
-            executable: &target.executable,
-            args: &target.args,
-            working_dir: target.working_dir.as_deref(),
-            artifacts_dir: target.artifacts_dir.as_deref(),
-            capture_template_name: target.capture_template_name.as_deref(),
-            host: &capture.host,
-            num_frames: capture.num_frames,
-            timeout_s: capture.timeout_s,
-            output_dir: output.output_dir.as_deref(),
-            basename: output.basename.as_deref(),
+            target,
+            capture,
+            output,
         }
     }
 }
@@ -334,42 +314,28 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: OneShotCaptureRequest<'_>,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let artifacts_dir = req
-            .artifacts_dir
-            .map(|path| resolve_path_from_cwd(cwd, path))
-            .unwrap_or_else(|| default_artifacts_dir(cwd));
-        std::fs::create_dir_all(&artifacts_dir)
-            .map_err(PrepareOneShotCaptureError::CreateArtifactsDir)?;
-
-        let capture_file_template = req
-            .capture_template_name
-            .map(|name| artifacts_dir.join(format!("{name}.rdc")));
-
-        let launch = self.launch_capture(&CaptureLaunchRequest {
-            executable: resolve_path_from_cwd(cwd, req.executable),
-            args: req.args.iter().map(OsString::from).collect(),
-            working_dir: req.working_dir.map(|path| resolve_path_from_cwd(cwd, path)),
-            capture_file_template: capture_file_template.clone(),
-        })?;
+        let launch = self.launch_capture_in_cwd(cwd, req.target)?;
 
         let capture = self.trigger_capture_via_target_control(
             cwd,
             &TriggerCaptureRequest {
-                host: req.host.to_string(),
+                host: req.capture.host.clone(),
                 target_ident: launch.target_ident,
-                num_frames: req.num_frames,
-                timeout_s: req.timeout_s,
+                num_frames: req.capture.num_frames,
+                timeout_s: req.capture.timeout_s,
             },
         )?;
 
         let output_dir = req
+            .output
             .output_dir
+            .as_deref()
             .map(|path| resolve_path_from_cwd(cwd, path))
             .unwrap_or_else(|| default_exports_dir(cwd));
         std::fs::create_dir_all(&output_dir)
             .map_err(PrepareOneShotCaptureError::CreateOutputDir)?;
 
-        let basename = req.basename.map(str::to_owned).unwrap_or_else(|| {
+        let basename = req.output.basename.clone().unwrap_or_else(|| {
             Path::new(&capture.capture_path)
                 .file_stem()
                 .and_then(|value| value.to_str())
@@ -380,7 +346,7 @@ impl RenderDocInstallation {
         Ok(PreparedOneShotCapture {
             target_ident: launch.target_ident,
             capture_path: PathBuf::from(capture.capture_path),
-            capture_file_template,
+            capture_file_template: launch.capture_file_template.map(PathBuf::from),
             stdout: launch.stdout,
             stderr: launch.stderr,
             output_dir,
