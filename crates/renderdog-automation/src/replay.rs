@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
-use crate::scripting::{QRenderDocJsonJobRequest, define_qrenderdoc_json_job_error};
+use crate::scripting::{QRenderDocJsonJob, define_qrenderdoc_json_job_error};
 use crate::{normalize_capture_path, prepare_export_target, resolve_path_string_from_cwd};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -142,16 +142,8 @@ impl RenderDocInstallation {
             ..req.clone()
         };
 
-        self.run_qrenderdoc_json_job(
-            cwd,
-            &QRenderDocJsonJobRequest {
-                run_dir_prefix: "replay_list_textures",
-                script_file_name: "replay_list_textures_json.py",
-                script_content: REPLAY_LIST_TEXTURES_JSON_PY,
-                request: &req,
-            },
-        )
-        .map_err(ReplayListTexturesError::from)
+        self.run_qrenderdoc_json_job(cwd, REPLAY_LIST_TEXTURES_JOB, &req)
+            .map_err(ReplayListTexturesError::from)
     }
 
     pub fn replay_pick_pixel(
@@ -164,16 +156,8 @@ impl RenderDocInstallation {
             ..req.clone()
         };
 
-        self.run_qrenderdoc_json_job(
-            cwd,
-            &QRenderDocJsonJobRequest {
-                run_dir_prefix: "replay_pick_pixel",
-                script_file_name: "replay_pick_pixel_json.py",
-                script_content: REPLAY_PICK_PIXEL_JSON_PY,
-                request: &req,
-            },
-        )
-        .map_err(ReplayPickPixelError::from)
+        self.run_qrenderdoc_json_job(cwd, REPLAY_PICK_PIXEL_JOB, &req)
+            .map_err(ReplayPickPixelError::from)
     }
 
     pub fn replay_save_texture_png(
@@ -187,16 +171,8 @@ impl RenderDocInstallation {
             ..req.clone()
         };
 
-        self.run_qrenderdoc_json_job(
-            cwd,
-            &QRenderDocJsonJobRequest {
-                run_dir_prefix: "replay_save_texture_png",
-                script_file_name: "replay_save_texture_png_json.py",
-                script_content: REPLAY_SAVE_TEXTURE_PNG_JSON_PY,
-                request: &req,
-            },
-        )
-        .map_err(ReplaySaveTexturePngError::from)
+        self.run_qrenderdoc_json_job(cwd, REPLAY_SAVE_TEXTURE_PNG_JOB, &req)
+            .map_err(ReplaySaveTexturePngError::from)
     }
 
     pub fn replay_save_outputs_png(
@@ -219,25 +195,41 @@ impl RenderDocInstallation {
             ..req.clone()
         };
 
-        self.run_qrenderdoc_json_job(
-            cwd,
-            &QRenderDocJsonJobRequest {
-                run_dir_prefix: "replay_save_outputs_png",
-                script_file_name: "replay_save_outputs_png_json.py",
-                script_content: REPLAY_SAVE_OUTPUTS_PNG_JSON_PY,
-                request: &req,
-            },
-        )
-        .map_err(ReplaySaveOutputsPngError::from)
+        self.run_qrenderdoc_json_job(cwd, REPLAY_SAVE_OUTPUTS_PNG_JOB, &req)
+            .map_err(ReplaySaveOutputsPngError::from)
     }
 }
 
 const REPLAY_LIST_TEXTURES_JSON_PY: &str = include_str!("../scripts/replay_list_textures_json.py");
 
+const REPLAY_LIST_TEXTURES_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_list_textures",
+    "replay_list_textures_json.py",
+    REPLAY_LIST_TEXTURES_JSON_PY,
+);
+
 const REPLAY_PICK_PIXEL_JSON_PY: &str = include_str!("../scripts/replay_pick_pixel_json.py");
+
+const REPLAY_PICK_PIXEL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_pick_pixel",
+    "replay_pick_pixel_json.py",
+    REPLAY_PICK_PIXEL_JSON_PY,
+);
 
 const REPLAY_SAVE_TEXTURE_PNG_JSON_PY: &str =
     include_str!("../scripts/replay_save_texture_png_json.py");
 
+const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_save_texture_png",
+    "replay_save_texture_png_json.py",
+    REPLAY_SAVE_TEXTURE_PNG_JSON_PY,
+);
+
 const REPLAY_SAVE_OUTPUTS_PNG_JSON_PY: &str =
     include_str!("../scripts/replay_save_outputs_png_json.py");
+
+const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+    "replay_save_outputs_png",
+    "replay_save_outputs_png_json.py",
+    REPLAY_SAVE_OUTPUTS_PNG_JSON_PY,
+);

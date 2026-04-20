@@ -132,11 +132,24 @@ macro_rules! define_qrenderdoc_json_job_error {
 pub(crate) use define_qrenderdoc_json_job_error;
 
 #[derive(Debug, Clone)]
-pub(crate) struct QRenderDocJsonJobRequest<'a, T> {
-    pub run_dir_prefix: &'a str,
-    pub script_file_name: &'a str,
-    pub script_content: &'a str,
-    pub request: &'a T,
+pub(crate) struct QRenderDocJsonJob {
+    pub run_dir_prefix: &'static str,
+    pub script_file_name: &'static str,
+    pub script_content: &'static str,
+}
+
+impl QRenderDocJsonJob {
+    pub(crate) const fn new(
+        run_dir_prefix: &'static str,
+        script_file_name: &'static str,
+        script_content: &'static str,
+    ) -> Self {
+        Self {
+            run_dir_prefix,
+            script_file_name,
+            script_content,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -181,7 +194,8 @@ impl RenderDocInstallation {
     pub(crate) fn run_qrenderdoc_json_job<TReq, TResp>(
         &self,
         cwd: &Path,
-        req: &QRenderDocJsonJobRequest<'_, TReq>,
+        job: QRenderDocJsonJob,
+        request: &TReq,
     ) -> Result<TResp, QRenderDocJsonJobError>
     where
         TReq: Serialize,
@@ -190,23 +204,23 @@ impl RenderDocInstallation {
         let scripts_dir = default_scripts_dir(cwd);
         std::fs::create_dir_all(&scripts_dir).map_err(QRenderDocJsonJobError::CreateScriptsDir)?;
 
-        let script_path = scripts_dir.join(req.script_file_name);
-        write_script_file(&script_path, req.script_content)
+        let script_path = scripts_dir.join(job.script_file_name);
+        write_script_file(&script_path, job.script_content)
             .map_err(QRenderDocJsonJobError::WriteScript)?;
 
-        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, req.run_dir_prefix)
+        let run_dir = create_qrenderdoc_run_dir(&scripts_dir, job.run_dir_prefix)
             .map_err(QRenderDocJsonJobError::CreateScriptsDir)?;
-        let job_file_stem = Path::new(req.script_file_name)
+        let job_file_stem = Path::new(job.script_file_name)
             .file_stem()
             .and_then(|stem| stem.to_str())
-            .unwrap_or(req.script_file_name);
+            .unwrap_or(job.script_file_name);
         let request_path = run_dir.join(format!("{job_file_stem}.request.json"));
         let response_path = run_dir.join(format!("{job_file_stem}.response.json"));
         remove_if_exists(&response_path).map_err(QRenderDocJsonJobError::WriteRequest)?;
 
         std::fs::write(
             &request_path,
-            serde_json::to_vec(req.request).map_err(QRenderDocJsonJobError::ParseJson)?,
+            serde_json::to_vec(request).map_err(QRenderDocJsonJobError::ParseJson)?,
         )
         .map_err(QRenderDocJsonJobError::WriteRequest)?;
 
