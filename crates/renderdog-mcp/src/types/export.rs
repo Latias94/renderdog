@@ -3,26 +3,13 @@ use serde::{Deserialize, Serialize};
 
 use renderdog_automation as renderdog;
 
-#[derive(Debug, Deserialize, JsonSchema)]
-pub(crate) struct ExportActionsRequest {
-    #[serde(default)]
-    pub(crate) cwd: Option<String>,
-    #[serde(flatten)]
-    pub(crate) inner: renderdog::ExportActionsRequest,
-}
+use super::CwdRequest;
+
+pub(crate) type ExportActionsRequest = CwdRequest<renderdog::ExportActionsRequest>;
+pub(crate) type ExportBindingsIndexRequest = CwdRequest<renderdog::ExportBindingsIndexRequest>;
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub(crate) struct ExportBindingsIndexRequest {
-    #[serde(default)]
-    pub(crate) cwd: Option<String>,
-    #[serde(flatten)]
-    pub(crate) inner: renderdog::ExportBindingsIndexRequest,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub(crate) struct ExportBundleRequest {
-    #[serde(default)]
-    pub(crate) cwd: Option<String>,
+pub(crate) struct ExportBundleInput {
     #[serde(default)]
     pub(crate) save_thumbnail: bool,
     #[serde(default)]
@@ -30,8 +17,10 @@ pub(crate) struct ExportBundleRequest {
     #[serde(default)]
     pub(crate) open_capture_ui: bool,
     #[serde(flatten)]
-    pub(crate) inner: renderdog::ExportBundleRequest,
+    pub(crate) export: renderdog::ExportBundleRequest,
 }
+
+pub(crate) type ExportBundleRequest = CwdRequest<ExportBundleInput>;
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub(crate) struct ExportBundleResponse {

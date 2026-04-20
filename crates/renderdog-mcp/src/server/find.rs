@@ -4,12 +4,9 @@ use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use renderdog_automation as renderdog;
 
-use crate::{
-    paths::resolve_base_cwd,
-    types::{
-        FindEventsAndSaveOutputsPngRequest as FindEventsAndSaveOutputsPngToolRequest,
-        FindEventsAndSaveOutputsPngResponse, FindEventsRequest as FindEventsToolRequest,
-    },
+use crate::types::{
+    FindEventsAndSaveOutputsPngRequest as FindEventsAndSaveOutputsPngToolRequest,
+    FindEventsAndSaveOutputsPngResponse, FindEventsRequest as FindEventsToolRequest,
 };
 
 use super::{RenderdogMcpServer, require_installation, tool_result};
@@ -29,8 +26,8 @@ impl RenderdogMcpServer {
         tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let res = tool_result(tool, "find events", install.find_events(&cwd, &req.inner))?;
+        let (cwd, req) = req.into_parts()?;
+        let res = tool_result(tool, "find events", install.find_events(&cwd, &req))?;
 
         tracing::info!(
             tool = tool,
@@ -55,11 +52,11 @@ impl RenderdogMcpServer {
         tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "find events and save outputs PNG",
-            install.find_events_and_save_outputs_png(&cwd, &req.inner),
+            install.find_events_and_save_outputs_png(&cwd, &req),
         )?;
 
         tracing::info!(

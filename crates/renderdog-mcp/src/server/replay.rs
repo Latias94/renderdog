@@ -4,14 +4,11 @@ use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use renderdog_automation as renderdog;
 
-use crate::{
-    paths::resolve_base_cwd,
-    types::{
-        ReplayListTexturesRequest as ReplayListTexturesToolRequest,
-        ReplayPickPixelRequest as ReplayPickPixelToolRequest,
-        ReplaySaveOutputsPngRequest as ReplaySaveOutputsPngToolRequest,
-        ReplaySaveTexturePngRequest as ReplaySaveTexturePngToolRequest,
-    },
+use crate::types::{
+    ReplayListTexturesRequest as ReplayListTexturesToolRequest,
+    ReplayPickPixelRequest as ReplayPickPixelToolRequest,
+    ReplaySaveOutputsPngRequest as ReplaySaveOutputsPngToolRequest,
+    ReplaySaveTexturePngRequest as ReplaySaveTexturePngToolRequest,
 };
 
 use super::{RenderdogMcpServer, require_installation, tool_result};
@@ -31,11 +28,11 @@ impl RenderdogMcpServer {
         tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "replay list textures",
-            install.replay_list_textures(&cwd, &req.inner),
+            install.replay_list_textures(&cwd, &req),
         )?;
 
         tracing::info!(
@@ -67,11 +64,11 @@ impl RenderdogMcpServer {
         );
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "replay pick pixel",
-            install.replay_pick_pixel(&cwd, &req.inner),
+            install.replay_pick_pixel(&cwd, &req),
         )?;
 
         tracing::info!(tool = tool, elapsed_ms = start.elapsed().as_millis(), "ok");
@@ -96,11 +93,11 @@ impl RenderdogMcpServer {
         );
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "replay save texture PNG",
-            install.replay_save_texture_png(&cwd, &req.inner),
+            install.replay_save_texture_png(&cwd, &req),
         )?;
 
         tracing::info!(
@@ -131,11 +128,11 @@ impl RenderdogMcpServer {
         );
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "replay save outputs PNG",
-            install.replay_save_outputs_png(&cwd, &req.inner),
+            install.replay_save_outputs_png(&cwd, &req),
         )?;
 
         tracing::info!(

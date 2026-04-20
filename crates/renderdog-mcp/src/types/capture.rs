@@ -1,10 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::CwdRequest;
+
 #[derive(Debug, Deserialize, JsonSchema)]
-pub(crate) struct LaunchCaptureRequest {
-    #[serde(default)]
-    pub(crate) cwd: Option<String>,
+pub(crate) struct LaunchCaptureInput {
     pub(crate) executable: String,
     #[serde(default)]
     pub(crate) args: Vec<String>,
@@ -16,6 +16,8 @@ pub(crate) struct LaunchCaptureRequest {
     pub(crate) capture_template_name: Option<String>,
 }
 
+pub(crate) type LaunchCaptureRequest = CwdRequest<LaunchCaptureInput>;
+
 #[derive(Debug, Serialize, JsonSchema)]
 pub(crate) struct LaunchCaptureResponse {
     pub(crate) target_ident: u32,
@@ -25,12 +27,12 @@ pub(crate) struct LaunchCaptureResponse {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub(crate) struct SaveThumbnailRequest {
-    #[serde(default)]
-    pub(crate) cwd: Option<String>,
+pub(crate) struct SaveThumbnailInput {
     pub(crate) capture_path: String,
     pub(crate) output_path: String,
 }
+
+pub(crate) type SaveThumbnailRequest = CwdRequest<SaveThumbnailInput>;
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub(crate) struct SaveThumbnailResponse {
@@ -38,11 +40,11 @@ pub(crate) struct SaveThumbnailResponse {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub(crate) struct OpenCaptureUiRequest {
-    #[serde(default)]
-    pub(crate) cwd: Option<String>,
+pub(crate) struct OpenCaptureUiInput {
     pub(crate) capture_path: String,
 }
+
+pub(crate) type OpenCaptureUiRequest = CwdRequest<OpenCaptureUiInput>;
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub(crate) struct OpenCaptureUiResponse {
@@ -51,9 +53,7 @@ pub(crate) struct OpenCaptureUiResponse {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub(crate) struct TriggerCaptureRequest {
-    #[serde(default)]
-    pub(crate) cwd: Option<String>,
+pub(crate) struct TriggerCaptureInput {
     #[serde(default = "crate::types::defaults::default_host")]
     pub(crate) host: String,
     pub(crate) target_ident: u32,
@@ -62,3 +62,5 @@ pub(crate) struct TriggerCaptureRequest {
     #[serde(default = "crate::types::defaults::default_timeout_s")]
     pub(crate) timeout_s: u32,
 }
+
+pub(crate) type TriggerCaptureRequest = CwdRequest<TriggerCaptureInput>;

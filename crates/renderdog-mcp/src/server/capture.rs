@@ -5,7 +5,7 @@ use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 use renderdog_automation as renderdog;
 
 use crate::{
-    paths::{resolve_base_cwd, resolve_path_from_base},
+    paths::resolve_path_from_base,
     types::{
         LaunchCaptureRequest, LaunchCaptureResponse, OpenCaptureUiRequest, OpenCaptureUiResponse,
         SaveThumbnailRequest, SaveThumbnailResponse,
@@ -29,13 +29,14 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            executable = %req.executable,
-            args_len = req.args.len(),
+            executable = %req.inner.executable,
+            args_len = req.inner.args.len(),
             "start"
         );
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let cwd = req.resolve_cwd()?;
+        let req = req.inner;
 
         let artifacts_dir = req
             .artifacts_dir
@@ -86,10 +87,10 @@ impl RenderdogMcpServer {
     ) -> Result<Json<SaveThumbnailResponse>, String> {
         let tool = "renderdoc_save_thumbnail";
         let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.capture_path, "start");
+        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
         let output_path = resolve_path_from_base(&cwd, &req.output_path);
 
@@ -125,10 +126,10 @@ impl RenderdogMcpServer {
     ) -> Result<Json<OpenCaptureUiResponse>, String> {
         let tool = "renderdoc_open_capture_ui";
         let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.capture_path, "start");
+        tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
 
         let child = tool_result(
@@ -162,13 +163,13 @@ impl RenderdogMcpServer {
         let start = Instant::now();
         tracing::info!(
             tool = tool,
-            target_ident = req.target_ident,
-            num_frames = req.num_frames,
+            target_ident = req.inner.target_ident,
+            num_frames = req.inner.num_frames,
             "start"
         );
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "trigger capture",

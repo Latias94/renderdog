@@ -3,7 +3,7 @@ use std::{path::Path, time::Instant};
 use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
 use crate::{
-    paths::{resolve_base_cwd, resolve_path_from_base},
+    paths::resolve_path_from_base,
     types::{
         ExportActionsRequest as ExportActionsToolRequest,
         ExportBindingsIndexRequest as ExportBindingsIndexToolRequest,
@@ -28,11 +28,11 @@ impl RenderdogMcpServer {
         tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "export actions",
-            install.export_actions_jsonl(&cwd, &req.inner),
+            install.export_actions_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
@@ -58,11 +58,11 @@ impl RenderdogMcpServer {
         tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "export bindings index",
-            install.export_bindings_index_jsonl(&cwd, &req.inner),
+            install.export_bindings_index_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
@@ -85,14 +85,18 @@ impl RenderdogMcpServer {
     ) -> Result<Json<ExportBundleResponse>, String> {
         let tool = "renderdoc_export_bundle_jsonl";
         let start = Instant::now();
-        tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
+        tracing::info!(
+            tool = tool,
+            capture_path = %req.inner.export.capture.capture_path,
+            "start"
+        );
         let install = require_installation(tool)?;
 
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let bundle = tool_result(
             tool,
             "export bundle",
-            install.export_bundle_jsonl(&cwd, &req.inner),
+            install.export_bundle_jsonl(&cwd, &req.export),
         )?;
 
         let mut thumbnail_output_path = None;

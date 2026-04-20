@@ -2,16 +2,13 @@ use std::time::Instant;
 
 use rmcp::{Json, handler::server::wrapper::Parameters, tool, tool_router};
 
-use crate::{
-    paths::resolve_base_cwd,
-    types::{
-        CaptureAndExportActionsRequest as CaptureAndExportActionsToolRequest,
-        CaptureAndExportActionsResponse,
-        CaptureAndExportBindingsIndexRequest as CaptureAndExportBindingsIndexToolRequest,
-        CaptureAndExportBindingsIndexResponse,
-        CaptureAndExportBundleRequest as CaptureAndExportBundleToolRequest,
-        CaptureAndExportBundleResponse,
-    },
+use crate::types::{
+    CaptureAndExportActionsRequest as CaptureAndExportActionsToolRequest,
+    CaptureAndExportActionsResponse,
+    CaptureAndExportBindingsIndexRequest as CaptureAndExportBindingsIndexToolRequest,
+    CaptureAndExportBindingsIndexResponse,
+    CaptureAndExportBundleRequest as CaptureAndExportBundleToolRequest,
+    CaptureAndExportBundleResponse,
 };
 
 use super::{RenderdogMcpServer, require_installation, tool_result};
@@ -36,11 +33,11 @@ impl RenderdogMcpServer {
         );
 
         let install = require_installation(tool)?;
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "one-shot capture/export actions",
-            install.capture_and_export_actions_jsonl(&cwd, &req.inner),
+            install.capture_and_export_actions_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
@@ -74,11 +71,11 @@ impl RenderdogMcpServer {
         );
 
         let install = require_installation(tool)?;
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "one-shot capture/export bindings",
-            install.capture_and_export_bindings_index_jsonl(&cwd, &req.inner),
+            install.capture_and_export_bindings_index_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
@@ -112,11 +109,11 @@ impl RenderdogMcpServer {
         );
 
         let install = require_installation(tool)?;
-        let cwd = resolve_base_cwd(req.cwd.clone())?;
+        let (cwd, req) = req.into_parts()?;
         let res = tool_result(
             tool,
             "one-shot capture/export bundle",
-            install.capture_and_export_bundle_jsonl(&cwd, &req.inner),
+            install.capture_and_export_bundle_jsonl(&cwd, &req),
         )?;
 
         tracing::info!(
