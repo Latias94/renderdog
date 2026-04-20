@@ -4,18 +4,25 @@ use thiserror::Error;
 
 use crate::RenderDocInstallation;
 use crate::normalize_capture_path;
-use crate::scripting::{QRenderDocJsonJob, define_qrenderdoc_json_job_error};
+use crate::scripting::{
+    QRenderDocJsonJob, define_qrenderdoc_json_job_error_enum,
+    impl_qrenderdoc_json_job_error_conversion,
+};
 
 use super::{FindEventsRequest, FindEventsResponse};
 use crate::CaptureInput;
 
-define_qrenderdoc_json_job_error! {
+define_qrenderdoc_json_job_error_enum! {
     #[derive(Debug, Error)]
     pub enum FindEventsError {
         create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
         parse_json_message: "failed to parse JSON: {0}",
     }
 }
+impl_qrenderdoc_json_job_error_conversion!(
+    FindEventsError,
+    create_dir_variant: CreateScriptsDir,
+);
 
 impl RenderDocInstallation {
     pub fn find_events(

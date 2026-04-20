@@ -52,7 +52,7 @@ pub(crate) enum QRenderDocJsonJobError {
     #[error("failed to write request JSON: {0}")]
     WriteRequest(std::io::Error),
     #[error("qrenderdoc execution failed: {0}")]
-    QRenderDocPython(Box<QRenderDocPythonError>),
+    QRenderDocExecution(Box<QRenderDocPythonError>),
     #[error("failed to read response JSON: {0}")]
     ReadResponse(std::io::Error),
     #[error("failed to parse JSON: {0}")]
@@ -63,11 +63,11 @@ pub(crate) enum QRenderDocJsonJobError {
 
 impl From<QRenderDocPythonError> for QRenderDocJsonJobError {
     fn from(value: QRenderDocPythonError) -> Self {
-        Self::QRenderDocPython(Box::new(value))
+        Self::QRenderDocExecution(Box::new(value))
     }
 }
 
-macro_rules! define_qrenderdoc_json_job_error {
+macro_rules! define_qrenderdoc_json_job_error_enum {
     (
         $(#[$meta:meta])*
         pub enum $name:ident {
@@ -81,24 +81,32 @@ macro_rules! define_qrenderdoc_json_job_error {
         pub enum $name {
             #[error($create_message)]
             $create_variant(std::io::Error),
-            $(
-                #[error($extra_message)]
-                $extra_variant($extra_ty),
-            )*
-            #[error("failed to write python script: {0}")]
-            WriteScript(std::io::Error),
-            #[error("failed to write request JSON: {0}")]
-            WriteRequest(std::io::Error),
-            #[error("qrenderdoc execution failed: {0}")]
-            QRenderDocExecution(Box<crate::QRenderDocExecutionError>),
-            #[error("failed to read response JSON: {0}")]
-            ReadResponse(std::io::Error),
-            #[error($parse_message)]
-            ParseJson(serde_json::Error),
-            #[error("qrenderdoc script error: {0}")]
-            ScriptError(String),
+        $(
+            #[error($extra_message)]
+            $extra_variant($extra_ty),
+        )*
+        #[error("failed to write python script: {0}")]
+        WriteScript(std::io::Error),
+        #[error("failed to write request JSON: {0}")]
+        WriteRequest(std::io::Error),
+        #[error("qrenderdoc execution failed: {0}")]
+        QRenderDocExecution(Box<crate::QRenderDocExecutionError>),
+        #[error("failed to read response JSON: {0}")]
+        ReadResponse(std::io::Error),
+        #[error($parse_message)]
+        ParseJson(serde_json::Error),
+        #[error("qrenderdoc script error: {0}")]
+        ScriptError(String),
         }
+    };
+}
 
+macro_rules! impl_qrenderdoc_json_job_error_conversion {
+    (
+        $name:ident,
+        create_dir_variant: $create_variant:ident
+        $(,)?
+    ) => {
         impl From<crate::scripting::QRenderDocJsonJobError> for $name {
             fn from(value: crate::scripting::QRenderDocJsonJobError) -> Self {
                 match value {
@@ -111,8 +119,10 @@ macro_rules! define_qrenderdoc_json_job_error {
                     crate::scripting::QRenderDocJsonJobError::WriteRequest(err) => {
                         Self::WriteRequest(err)
                     }
-                    crate::scripting::QRenderDocJsonJobError::QRenderDocPython(err) => {
-                        Self::QRenderDocExecution(Box::new(crate::QRenderDocExecutionError::from(*err)))
+                    crate::scripting::QRenderDocJsonJobError::QRenderDocExecution(err) => {
+                        Self::QRenderDocExecution(Box::new(crate::QRenderDocExecutionError::from(
+                            *err,
+                        )))
                     }
                     crate::scripting::QRenderDocJsonJobError::ReadResponse(err) => {
                         Self::ReadResponse(err)
@@ -129,7 +139,8 @@ macro_rules! define_qrenderdoc_json_job_error {
     };
 }
 
-pub(crate) use define_qrenderdoc_json_job_error;
+pub(crate) use define_qrenderdoc_json_job_error_enum;
+pub(crate) use impl_qrenderdoc_json_job_error_conversion;
 
 #[derive(Debug, Clone)]
 pub(crate) struct QRenderDocJsonJob {
