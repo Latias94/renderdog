@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
-use crate::scripting::{
-    QRenderDocJsonJob, define_qrenderdoc_json_job_error_enum,
-    impl_qrenderdoc_json_job_error_conversion,
+use crate::scripting::QRenderDocJsonJob;
+use crate::{
+    QRenderDocJsonError, normalize_capture_path, prepare_export_target,
+    resolve_path_string_from_cwd,
 };
-use crate::{normalize_capture_path, prepare_export_target, resolve_path_string_from_cwd};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayListTexturesRequest {
@@ -147,54 +147,17 @@ pub struct ReplaySaveOutputsPngResponse {
     pub outputs: Vec<ReplaySavedImage>,
 }
 
-define_qrenderdoc_json_job_error_enum! {
-    #[derive(Debug, Error)]
-    pub enum ReplayListTexturesError {
-        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
-        parse_json_message: "failed to parse JSON: {0}",
-    }
-}
-impl_qrenderdoc_json_job_error_conversion!(
-    ReplayListTexturesError,
-    create_dir_variant: CreateScriptsDir,
-);
+pub type ReplayListTexturesError = QRenderDocJsonError;
+pub type ReplayPickPixelError = QRenderDocJsonError;
+pub type ReplaySaveTexturePngError = QRenderDocJsonError;
 
-define_qrenderdoc_json_job_error_enum! {
-    #[derive(Debug, Error)]
-    pub enum ReplayPickPixelError {
-        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
-        parse_json_message: "failed to parse JSON: {0}",
-    }
+#[derive(Debug, Error)]
+pub enum ReplaySaveOutputsPngError {
+    #[error("failed to create output dir: {0}")]
+    CreateOutputDir(std::io::Error),
+    #[error(transparent)]
+    Replay(#[from] QRenderDocJsonError),
 }
-impl_qrenderdoc_json_job_error_conversion!(
-    ReplayPickPixelError,
-    create_dir_variant: CreateScriptsDir,
-);
-
-define_qrenderdoc_json_job_error_enum! {
-    #[derive(Debug, Error)]
-    pub enum ReplaySaveTexturePngError {
-        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
-        parse_json_message: "failed to parse JSON: {0}",
-    }
-}
-impl_qrenderdoc_json_job_error_conversion!(
-    ReplaySaveTexturePngError,
-    create_dir_variant: CreateScriptsDir,
-);
-
-define_qrenderdoc_json_job_error_enum! {
-    #[derive(Debug, Error)]
-    pub enum ReplaySaveOutputsPngError {
-        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
-        parse_json_message: "failed to parse JSON: {0}",
-        extra_variant: CreateOutputDir(std::io::Error) => "failed to create output dir: {0}",
-    }
-}
-impl_qrenderdoc_json_job_error_conversion!(
-    ReplaySaveOutputsPngError,
-    create_dir_variant: CreateScriptsDir,
-);
 
 impl RenderDocInstallation {
     pub fn replay_list_textures(
@@ -205,7 +168,6 @@ impl RenderDocInstallation {
         let req = req.normalized_in_cwd(cwd);
 
         self.run_qrenderdoc_json_job(cwd, REPLAY_LIST_TEXTURES_JOB, &req)
-            .map_err(ReplayListTexturesError::from)
     }
 
     pub fn replay_pick_pixel(
@@ -216,7 +178,6 @@ impl RenderDocInstallation {
         let req = req.normalized_in_cwd(cwd);
 
         self.run_qrenderdoc_json_job(cwd, REPLAY_PICK_PIXEL_JOB, &req)
-            .map_err(ReplayPickPixelError::from)
     }
 
     pub fn replay_save_texture_png(
@@ -227,7 +188,6 @@ impl RenderDocInstallation {
         let req = req.resolved_in_cwd(cwd);
 
         self.run_qrenderdoc_json_job(cwd, REPLAY_SAVE_TEXTURE_PNG_JOB, &req)
-            .map_err(ReplaySaveTexturePngError::from)
     }
 
     pub fn replay_save_outputs_png(

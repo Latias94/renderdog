@@ -1,35 +1,17 @@
 use std::path::Path;
 
-use thiserror::Error;
-
-use crate::RenderDocInstallation;
-use crate::scripting::{
-    QRenderDocJsonJob, define_qrenderdoc_json_job_error_enum,
-    impl_qrenderdoc_json_job_error_conversion,
-};
+use crate::scripting::QRenderDocJsonJob;
+use crate::{QRenderDocJsonError, RenderDocInstallation};
 
 use super::{ExportBindingsIndexRequest, ExportBindingsIndexResponse};
-
-define_qrenderdoc_json_job_error_enum! {
-    #[derive(Debug, Error)]
-    pub(crate) enum ExportBindingsIndexError {
-        create_dir_variant: CreateOutputDir => "failed to create output dir: {0}",
-        parse_json_message: "failed to parse export JSON: {0}",
-    }
-}
-impl_qrenderdoc_json_job_error_conversion!(
-    ExportBindingsIndexError,
-    create_dir_variant: CreateOutputDir,
-);
 
 impl RenderDocInstallation {
     pub(super) fn export_bindings_index_jsonl_prepared(
         &self,
         cwd: &Path,
         req: &ExportBindingsIndexRequest,
-    ) -> Result<ExportBindingsIndexResponse, ExportBindingsIndexError> {
+    ) -> Result<ExportBindingsIndexResponse, QRenderDocJsonError> {
         self.run_qrenderdoc_json_job(cwd, EXPORT_BINDINGS_INDEX_JSONL_JOB, req)
-            .map_err(ExportBindingsIndexError::from)
     }
 }
 

@@ -44,7 +44,7 @@ pub(crate) fn create_qrenderdoc_run_dir(
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum QRenderDocJsonJobError {
+pub enum QRenderDocJsonError {
     #[error("failed to create scripts dir: {0}")]
     CreateScriptsDir(std::io::Error),
     #[error("failed to write python script: {0}")]
@@ -52,7 +52,7 @@ pub(crate) enum QRenderDocJsonJobError {
     #[error("failed to write request JSON: {0}")]
     WriteRequest(std::io::Error),
     #[error("qrenderdoc execution failed: {0}")]
-    QRenderDocExecution(Box<QRenderDocPythonError>),
+    QRenderDocExecution(Box<QRenderDocExecutionError>),
     #[error("failed to read response JSON: {0}")]
     ReadResponse(std::io::Error),
     #[error("failed to parse JSON: {0}")]
@@ -61,86 +61,11 @@ pub(crate) enum QRenderDocJsonJobError {
     ScriptError(String),
 }
 
-impl From<QRenderDocPythonError> for QRenderDocJsonJobError {
+impl From<QRenderDocPythonError> for QRenderDocJsonError {
     fn from(value: QRenderDocPythonError) -> Self {
-        Self::QRenderDocExecution(Box::new(value))
+        Self::QRenderDocExecution(Box::new(QRenderDocExecutionError::from(value)))
     }
 }
-
-macro_rules! define_qrenderdoc_json_job_error_enum {
-    (
-        $(#[$meta:meta])*
-        $vis:vis enum $name:ident {
-            create_dir_variant: $create_variant:ident => $create_message:literal,
-            parse_json_message: $parse_message:literal
-            $(, extra_variant: $extra_variant:ident($extra_ty:ty) => $extra_message:literal)*
-            $(,)?
-        }
-    ) => {
-        $(#[$meta])*
-        $vis enum $name {
-            #[error($create_message)]
-            $create_variant(std::io::Error),
-        $(
-            #[error($extra_message)]
-            $extra_variant($extra_ty),
-        )*
-        #[error("failed to write python script: {0}")]
-        WriteScript(std::io::Error),
-        #[error("failed to write request JSON: {0}")]
-        WriteRequest(std::io::Error),
-        #[error("qrenderdoc execution failed: {0}")]
-        QRenderDocExecution(Box<crate::QRenderDocExecutionError>),
-        #[error("failed to read response JSON: {0}")]
-        ReadResponse(std::io::Error),
-        #[error($parse_message)]
-        ParseJson(serde_json::Error),
-        #[error("qrenderdoc script error: {0}")]
-        ScriptError(String),
-        }
-    };
-}
-
-macro_rules! impl_qrenderdoc_json_job_error_conversion {
-    (
-        $name:ident,
-        create_dir_variant: $create_variant:ident
-        $(,)?
-    ) => {
-        impl From<crate::scripting::QRenderDocJsonJobError> for $name {
-            fn from(value: crate::scripting::QRenderDocJsonJobError) -> Self {
-                match value {
-                    crate::scripting::QRenderDocJsonJobError::CreateScriptsDir(err) => {
-                        Self::$create_variant(err)
-                    }
-                    crate::scripting::QRenderDocJsonJobError::WriteScript(err) => {
-                        Self::WriteScript(err)
-                    }
-                    crate::scripting::QRenderDocJsonJobError::WriteRequest(err) => {
-                        Self::WriteRequest(err)
-                    }
-                    crate::scripting::QRenderDocJsonJobError::QRenderDocExecution(err) => {
-                        Self::QRenderDocExecution(Box::new(crate::QRenderDocExecutionError::from(
-                            *err,
-                        )))
-                    }
-                    crate::scripting::QRenderDocJsonJobError::ReadResponse(err) => {
-                        Self::ReadResponse(err)
-                    }
-                    crate::scripting::QRenderDocJsonJobError::ParseJson(err) => {
-                        Self::ParseJson(err)
-                    }
-                    crate::scripting::QRenderDocJsonJobError::ScriptError(err) => {
-                        Self::ScriptError(err)
-                    }
-                }
-            }
-        }
-    };
-}
-
-pub(crate) use define_qrenderdoc_json_job_error_enum;
-pub(crate) use impl_qrenderdoc_json_job_error_conversion;
 
 #[derive(Debug, Clone)]
 pub(crate) struct QRenderDocJsonJob {
@@ -207,33 +132,33 @@ impl RenderDocInstallation {
         cwd: &Path,
         job: QRenderDocJsonJob,
         request: &TReq,
-    ) -> Result<TResp, QRenderDocJsonJobError>
+    ) -> Result<TResp, QRenderDocJsonError>
     where
         TReq: Serialize,
         TResp: DeserializeOwned,
     {
         let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(QRenderDocJsonJobError::CreateScriptsDir)?;
+        std::fs::create_dir_all(&scripts_dir).map_err(QRenderDocJsonError::CreateScriptsDir)?;
 
         let script_path = scripts_dir.join(job.script_file_name);
         write_script_file(&script_path, job.script_content)
-            .map_err(QRenderDocJsonJobError::WriteScript)?;
+            .map_err(QRenderDocJsonError::WriteScript)?;
 
         let run_dir = create_qrenderdoc_run_dir(&scripts_dir, job.run_dir_prefix)
-            .map_err(QRenderDocJsonJobError::CreateScriptsDir)?;
+            .map_err(QRenderDocJsonError::CreateScriptsDir)?;
         let job_file_stem = Path::new(job.script_file_name)
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(job.script_file_name);
         let request_path = run_dir.join(format!("{job_file_stem}.request.json"));
         let response_path = run_dir.join(format!("{job_file_stem}.response.json"));
-        remove_if_exists(&response_path).map_err(QRenderDocJsonJobError::WriteRequest)?;
+        remove_if_exists(&response_path).map_err(QRenderDocJsonError::WriteRequest)?;
 
         std::fs::write(
             &request_path,
-            serde_json::to_vec(request).map_err(QRenderDocJsonJobError::ParseJson)?,
+            serde_json::to_vec(request).map_err(QRenderDocJsonError::ParseJson)?,
         )
-        .map_err(QRenderDocJsonJobError::WriteRequest)?;
+        .map_err(QRenderDocJsonError::WriteRequest)?;
 
         let _ = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path,
@@ -241,14 +166,14 @@ impl RenderDocInstallation {
             working_dir: Some(run_dir),
         })?;
 
-        let bytes = std::fs::read(&response_path).map_err(QRenderDocJsonJobError::ReadResponse)?;
+        let bytes = std::fs::read(&response_path).map_err(QRenderDocJsonError::ReadResponse)?;
         let env: QRenderDocJsonEnvelope<TResp> =
-            serde_json::from_slice(&bytes).map_err(QRenderDocJsonJobError::ParseJson)?;
+            serde_json::from_slice(&bytes).map_err(QRenderDocJsonError::ParseJson)?;
         if env.ok {
             env.result
-                .ok_or_else(|| QRenderDocJsonJobError::ScriptError("missing result".into()))
+                .ok_or_else(|| QRenderDocJsonError::ScriptError("missing result".into()))
         } else {
-            Err(QRenderDocJsonJobError::ScriptError(
+            Err(QRenderDocJsonError::ScriptError(
                 env.error.unwrap_or_else(|| "unknown error".into()),
             ))
         }

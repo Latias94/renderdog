@@ -1,26 +1,11 @@
 use std::path::Path;
 
-use thiserror::Error;
-
-use crate::RenderDocInstallation;
-use crate::scripting::{
-    QRenderDocJsonJob, define_qrenderdoc_json_job_error_enum,
-    impl_qrenderdoc_json_job_error_conversion,
-};
+use crate::scripting::QRenderDocJsonJob;
+use crate::{QRenderDocJsonError, RenderDocInstallation};
 
 use super::{TriggerCaptureRequest, TriggerCaptureResponse};
 
-define_qrenderdoc_json_job_error_enum! {
-    #[derive(Debug, Error)]
-    pub enum TriggerCaptureError {
-        create_dir_variant: CreateArtifactsDir => "failed to create artifacts dir: {0}",
-        parse_json_message: "failed to parse capture JSON: {0}",
-    }
-}
-impl_qrenderdoc_json_job_error_conversion!(
-    TriggerCaptureError,
-    create_dir_variant: CreateArtifactsDir,
-);
+pub type TriggerCaptureError = QRenderDocJsonError;
 
 impl RenderDocInstallation {
     pub fn trigger_capture_via_target_control(
@@ -29,7 +14,6 @@ impl RenderDocInstallation {
         req: &TriggerCaptureRequest,
     ) -> Result<TriggerCaptureResponse, TriggerCaptureError> {
         self.run_qrenderdoc_json_job(cwd, TRIGGER_CAPTURE_JOB, req)
-            .map_err(TriggerCaptureError::from)
     }
 }
 
