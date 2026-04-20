@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct CaptureLaunchRequest {
+pub(crate) struct CaptureLaunchRequest {
     pub executable: PathBuf,
     pub args: Vec<OsString>,
     pub working_dir: Option<PathBuf>,
@@ -20,14 +20,14 @@ pub struct CaptureLaunchRequest {
 }
 
 #[derive(Debug, Clone)]
-pub struct CaptureLaunchResult {
+pub(crate) struct CaptureLaunchResult {
     pub target_ident: u32,
     pub stdout: String,
     pub stderr: String,
 }
 
 #[derive(Debug, Error)]
-pub enum CaptureLaunchError {
+pub(crate) enum CaptureLaunchError {
     #[error(transparent)]
     Tool(Box<ToolInvocationError>),
     #[error("renderdoccmd returned invalid target ident: {0}")]
@@ -41,7 +41,7 @@ impl From<CommandError> for CaptureLaunchError {
 }
 
 impl RenderDocInstallation {
-    pub fn launch_capture(
+    pub(crate) fn launch_capture(
         &self,
         req: &CaptureLaunchRequest,
     ) -> Result<CaptureLaunchResult, CaptureLaunchError> {
@@ -83,7 +83,7 @@ impl RenderDocInstallation {
         Ok(output.stdout)
     }
 
-    pub fn save_thumbnail(
+    pub(crate) fn save_thumbnail(
         &self,
         capture_path: &Path,
         output_path: &Path,

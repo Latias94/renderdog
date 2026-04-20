@@ -22,7 +22,10 @@ impl From<CommandError> for OpenCaptureUiError {
 }
 
 impl RenderDocInstallation {
-    pub fn open_capture_in_ui(&self, capture_path: &Path) -> Result<Child, OpenCaptureUiError> {
+    pub(crate) fn open_capture_in_ui(
+        &self,
+        capture_path: &Path,
+    ) -> Result<Child, OpenCaptureUiError> {
         Command::new(&self.qrenderdoc_exe)
             .arg(capture_path)
             .spawn()

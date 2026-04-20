@@ -30,7 +30,6 @@ pub use command::ToolInvocationError;
 pub(crate) use command::{CommandSpec, run_command_expect_success, run_command_output_text};
 pub use diagnostics::*;
 pub(crate) use normalize::{normalize_capture_path, prepare_export_target};
-pub use renderdoccmd::*;
 pub use replay::*;
 pub use scripting::QRenderDocExecutionError;
 pub use toolchain::{DetectInstallationError, RenderDocInstallation, default_artifacts_dir};

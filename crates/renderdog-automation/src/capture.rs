@@ -4,9 +4,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::renderdoccmd::{
+    CaptureLaunchError as CommandCaptureLaunchError,
+    CaptureLaunchRequest as CommandCaptureLaunchRequest,
+};
 use crate::{
-    CaptureLaunchError, CaptureLaunchRequest as CommandCaptureLaunchRequest, OpenCaptureUiError,
-    RenderDocInstallation, default_artifacts_dir, resolve_path_from_cwd,
+    OpenCaptureUiError, RenderDocInstallation, ToolInvocationError, default_artifacts_dir,
+    resolve_path_from_cwd,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -56,8 +60,19 @@ pub struct OpenCaptureUiResponse {
 pub enum LaunchCaptureError {
     #[error("failed to create artifacts dir: {0}")]
     CreateArtifactsDir(std::io::Error),
-    #[error("launch capture failed: {0}")]
-    Launch(#[from] CaptureLaunchError),
+    #[error(transparent)]
+    Tool(Box<ToolInvocationError>),
+    #[error("renderdoccmd returned invalid target ident: {0}")]
+    InvalidTargetIdent(i32),
+}
+
+impl From<CommandCaptureLaunchError> for LaunchCaptureError {
+    fn from(value: CommandCaptureLaunchError) -> Self {
+        match value {
+            CommandCaptureLaunchError::Tool(err) => Self::Tool(err),
+            CommandCaptureLaunchError::InvalidTargetIdent(code) => Self::InvalidTargetIdent(code),
+        }
+    }
 }
 
 impl RenderDocInstallation {
