@@ -1,4 +1,4 @@
-use std::{ffi::OsString, path::Path, time::Instant};
+use std::{ffi::OsString, fmt::Display, path::Path, time::Instant};
 
 use rmcp::{
     Json,
@@ -21,6 +21,29 @@ pub(crate) struct RenderdogMcpServer {
 #[tool_handler(router = self.tool_router)]
 impl rmcp::ServerHandler for RenderdogMcpServer {}
 
+fn tool_result<T, E>(
+    tool: &'static str,
+    action: &'static str,
+    result: Result<T, E>,
+) -> Result<T, String>
+where
+    E: Display,
+{
+    result.map_err(|err| {
+        tracing::error!(tool = tool, action = action, "failed");
+        tracing::debug!(tool = tool, action = action, err = %err, "details");
+        format!("{action} failed: {err}")
+    })
+}
+
+fn require_installation(tool: &'static str) -> Result<renderdog::RenderDocInstallation, String> {
+    tool_result(
+        tool,
+        "detect installation",
+        renderdog::RenderDocInstallation::detect(),
+    )
+}
+
 #[tool_router(router = tool_router)]
 impl RenderdogMcpServer {
     pub(crate) fn new() -> Self {
@@ -34,22 +57,15 @@ impl RenderdogMcpServer {
         description = "Detect local RenderDoc installation and return tool paths."
     )]
     async fn detect_installation(&self) -> Result<Json<DetectInstallationResponse>, String> {
+        let tool = "renderdoc_detect_installation";
         let start = Instant::now();
-        tracing::info!(tool = "renderdoc_detect_installation", "start");
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_detect_installation", "failed");
-            tracing::debug!(tool = "renderdoc_detect_installation", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        tracing::info!(tool = tool, "start");
+        let install = require_installation(tool)?;
 
         let version = install.version().ok().map(|s| s.trim().to_string());
         let vulkan_layer = install.diagnose_vulkan_layer().ok();
 
-        tracing::info!(
-            tool = "renderdoc_detect_installation",
-            elapsed_ms = start.elapsed().as_millis(),
-            "ok"
-        );
+        tracing::info!(tool = tool, elapsed_ms = start.elapsed().as_millis(), "ok");
         Ok(Json(DetectInstallationResponse {
             root_dir: install.root_dir.display().to_string(),
             qrenderdoc_exe: install.qrenderdoc_exe.display().to_string(),
@@ -64,23 +80,16 @@ impl RenderdogMcpServer {
         description = "Diagnose Vulkan layer registration status using `renderdoccmd vulkanlayer --explain` and return suggested fix commands."
     )]
     async fn vulkanlayer_diagnose(&self) -> Result<Json<renderdog::VulkanLayerDiagnosis>, String> {
+        let tool = "renderdoc_vulkanlayer_diagnose";
         let start = Instant::now();
-        tracing::info!(tool = "renderdoc_vulkanlayer_diagnose", "start");
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_vulkanlayer_diagnose", "failed");
-            tracing::debug!(tool = "renderdoc_vulkanlayer_diagnose", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
-        let diag = install.diagnose_vulkan_layer().map_err(|e| {
-            tracing::error!(tool = "renderdoc_vulkanlayer_diagnose", "failed");
-            tracing::debug!(tool = "renderdoc_vulkanlayer_diagnose", err = %e, "details");
-            format!("diagnose vulkan layer failed: {e}")
-        })?;
-        tracing::info!(
-            tool = "renderdoc_vulkanlayer_diagnose",
-            elapsed_ms = start.elapsed().as_millis(),
-            "ok"
-        );
+        tracing::info!(tool = tool, "start");
+        let install = require_installation(tool)?;
+        let diag = tool_result(
+            tool,
+            "diagnose vulkan layer",
+            install.diagnose_vulkan_layer(),
+        )?;
+        tracing::info!(tool = tool, elapsed_ms = start.elapsed().as_millis(), "ok");
         Ok(Json(diag))
     }
 
@@ -89,23 +98,12 @@ impl RenderdogMcpServer {
         description = "Diagnose RenderDoc environment (paths, renderdoccmd version, Vulkan layer registration, and key Vulkan-related env vars) and return warnings + suggested fixes."
     )]
     async fn diagnose_environment(&self) -> Result<Json<renderdog::EnvironmentDiagnosis>, String> {
+        let tool = "renderdoc_diagnose_environment";
         let start = Instant::now();
-        tracing::info!(tool = "renderdoc_diagnose_environment", "start");
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_diagnose_environment", "failed");
-            tracing::debug!(tool = "renderdoc_diagnose_environment", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
-        let diag = install.diagnose_environment().map_err(|e| {
-            tracing::error!(tool = "renderdoc_diagnose_environment", "failed");
-            tracing::debug!(tool = "renderdoc_diagnose_environment", err = %e, "details");
-            format!("diagnose environment failed: {e}")
-        })?;
-        tracing::info!(
-            tool = "renderdoc_diagnose_environment",
-            elapsed_ms = start.elapsed().as_millis(),
-            "ok"
-        );
+        tracing::info!(tool = tool, "start");
+        let install = require_installation(tool)?;
+        let diag = tool_result(tool, "diagnose environment", install.diagnose_environment())?;
+        tracing::info!(tool = tool, elapsed_ms = start.elapsed().as_millis(), "ok");
         Ok(Json(diag))
     }
 
@@ -117,18 +115,15 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<LaunchCaptureRequest>,
     ) -> Result<Json<LaunchCaptureResponse>, String> {
+        let tool = "renderdoc_launch_capture";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_launch_capture",
+            tool = tool,
             executable = %req.executable,
             args_len = req.args.len(),
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_launch_capture", "failed");
-            tracing::debug!(tool = "renderdoc_launch_capture", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
 
@@ -153,14 +148,10 @@ impl RenderdogMcpServer {
             capture_file_template: capture_file_template.clone(),
         };
 
-        let res = install.launch_capture(&request).map_err(|e| {
-            tracing::error!(tool = "renderdoc_launch_capture", "failed");
-            tracing::debug!(tool = "renderdoc_launch_capture", err = %e, "details");
-            format!("launch capture failed: {e}")
-        })?;
+        let res = tool_result(tool, "launch capture", install.launch_capture(&request))?;
 
         tracing::info!(
-            tool = "renderdoc_launch_capture",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             target_ident = res.target_ident,
             "ok"
@@ -181,17 +172,14 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<SaveThumbnailRequest>,
     ) -> Result<Json<SaveThumbnailResponse>, String> {
+        let tool = "renderdoc_save_thumbnail";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_save_thumbnail",
+            tool = tool,
             capture_path = %req.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_save_thumbnail", "failed");
-            tracing::debug!(tool = "renderdoc_save_thumbnail", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
@@ -202,16 +190,14 @@ impl RenderdogMcpServer {
                 .map_err(|e| format!("create output dir failed: {e}"))?;
         }
 
-        install
-            .save_thumbnail(&capture_path, &output_path)
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_save_thumbnail", "failed");
-                tracing::debug!(tool = "renderdoc_save_thumbnail", err = %e, "details");
-                format!("save thumbnail failed: {e}")
-            })?;
+        tool_result(
+            tool,
+            "save thumbnail",
+            install.save_thumbnail(&capture_path, &output_path),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_save_thumbnail",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             output_path = %output_path.display(),
             "ok"
@@ -229,30 +215,27 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<OpenCaptureUiRequest>,
     ) -> Result<Json<OpenCaptureUiResponse>, String> {
+        let tool = "renderdoc_open_capture_ui";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_open_capture_ui",
+            tool = tool,
             capture_path = %req.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_open_capture_ui", "failed");
-            tracing::debug!(tool = "renderdoc_open_capture_ui", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
 
-        let child = install.open_capture_in_ui(&capture_path).map_err(|e| {
-            tracing::error!(tool = "renderdoc_open_capture_ui", "failed");
-            tracing::debug!(tool = "renderdoc_open_capture_ui", err = %e, "details");
-            format!("open capture UI failed: {e}")
-        })?;
+        let child = tool_result(
+            tool,
+            "open capture UI",
+            install.open_capture_in_ui(&capture_path),
+        )?;
 
         let pid = child.id();
         tracing::info!(
-            tool = "renderdoc_open_capture_ui",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             pid,
             "ok"
@@ -271,23 +254,22 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<TriggerCaptureRequest>,
     ) -> Result<Json<renderdog::TriggerCaptureResponse>, String> {
+        let tool = "renderdoc_trigger_capture";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_trigger_capture",
+            tool = tool,
             target_ident = req.target_ident,
             num_frames = req.num_frames,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_trigger_capture", "failed");
-            tracing::debug!(tool = "renderdoc_trigger_capture", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
 
-        let res = install
-            .trigger_capture_via_target_control(
+        let res = tool_result(
+            tool,
+            "trigger capture",
+            install.trigger_capture_via_target_control(
                 &cwd,
                 &renderdog::TriggerCaptureRequest {
                     host: req.host,
@@ -295,15 +277,11 @@ impl RenderdogMcpServer {
                     num_frames: req.num_frames,
                     timeout_s: req.timeout_s,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_trigger_capture", "failed");
-                tracing::debug!(tool = "renderdoc_trigger_capture", err = %e, "details");
-                format!("trigger capture failed: {e}")
-            })?;
+            ),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_trigger_capture",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             capture_path = %res.capture_path,
             "ok"
@@ -319,17 +297,14 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<ExportActionsRequest>,
     ) -> Result<Json<renderdog::ExportActionsResponse>, String> {
+        let tool = "renderdoc_export_actions_jsonl";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_export_actions_jsonl",
+            tool = tool,
             capture_path = %req.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_export_actions_jsonl", "failed");
-            tracing::debug!(tool = "renderdoc_export_actions_jsonl", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
@@ -349,8 +324,10 @@ impl RenderdogMcpServer {
                 .to_string()
         });
 
-        let res = install
-            .export_actions_jsonl(
+        let res = tool_result(
+            tool,
+            "export actions",
+            install.export_actions_jsonl(
                 &cwd,
                 &renderdog::ExportActionsRequest {
                     capture_path: capture_path.display().to_string(),
@@ -364,15 +341,11 @@ impl RenderdogMcpServer {
                     marker_contains: req.marker_contains,
                     case_sensitive: req.case_sensitive,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_export_actions_jsonl", "failed");
-                tracing::debug!(tool = "renderdoc_export_actions_jsonl", err = %e, "details");
-                format!("export actions failed: {e}")
-            })?;
+            ),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_export_actions_jsonl",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             actions_jsonl_path = %res.actions_jsonl_path,
             total_actions = res.total_actions,
@@ -389,21 +362,14 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<ExportBindingsIndexRequest>,
     ) -> Result<Json<renderdog::ExportBindingsIndexResponse>, String> {
+        let tool = "renderdoc_export_bindings_index_jsonl";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_export_bindings_index_jsonl",
+            tool = tool,
             capture_path = %req.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_export_bindings_index_jsonl", "failed");
-            tracing::debug!(
-                tool = "renderdoc_export_bindings_index_jsonl",
-                err = %e,
-                "details"
-            );
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
@@ -423,8 +389,10 @@ impl RenderdogMcpServer {
                 .to_string()
         });
 
-        let res = install
-            .export_bindings_index_jsonl(
+        let res = tool_result(
+            tool,
+            "export bindings index",
+            install.export_bindings_index_jsonl(
                 &cwd,
                 &renderdog::ExportBindingsIndexRequest {
                     capture_path: capture_path.display().to_string(),
@@ -439,19 +407,11 @@ impl RenderdogMcpServer {
                     include_cbuffers: req.include_cbuffers,
                     include_outputs: req.include_outputs,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_export_bindings_index_jsonl", "failed");
-                tracing::debug!(
-                    tool = "renderdoc_export_bindings_index_jsonl",
-                    err = %e,
-                    "details"
-                );
-                format!("export bindings index failed: {e}")
-            })?;
+            ),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_export_bindings_index_jsonl",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             bindings_jsonl_path = %res.bindings_jsonl_path,
             total_drawcalls = res.total_drawcalls,
@@ -468,17 +428,14 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<ExportBundleRequest>,
     ) -> Result<Json<ExportBundleResponse>, String> {
+        let tool = "renderdoc_export_bundle_jsonl";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_export_bundle_jsonl",
+            tool = tool,
             capture_path = %req.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_export_bundle_jsonl", "failed");
-            tracing::debug!(tool = "renderdoc_export_bundle_jsonl", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
@@ -498,8 +455,10 @@ impl RenderdogMcpServer {
                 .to_string()
         });
 
-        let bundle = install
-            .export_bundle_jsonl(
+        let bundle = tool_result(
+            tool,
+            "export bundle",
+            install.export_bundle_jsonl(
                 &cwd,
                 &renderdog::ExportBundleRequest {
                     capture_path: capture_path.display().to_string(),
@@ -515,12 +474,8 @@ impl RenderdogMcpServer {
                     include_cbuffers: req.include_cbuffers,
                     include_outputs: req.include_outputs,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_export_bundle_jsonl", "failed");
-                tracing::debug!(tool = "renderdoc_export_bundle_jsonl", err = %e, "details");
-                format!("export bundle failed: {e}")
-            })?;
+            ),
+        )?;
 
         let mut thumbnail_output_path: Option<String> = None;
         if req.save_thumbnail {
@@ -537,22 +492,26 @@ impl RenderdogMcpServer {
                 std::fs::create_dir_all(parent)
                     .map_err(|e| format!("create thumbnail output dir failed: {e}"))?;
             }
-            install
-                .save_thumbnail(Path::new(&bundle.capture_path), Path::new(&thumb_path))
-                .map_err(|e| format!("save thumbnail failed: {e}"))?;
+            tool_result(
+                tool,
+                "save thumbnail",
+                install.save_thumbnail(Path::new(&bundle.capture_path), Path::new(&thumb_path)),
+            )?;
             thumbnail_output_path = Some(thumb_path);
         }
 
         let mut ui_pid: Option<u32> = None;
         if req.open_capture_ui {
-            let child = install
-                .open_capture_in_ui(Path::new(&bundle.capture_path))
-                .map_err(|e| format!("open capture UI failed: {e}"))?;
+            let child = tool_result(
+                tool,
+                "open capture UI",
+                install.open_capture_in_ui(Path::new(&bundle.capture_path)),
+            )?;
             ui_pid = Some(child.id());
         }
 
         tracing::info!(
-            tool = "renderdoc_export_bundle_jsonl",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             capture_path = %bundle.capture_path,
             actions_jsonl_path = %bundle.actions_jsonl_path,
@@ -577,23 +536,22 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<FindEventsRequest>,
     ) -> Result<Json<renderdog::FindEventsResponse>, String> {
+        let tool = "renderdoc_find_events";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_find_events",
+            tool = tool,
             capture_path = %req.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_find_events", "failed");
-            tracing::debug!(tool = "renderdoc_find_events", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
 
-        let res = install
-            .find_events(
+        let res = tool_result(
+            tool,
+            "find events",
+            install.find_events(
                 &cwd,
                 &renderdog::FindEventsRequest {
                     capture_path: capture_path.display().to_string(),
@@ -606,15 +564,11 @@ impl RenderdogMcpServer {
                     case_sensitive: req.case_sensitive,
                     max_results: req.max_results,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_find_events", "failed");
-                tracing::debug!(tool = "renderdoc_find_events", err = %e, "details");
-                format!("find events failed: {e}")
-            })?;
+            ),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_find_events",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             total_matches = res.total_matches,
             truncated = res.truncated,
@@ -631,44 +585,25 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<FindEventsAndSaveOutputsPngRequest>,
     ) -> Result<Json<FindEventsAndSaveOutputsPngResponse>, String> {
+        let tool = "renderdoc_find_events_and_save_outputs_png";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_find_events_and_save_outputs_png",
+            tool = tool,
             capture_path = %req.inner.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(
-                tool = "renderdoc_find_events_and_save_outputs_png",
-                "failed"
-            );
-            tracing::debug!(
-                tool = "renderdoc_find_events_and_save_outputs_png",
-                err = %e,
-                "details"
-            );
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
 
-        let res = install
-            .find_events_and_save_outputs_png(&cwd, &req.inner)
-            .map_err(|e| {
-                tracing::error!(
-                    tool = "renderdoc_find_events_and_save_outputs_png",
-                    "failed"
-                );
-                tracing::debug!(
-                    tool = "renderdoc_find_events_and_save_outputs_png",
-                    err = %e,
-                    "details"
-                );
-                format!("find events and save outputs PNG failed: {e}")
-            })?;
+        let res = tool_result(
+            tool,
+            "find events and save outputs PNG",
+            install.find_events_and_save_outputs_png(&cwd, &req.inner),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_find_events_and_save_outputs_png",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             selected_event_id = res.selected_event_id,
             images = res.replay.outputs.len(),
@@ -685,37 +620,32 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<ReplayListTexturesRequest>,
     ) -> Result<Json<renderdog::ReplayListTexturesResponse>, String> {
+        let tool = "renderdoc_replay_list_textures";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_replay_list_textures",
+            tool = tool,
             capture_path = %req.capture_path,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_replay_list_textures", "failed");
-            tracing::debug!(tool = "renderdoc_replay_list_textures", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
 
-        let res = install
-            .replay_list_textures(
+        let res = tool_result(
+            tool,
+            "replay list textures",
+            install.replay_list_textures(
                 &cwd,
                 &renderdog::ReplayListTexturesRequest {
                     capture_path: capture_path.display().to_string(),
                     event_id: req.event_id,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_replay_list_textures", "failed");
-                tracing::debug!(tool = "renderdoc_replay_list_textures", err = %e, "details");
-                format!("replay list textures failed: {e}")
-            })?;
+            ),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_replay_list_textures",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             textures = res.textures.len(),
             "ok"
@@ -731,26 +661,25 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<ReplayPickPixelRequest>,
     ) -> Result<Json<renderdog::ReplayPickPixelResponse>, String> {
+        let tool = "renderdoc_replay_pick_pixel";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_replay_pick_pixel",
+            tool = tool,
             capture_path = %req.capture_path,
             texture_index = req.texture_index,
             x = req.x,
             y = req.y,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_replay_pick_pixel", "failed");
-            tracing::debug!(tool = "renderdoc_replay_pick_pixel", err = %e, "details");
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
 
-        let res = install
-            .replay_pick_pixel(
+        let res = tool_result(
+            tool,
+            "replay pick pixel",
+            install.replay_pick_pixel(
                 &cwd,
                 &renderdog::ReplayPickPixelRequest {
                     capture_path: capture_path.display().to_string(),
@@ -759,18 +688,10 @@ impl RenderdogMcpServer {
                     x: req.x,
                     y: req.y,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_replay_pick_pixel", "failed");
-                tracing::debug!(tool = "renderdoc_replay_pick_pixel", err = %e, "details");
-                format!("replay pick pixel failed: {e}")
-            })?;
+            ),
+        )?;
 
-        tracing::info!(
-            tool = "renderdoc_replay_pick_pixel",
-            elapsed_ms = start.elapsed().as_millis(),
-            "ok"
-        );
+        tracing::info!(tool = tool, elapsed_ms = start.elapsed().as_millis(), "ok");
         Ok(Json(res))
     }
 
@@ -782,22 +703,15 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<ReplaySaveTexturePngRequest>,
     ) -> Result<Json<renderdog::ReplaySaveTexturePngResponse>, String> {
+        let tool = "renderdoc_replay_save_texture_png";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_replay_save_texture_png",
+            tool = tool,
             capture_path = %req.capture_path,
             texture_index = req.texture_index,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_replay_save_texture_png", "failed");
-            tracing::debug!(
-                tool = "renderdoc_replay_save_texture_png",
-                err = %e,
-                "details"
-            );
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
@@ -808,8 +722,10 @@ impl RenderdogMcpServer {
                 .map_err(|e| format!("create output dir failed: {e}"))?;
         }
 
-        let res = install
-            .replay_save_texture_png(
+        let res = tool_result(
+            tool,
+            "replay save texture PNG",
+            install.replay_save_texture_png(
                 &cwd,
                 &renderdog::ReplaySaveTexturePngRequest {
                     capture_path: capture_path.display().to_string(),
@@ -817,19 +733,11 @@ impl RenderdogMcpServer {
                     texture_index: req.texture_index,
                     output_path: output_path.display().to_string(),
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_replay_save_texture_png", "failed");
-                tracing::debug!(
-                    tool = "renderdoc_replay_save_texture_png",
-                    err = %e,
-                    "details"
-                );
-                format!("replay save texture PNG failed: {e}")
-            })?;
+            ),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_replay_save_texture_png",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             output_path = %res.output_path,
             "ok"
@@ -845,23 +753,16 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<ReplaySaveOutputsPngRequest>,
     ) -> Result<Json<renderdog::ReplaySaveOutputsPngResponse>, String> {
+        let tool = "renderdoc_replay_save_outputs_png";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_replay_save_outputs_png",
+            tool = tool,
             capture_path = %req.capture_path,
             event_id = req.event_id.unwrap_or(0),
             include_depth = req.include_depth,
             "start"
         );
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_replay_save_outputs_png", "failed");
-            tracing::debug!(
-                tool = "renderdoc_replay_save_outputs_png",
-                err = %e,
-                "details"
-            );
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
         let capture_path = resolve_path_from_base(&cwd, &req.capture_path);
@@ -881,8 +782,10 @@ impl RenderdogMcpServer {
                 .to_string()
         });
 
-        let res = install
-            .replay_save_outputs_png(
+        let res = tool_result(
+            tool,
+            "replay save outputs PNG",
+            install.replay_save_outputs_png(
                 &cwd,
                 &renderdog::ReplaySaveOutputsPngRequest {
                     capture_path: capture_path.display().to_string(),
@@ -891,19 +794,11 @@ impl RenderdogMcpServer {
                     basename,
                     include_depth: req.include_depth,
                 },
-            )
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_replay_save_outputs_png", "failed");
-                tracing::debug!(
-                    tool = "renderdoc_replay_save_outputs_png",
-                    err = %e,
-                    "details"
-                );
-                format!("replay save outputs PNG failed: {e}")
-            })?;
+            ),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_replay_save_outputs_png",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             images = res.outputs.len(),
             "ok"
@@ -919,45 +814,26 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<CaptureAndExportActionsRequest>,
     ) -> Result<Json<CaptureAndExportActionsResponse>, String> {
+        let tool = "renderdoc_capture_and_export_actions_jsonl";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_capture_and_export_actions_jsonl",
+            tool = tool,
             executable = %req.inner.executable,
             args_len = req.inner.args.len(),
             "start"
         );
 
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(
-                tool = "renderdoc_capture_and_export_actions_jsonl",
-                "failed"
-            );
-            tracing::debug!(
-                tool = "renderdoc_capture_and_export_actions_jsonl",
-                err = %e,
-                "details"
-            );
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let res = install
-            .capture_and_export_actions_jsonl(&cwd, &req.inner)
-            .map_err(|e| {
-                tracing::error!(
-                    tool = "renderdoc_capture_and_export_actions_jsonl",
-                    "failed"
-                );
-                tracing::debug!(
-                    tool = "renderdoc_capture_and_export_actions_jsonl",
-                    err = %e,
-                    "details"
-                );
-                format!("one-shot capture/export actions failed: {e}")
-            })?;
+        let res = tool_result(
+            tool,
+            "one-shot capture/export actions",
+            install.capture_and_export_actions_jsonl(&cwd, &req.inner),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_capture_and_export_actions_jsonl",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             target_ident = res.target_ident,
             capture_path = %res.capture_path,
@@ -977,45 +853,26 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<CaptureAndExportBindingsIndexRequest>,
     ) -> Result<Json<CaptureAndExportBindingsIndexResponse>, String> {
+        let tool = "renderdoc_capture_and_export_bindings_jsonl";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_capture_and_export_bindings_jsonl",
+            tool = tool,
             executable = %req.inner.executable,
             args_len = req.inner.args.len(),
             "start"
         );
 
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(
-                tool = "renderdoc_capture_and_export_bindings_jsonl",
-                "failed"
-            );
-            tracing::debug!(
-                tool = "renderdoc_capture_and_export_bindings_jsonl",
-                err = %e,
-                "details"
-            );
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let res = install
-            .capture_and_export_bindings_index_jsonl(&cwd, &req.inner)
-            .map_err(|e| {
-                tracing::error!(
-                    tool = "renderdoc_capture_and_export_bindings_jsonl",
-                    "failed"
-                );
-                tracing::debug!(
-                    tool = "renderdoc_capture_and_export_bindings_jsonl",
-                    err = %e,
-                    "details"
-                );
-                format!("one-shot capture/export bindings failed: {e}")
-            })?;
+        let res = tool_result(
+            tool,
+            "one-shot capture/export bindings",
+            install.capture_and_export_bindings_index_jsonl(&cwd, &req.inner),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_capture_and_export_bindings_jsonl",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             target_ident = res.target_ident,
             capture_path = %res.capture_path,
@@ -1035,39 +892,26 @@ impl RenderdogMcpServer {
         &self,
         Parameters(req): Parameters<CaptureAndExportBundleRequest>,
     ) -> Result<Json<CaptureAndExportBundleResponse>, String> {
+        let tool = "renderdoc_capture_and_export_bundle_jsonl";
         let start = Instant::now();
         tracing::info!(
-            tool = "renderdoc_capture_and_export_bundle_jsonl",
+            tool = tool,
             executable = %req.inner.executable,
             args_len = req.inner.args.len(),
             "start"
         );
 
-        let install = renderdog::RenderDocInstallation::detect().map_err(|e| {
-            tracing::error!(tool = "renderdoc_capture_and_export_bundle_jsonl", "failed");
-            tracing::debug!(
-                tool = "renderdoc_capture_and_export_bundle_jsonl",
-                err = %e,
-                "details"
-            );
-            format!("detect installation failed: {e}")
-        })?;
+        let install = require_installation(tool)?;
 
         let cwd = resolve_base_cwd(req.cwd.clone())?;
-        let res = install
-            .capture_and_export_bundle_jsonl(&cwd, &req.inner)
-            .map_err(|e| {
-                tracing::error!(tool = "renderdoc_capture_and_export_bundle_jsonl", "failed");
-                tracing::debug!(
-                    tool = "renderdoc_capture_and_export_bundle_jsonl",
-                    err = %e,
-                    "details"
-                );
-                format!("one-shot capture/export bundle failed: {e}")
-            })?;
+        let res = tool_result(
+            tool,
+            "one-shot capture/export bundle",
+            install.capture_and_export_bundle_jsonl(&cwd, &req.inner),
+        )?;
 
         tracing::info!(
-            tool = "renderdoc_capture_and_export_bundle_jsonl",
+            tool = tool,
             elapsed_ms = start.elapsed().as_millis(),
             target_ident = res.target_ident,
             capture_path = %res.capture_path,
