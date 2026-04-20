@@ -53,21 +53,55 @@ static std::atomic<void *> g_renderdoc_module{nullptr};
 static std::atomic<pRENDERDOC_AllocArrayMem> g_alloc_array_mem{nullptr};
 static std::atomic<pRENDERDOC_FreeArrayMem> g_free_array_mem{nullptr};
 
-static RenderdocModule get_renderdoc_module()
+static RenderdocModule store_renderdoc_module(RenderdocModule module)
+{
+  if(module)
+    g_renderdoc_module.store(module);
+  return module;
+}
+
+static void *renderdoc_module_ptr(RenderdocModule module)
 {
 #if defined(_WIN32)
-  HMODULE m = g_renderdoc_module.load();
-  if(m)
-    return m;
+  return reinterpret_cast<void *>(module);
+#else
+  return module;
+#endif
+}
 
+static RenderdocModule load_renderdoc_module(const char *path)
+{
+#if defined(_WIN32)
+  return path ? LoadLibraryA(path) : NULL;
+#else
+  return path ? dlopen(path, RTLD_NOW | RTLD_LOCAL) : nullptr;
+#endif
+}
+
+static RenderdocModule load_renderdoc_module_or_throw(const char *path)
+{
+  RenderdocModule module = load_renderdoc_module(path);
+  if(module)
+    return store_renderdoc_module(module);
+
+#if defined(_WIN32)
+  throw std::runtime_error(std::string("LoadLibraryA failed: ") + path);
+#else
+  const char *err = dlerror();
+  std::string message = std::string("dlopen failed: ") + path;
+  if(err && err[0])
+    message += std::string(" (") + err + ")";
+  throw std::runtime_error(message);
+#endif
+}
+
+static RenderdocModule try_load_default_renderdoc_module()
+{
+#if defined(_WIN32)
   if(const char *dll = std::getenv("RENDERDOG_REPLAY_RENDERDOC_DLL"))
   {
-    HMODULE lib = LoadLibraryA(dll);
-    if(lib)
-    {
-      g_renderdoc_module.store(lib);
-      return lib;
-    }
+    if(RenderdocModule module = load_renderdoc_module(dll))
+      return store_renderdoc_module(module);
   }
 
   if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
@@ -76,35 +110,16 @@ static RenderdocModule get_renderdoc_module()
     if(!path.empty() && path.back() != '\\' && path.back() != '/')
       path.push_back('\\');
     path += "renderdoc.dll";
-    HMODULE lib = LoadLibraryA(path.c_str());
-    if(lib)
-    {
-      g_renderdoc_module.store(lib);
-      return lib;
-    }
+    if(RenderdocModule module = load_renderdoc_module(path.c_str()))
+      return store_renderdoc_module(module);
   }
 
-  HMODULE lib = LoadLibraryA("renderdoc.dll");
-  if(lib)
-  {
-    g_renderdoc_module.store(lib);
-    return lib;
-  }
-
-  return NULL;
+  return store_renderdoc_module(load_renderdoc_module("renderdoc.dll"));
 #else
-  void *m = g_renderdoc_module.load();
-  if(m)
-    return m;
-
   if(const char *so = std::getenv("RENDERDOG_REPLAY_RENDERDOC_SO"))
   {
-    void *lib = dlopen(so, RTLD_NOW | RTLD_LOCAL);
-    if(lib)
-    {
-      g_renderdoc_module.store(lib);
-      return lib;
-    }
+    if(RenderdocModule module = load_renderdoc_module(so))
+      return store_renderdoc_module(module);
   }
 
   if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
@@ -115,27 +130,27 @@ static RenderdocModule get_renderdoc_module()
     for(const char *name : {"librenderdoc.so.1", "librenderdoc.so"})
     {
       std::string path = base + name;
-      void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-      if(lib)
-      {
-        g_renderdoc_module.store(lib);
-        return lib;
-      }
+      if(RenderdocModule module = load_renderdoc_module(path.c_str()))
+        return store_renderdoc_module(module);
     }
   }
 
   for(const char *name : {"librenderdoc.so.1", "librenderdoc.so"})
   {
-    void *lib = dlopen(name, RTLD_NOW | RTLD_LOCAL);
-    if(lib)
-    {
-      g_renderdoc_module.store(lib);
-      return lib;
-    }
+    if(RenderdocModule module = load_renderdoc_module(name))
+      return store_renderdoc_module(module);
   }
 
   return nullptr;
 #endif
+}
+
+static RenderdocModule get_renderdoc_module()
+{
+  RenderdocModule module = g_renderdoc_module.load();
+  if(module)
+    return module;
+  return try_load_default_renderdoc_module();
 }
 
 static void ensure_array_allocators()
@@ -266,20 +281,7 @@ std::unique_ptr<ReplaySession> replay_session_new(rust::Str renderdoc_path)
     // We store the path via environment? For now just load eagerly from this path.
     // This keeps behaviour deterministic for experiments.
     std::string path(renderdoc_path.data(), renderdoc_path.size());
-
-#if defined(_WIN32)
-    HMODULE lib = LoadLibraryA(path.c_str());
-    if(!lib)
-      throw std::runtime_error("LoadLibraryA failed");
-    sess->lib_ = (void *)lib;
-    g_renderdoc_module.store(lib);
-#else
-    void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-    if(!lib)
-      throw std::runtime_error(std::string("dlopen failed: ") + dlerror());
-    sess->lib_ = lib;
-    g_renderdoc_module.store(lib);
-#endif
+    sess->lib_ = renderdoc_module_ptr(load_renderdoc_module_or_throw(path.c_str()));
   }
 
   return sess;
@@ -314,15 +316,10 @@ ReplaySession::~ReplaySession()
     replay_initialised_ = false;
   }
 
-  if(lib_)
-  {
-#if defined(_WIN32)
-    FreeLibrary((HMODULE)lib_);
-#else
-    dlclose(lib_);
-#endif
-    lib_ = nullptr;
-  }
+  // The allocator trampolines cache process-global function pointers into the loaded
+  // RenderDoc module. Keep the module alive for process lifetime once acquired so
+  // those cached pointers never outlive the backing library.
+  lib_ = nullptr;
 }
 
 void ReplaySession::ensure_loaded()
@@ -330,89 +327,18 @@ void ReplaySession::ensure_loaded()
   if(lib_)
     return;
 
+  RenderdocModule module = get_renderdoc_module();
+  if(!module)
+  {
 #if defined(_WIN32)
-  if(const char *dll = std::getenv("RENDERDOG_REPLAY_RENDERDOC_DLL"))
-  {
-    HMODULE lib = LoadLibraryA(dll);
-    if(lib)
-    {
-      lib_ = (void *)lib;
-      g_renderdoc_module.store(lib);
-      return;
-    }
-  }
-
-  if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
-  {
-    std::string path(dir);
-    if(!path.empty() && path.back() != '\\' && path.back() != '/')
-      path.push_back('\\');
-    path += "renderdoc.dll";
-    HMODULE lib = LoadLibraryA(path.c_str());
-    if(lib)
-    {
-      lib_ = (void *)lib;
-      g_renderdoc_module.store(lib);
-      return;
-    }
-  }
-
-  const char *candidates[] = {"renderdoc.dll"};
-  for(const char *name : candidates)
-  {
-    HMODULE lib = LoadLibraryA(name);
-    if(lib)
-    {
-      lib_ = (void *)lib;
-      g_renderdoc_module.store(lib);
-      return;
-    }
-  }
-  throw std::runtime_error("failed to load renderdoc.dll (set explicit path)");
+    throw std::runtime_error("failed to load renderdoc.dll (set explicit path)");
 #else
-  if(const char *so = std::getenv("RENDERDOG_REPLAY_RENDERDOC_SO"))
-  {
-    void *lib = dlopen(so, RTLD_NOW | RTLD_LOCAL);
-    if(lib)
-    {
-      lib_ = lib;
-      g_renderdoc_module.store(lib);
-      return;
-    }
-  }
-
-  if(const char *dir = std::getenv("RENDERDOG_RENDERDOC_DIR"))
-  {
-    std::string base(dir);
-    if(!base.empty() && base.back() != '/')
-      base.push_back('/');
-    for(const char *name : {"librenderdoc.so.1", "librenderdoc.so"})
-    {
-      std::string path = base + name;
-      void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-      if(lib)
-      {
-        lib_ = lib;
-        g_renderdoc_module.store(lib);
-        return;
-      }
-    }
-  }
-
-  const char *candidates[] = {"librenderdoc.so", "librenderdoc.so.1"};
-  for(const char *name : candidates)
-  {
-    void *lib = dlopen(name, RTLD_NOW | RTLD_LOCAL);
-    if(lib)
-    {
-      lib_ = lib;
-      g_renderdoc_module.store(lib);
-      return;
-    }
-  }
-  throw std::runtime_error(
-      "failed to load librenderdoc.so (install RenderDoc or set explicit path)");
+    throw std::runtime_error(
+        "failed to load librenderdoc.so (install RenderDoc or set explicit path)");
 #endif
+  }
+
+  lib_ = renderdoc_module_ptr(module);
 }
 
 void ReplaySession::open_capture(rust::Str capture_path)
