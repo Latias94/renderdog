@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::RenderDocInstallation;
-use crate::scripting::{QRenderDocJsonJobError, QRenderDocJsonJobRequest};
+use crate::scripting::{QRenderDocJsonJobRequest, define_qrenderdoc_json_job_error};
 use crate::{
     default_capture_basename, resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
 };
@@ -100,102 +100,38 @@ pub struct ReplaySaveOutputsPngResponse {
     pub outputs: Vec<ReplaySavedImage>,
 }
 
-#[derive(Debug, Error)]
-pub enum ReplayListTexturesError {
-    #[error("failed to create scripts dir: {0}")]
-    CreateScriptsDir(std::io::Error),
-    #[error("failed to write python script: {0}")]
-    WriteScript(std::io::Error),
-    #[error("failed to write request JSON: {0}")]
-    WriteRequest(std::io::Error),
-    #[error("qrenderdoc python failed: {0}")]
-    QRenderDocPython(Box<crate::QRenderDocPythonError>),
-    #[error("failed to read response JSON: {0}")]
-    ReadResponse(std::io::Error),
-    #[error("failed to parse JSON: {0}")]
-    ParseJson(serde_json::Error),
-    #[error("qrenderdoc script error: {0}")]
-    ScriptError(String),
+define_qrenderdoc_json_job_error! {
+    #[derive(Debug, Error)]
+    pub enum ReplayListTexturesError {
+        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
+        parse_json_message: "failed to parse JSON: {0}",
+    }
 }
 
-#[derive(Debug, Error)]
-pub enum ReplayPickPixelError {
-    #[error("failed to create scripts dir: {0}")]
-    CreateScriptsDir(std::io::Error),
-    #[error("failed to write python script: {0}")]
-    WriteScript(std::io::Error),
-    #[error("failed to write request JSON: {0}")]
-    WriteRequest(std::io::Error),
-    #[error("qrenderdoc python failed: {0}")]
-    QRenderDocPython(Box<crate::QRenderDocPythonError>),
-    #[error("failed to read response JSON: {0}")]
-    ReadResponse(std::io::Error),
-    #[error("failed to parse JSON: {0}")]
-    ParseJson(serde_json::Error),
-    #[error("qrenderdoc script error: {0}")]
-    ScriptError(String),
+define_qrenderdoc_json_job_error! {
+    #[derive(Debug, Error)]
+    pub enum ReplayPickPixelError {
+        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
+        parse_json_message: "failed to parse JSON: {0}",
+    }
 }
 
-#[derive(Debug, Error)]
-pub enum ReplaySaveTexturePngError {
-    #[error("failed to create scripts dir: {0}")]
-    CreateScriptsDir(std::io::Error),
-    #[error("failed to write python script: {0}")]
-    WriteScript(std::io::Error),
-    #[error("failed to write request JSON: {0}")]
-    WriteRequest(std::io::Error),
-    #[error("qrenderdoc python failed: {0}")]
-    QRenderDocPython(Box<crate::QRenderDocPythonError>),
-    #[error("failed to read response JSON: {0}")]
-    ReadResponse(std::io::Error),
-    #[error("failed to parse JSON: {0}")]
-    ParseJson(serde_json::Error),
-    #[error("qrenderdoc script error: {0}")]
-    ScriptError(String),
+define_qrenderdoc_json_job_error! {
+    #[derive(Debug, Error)]
+    pub enum ReplaySaveTexturePngError {
+        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
+        parse_json_message: "failed to parse JSON: {0}",
+    }
 }
 
-#[derive(Debug, Error)]
-pub enum ReplaySaveOutputsPngError {
-    #[error("failed to create scripts dir: {0}")]
-    CreateScriptsDir(std::io::Error),
-    #[error("failed to create output dir: {0}")]
-    CreateOutputDir(std::io::Error),
-    #[error("failed to write python script: {0}")]
-    WriteScript(std::io::Error),
-    #[error("failed to write request JSON: {0}")]
-    WriteRequest(std::io::Error),
-    #[error("qrenderdoc python failed: {0}")]
-    QRenderDocPython(Box<crate::QRenderDocPythonError>),
-    #[error("failed to read response JSON: {0}")]
-    ReadResponse(std::io::Error),
-    #[error("failed to parse JSON: {0}")]
-    ParseJson(serde_json::Error),
-    #[error("qrenderdoc script error: {0}")]
-    ScriptError(String),
+define_qrenderdoc_json_job_error! {
+    #[derive(Debug, Error)]
+    pub enum ReplaySaveOutputsPngError {
+        create_dir_variant: CreateScriptsDir => "failed to create scripts dir: {0}",
+        parse_json_message: "failed to parse JSON: {0}",
+        extra_variant: CreateOutputDir(std::io::Error) => "failed to create output dir: {0}",
+    }
 }
-
-macro_rules! impl_from_json_job_error {
-    ($error_ty:ident) => {
-        impl From<QRenderDocJsonJobError> for $error_ty {
-            fn from(value: QRenderDocJsonJobError) -> Self {
-                match value {
-                    QRenderDocJsonJobError::CreateScriptsDir(err) => Self::CreateScriptsDir(err),
-                    QRenderDocJsonJobError::WriteScript(err) => Self::WriteScript(err),
-                    QRenderDocJsonJobError::WriteRequest(err) => Self::WriteRequest(err),
-                    QRenderDocJsonJobError::QRenderDocPython(err) => Self::QRenderDocPython(err),
-                    QRenderDocJsonJobError::ReadResponse(err) => Self::ReadResponse(err),
-                    QRenderDocJsonJobError::ParseJson(err) => Self::ParseJson(err),
-                    QRenderDocJsonJobError::ScriptError(err) => Self::ScriptError(err),
-                }
-            }
-        }
-    };
-}
-
-impl_from_json_job_error!(ReplayListTexturesError);
-impl_from_json_job_error!(ReplayPickPixelError);
-impl_from_json_job_error!(ReplaySaveTexturePngError);
-impl_from_json_job_error!(ReplaySaveOutputsPngError);
 
 impl RenderDocInstallation {
     pub fn replay_list_textures(

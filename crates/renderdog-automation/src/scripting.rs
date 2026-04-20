@@ -66,6 +66,70 @@ impl From<QRenderDocPythonError> for QRenderDocJsonJobError {
     }
 }
 
+macro_rules! define_qrenderdoc_json_job_error {
+    (
+        $(#[$meta:meta])*
+        pub enum $name:ident {
+            create_dir_variant: $create_variant:ident => $create_message:literal,
+            parse_json_message: $parse_message:literal
+            $(, extra_variant: $extra_variant:ident($extra_ty:ty) => $extra_message:literal)*
+            $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        pub enum $name {
+            #[error($create_message)]
+            $create_variant(std::io::Error),
+            $(
+                #[error($extra_message)]
+                $extra_variant($extra_ty),
+            )*
+            #[error("failed to write python script: {0}")]
+            WriteScript(std::io::Error),
+            #[error("failed to write request JSON: {0}")]
+            WriteRequest(std::io::Error),
+            #[error("qrenderdoc python failed: {0}")]
+            QRenderDocPython(Box<crate::QRenderDocPythonError>),
+            #[error("failed to read response JSON: {0}")]
+            ReadResponse(std::io::Error),
+            #[error($parse_message)]
+            ParseJson(serde_json::Error),
+            #[error("qrenderdoc script error: {0}")]
+            ScriptError(String),
+        }
+
+        impl From<crate::scripting::QRenderDocJsonJobError> for $name {
+            fn from(value: crate::scripting::QRenderDocJsonJobError) -> Self {
+                match value {
+                    crate::scripting::QRenderDocJsonJobError::CreateScriptsDir(err) => {
+                        Self::$create_variant(err)
+                    }
+                    crate::scripting::QRenderDocJsonJobError::WriteScript(err) => {
+                        Self::WriteScript(err)
+                    }
+                    crate::scripting::QRenderDocJsonJobError::WriteRequest(err) => {
+                        Self::WriteRequest(err)
+                    }
+                    crate::scripting::QRenderDocJsonJobError::QRenderDocPython(err) => {
+                        Self::QRenderDocPython(err)
+                    }
+                    crate::scripting::QRenderDocJsonJobError::ReadResponse(err) => {
+                        Self::ReadResponse(err)
+                    }
+                    crate::scripting::QRenderDocJsonJobError::ParseJson(err) => {
+                        Self::ParseJson(err)
+                    }
+                    crate::scripting::QRenderDocJsonJobError::ScriptError(err) => {
+                        Self::ScriptError(err)
+                    }
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use define_qrenderdoc_json_job_error;
+
 #[derive(Debug, Clone)]
 pub(crate) struct QRenderDocJsonJobRequest<'a, T> {
     pub run_dir_prefix: &'a str,
