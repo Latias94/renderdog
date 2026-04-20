@@ -39,6 +39,12 @@ fn main() {
         println!("cargo:rustc-link-lib=dl");
     } else if cfg!(target_os = "macos") {
         build.define("RENDERDOC_PLATFORM_APPLE", None);
+        // RenderDoc's upstream replay headers currently trigger a few Clang-only warnings on macOS.
+        // Keep our shim warnings visible while suppressing the known third-party noise introduced by
+        // newer RenderDoc versions.
+        build.flag_if_supported("-Wno-unused-parameter");
+        build.flag_if_supported("-Wno-deprecated-literal-operator");
+        build.flag_if_supported("-Wno-reorder-ctor");
     }
 
     build.compile("renderdog_replay");
