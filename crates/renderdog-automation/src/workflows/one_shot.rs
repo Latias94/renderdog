@@ -7,14 +7,14 @@ use thiserror::Error;
 use crate::{
     BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureTargetRequest,
     ExportBundleError, ExportBundleRequest, ExportBundleResponse, ExportOutput,
-    OneShotCaptureTarget, OneShotTriggerOptions, RenderDocInstallation, ToolInvocationError,
-    TriggerCaptureError, TriggerCaptureRequest,
+    OneShotTriggerOptions, RenderDocInstallation, ToolInvocationError, TriggerCaptureError,
+    TriggerCaptureRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureAndExportBundleRequest {
     #[serde(flatten)]
-    pub target: OneShotCaptureTarget,
+    pub target: CaptureTargetRequest,
     #[serde(flatten)]
     pub trigger: OneShotTriggerOptions,
     #[serde(flatten)]
@@ -91,18 +91,6 @@ impl PreparedOneShotCapture {
     }
 }
 
-impl From<&OneShotCaptureTarget> for CaptureTargetRequest {
-    fn from(value: &OneShotCaptureTarget) -> Self {
-        Self {
-            executable: value.executable.clone(),
-            args: value.args.clone(),
-            working_dir: value.working_dir.clone(),
-            artifacts_dir: value.artifacts_dir.clone(),
-            capture_template_name: value.capture_template_name.clone(),
-        }
-    }
-}
-
 fn map_capture_target_error(err: crate::capture::CaptureTargetError) -> PrepareOneShotCaptureError {
     match err {
         crate::capture::CaptureTargetError::CreateArtifactsDir(source) => {
@@ -133,13 +121,12 @@ impl RenderDocInstallation {
     fn prepare_one_shot_capture(
         &self,
         cwd: &Path,
-        target: &OneShotCaptureTarget,
+        target: &CaptureTargetRequest,
         trigger_options: &OneShotTriggerOptions,
         output: &ExportOutput,
     ) -> Result<PreparedOneShotCapture, PrepareOneShotCaptureError> {
-        let target_request = CaptureTargetRequest::from(target);
         let prepared_target = self
-            .prepare_capture_target(cwd, &target_request)
+            .prepare_capture_target(cwd, target)
             .map_err(map_capture_target_error)?;
         let launched_target = self
             .launch_prepared_capture_target(&prepared_target)
@@ -180,13 +167,13 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, OneShotCaptureTarget,
-        OneShotTriggerOptions, PreparedOneShotCapture,
+        CaptureAndExportBundleRequest, CaptureAndExportBundleResponse, OneShotTriggerOptions,
+        PreparedOneShotCapture,
     };
     use crate::{
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
-        CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter,
-        ExportBundleResponse, ExportOutput,
+        CapturePostActionOutputs, CapturePostActions, CaptureTargetRequest, DrawcallScope,
+        EventFilter, ExportBundleResponse, ExportOutput,
     };
 
     #[test]
@@ -205,7 +192,7 @@ mod tests {
             stderr: "stderr".to_string(),
         };
         let req = CaptureAndExportBundleRequest {
-            target: OneShotCaptureTarget {
+            target: CaptureTargetRequest {
                 executable: "game".to_string(),
                 args: vec!["--flag".to_string()],
                 working_dir: None,
@@ -307,7 +294,7 @@ mod tests {
     #[test]
     fn capture_and_export_bundle_request_serializes_bundle_options_flattened() {
         let req = CaptureAndExportBundleRequest {
-            target: OneShotCaptureTarget {
+            target: CaptureTargetRequest {
                 executable: "game".to_string(),
                 args: vec!["--flag".to_string()],
                 working_dir: None,

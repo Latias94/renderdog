@@ -13,12 +13,16 @@ use crate::{
     resolve_path_from_cwd,
 };
 
-#[derive(Debug, Clone)]
-pub(crate) struct CaptureTargetRequest {
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CaptureTargetRequest {
     pub executable: String,
+    #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
     pub working_dir: Option<String>,
+    #[serde(default)]
     pub artifacts_dir: Option<String>,
+    #[serde(default)]
     pub capture_template_name: Option<String>,
 }
 
@@ -164,6 +168,8 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
+    use serde_json::json;
+
     use super::*;
 
     fn make_temp_dir() -> PathBuf {
@@ -242,5 +248,19 @@ mod tests {
         assert_eq!(prepared.capture_file_template, None);
 
         std::fs::remove_dir_all(&cwd).expect("cleanup should succeed");
+    }
+
+    #[test]
+    fn capture_target_request_deserializes_optional_fields_with_defaults() {
+        let req: CaptureTargetRequest = serde_json::from_value(json!({
+            "executable": "game"
+        }))
+        .expect("deserialize should succeed");
+
+        assert_eq!(req.executable, "game");
+        assert!(req.args.is_empty());
+        assert_eq!(req.working_dir, None);
+        assert_eq!(req.artifacts_dir, None);
+        assert_eq!(req.capture_template_name, None);
     }
 }
