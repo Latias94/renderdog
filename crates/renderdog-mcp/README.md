@@ -1,6 +1,7 @@
 # renderdog-mcp
 
 MCP server exposing RenderDoc automation workflows (stdio transport).
+This crate is workspace-only and is **not published** to crates.io (`publish = false`).
 
 Repository: https://github.com/Latias94/renderdog
 

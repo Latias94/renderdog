@@ -259,7 +259,6 @@ Gemini CLI can manage MCP servers either via commands or by editing `settings.js
 
 Run the server locally (stdio transport):
 
-- From crates.io: `renderdog-mcp`
 - From source: `cargo run -p renderdog-mcp`
 
 `renderdog-mcp` provides one-shot tools that can:
@@ -381,13 +380,11 @@ Alternatively, use the helper script (maintainers):
 
 ## Packaging note (workspace vs crates.io)
 
-This repository is a Cargo workspace. When you add new cross-crate APIs locally (e.g. new
-`renderdog-automation` functions used by `renderdog-mcp`), `cargo package -p renderdog-mcp` will
-only pass *after* the corresponding `renderdog-automation` version is published to crates.io.
+This repository is a Cargo workspace. `renderdog-mcp` is intentionally workspace-only
+(`publish = false`), so do not treat `cargo package -p renderdog-mcp` as a required release gate.
 
-During development, use workspace builds/tests (`cargo build`, `cargo nextest run`). For packaging
-checks, you can run `cargo package -p <crate> --allow-dirty` (but verification may still fail if it
-depends on unpublished crates).
+During development, use workspace builds/tests (`cargo build`, `cargo nextest run`). Packaging
+checks are still useful for publishable crates such as `renderdog-sys` and `renderdog-automation`.
 
 ## License
 
