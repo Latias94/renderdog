@@ -1,21 +1,31 @@
-use crate::scripting::QRenderDocJsonJob;
+use crate::scripting::{QRenderDocJsonJob, QRenderDocScriptFile};
 
-pub(crate) const EXPORT_ACTIONS_JSONL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "export_actions_jsonl",
-    "export_actions_jsonl.py",
-    include_str!("../scripts/export_actions_jsonl.py"),
-);
+const ACTION_QUERY_SUPPORT_FILES: &[QRenderDocScriptFile] = &[QRenderDocScriptFile::new(
+    "renderdog_action_query.py",
+    include_str!("../scripts/renderdog_action_query.py"),
+)];
 
-pub(crate) const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "export_bindings_index_jsonl",
-    "export_bindings_index_jsonl.py",
-    include_str!("../scripts/export_bindings_index_jsonl.py"),
-);
+pub(crate) const EXPORT_ACTIONS_JSONL_JOB: QRenderDocJsonJob =
+    QRenderDocJsonJob::with_support_files(
+        "export_actions_jsonl",
+        "export_actions_jsonl.py",
+        include_str!("../scripts/export_actions_jsonl.py"),
+        ACTION_QUERY_SUPPORT_FILES,
+    );
 
-pub(crate) const FIND_EVENTS_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+pub(crate) const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJsonJob =
+    QRenderDocJsonJob::with_support_files(
+        "export_bindings_index_jsonl",
+        "export_bindings_index_jsonl.py",
+        include_str!("../scripts/export_bindings_index_jsonl.py"),
+        ACTION_QUERY_SUPPORT_FILES,
+    );
+
+pub(crate) const FIND_EVENTS_JOB: QRenderDocJsonJob = QRenderDocJsonJob::with_support_files(
     "find_events",
     "find_events_json.py",
     include_str!("../scripts/find_events_json.py"),
+    ACTION_QUERY_SUPPORT_FILES,
 );
 
 pub(crate) const TRIGGER_CAPTURE_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
@@ -82,5 +92,22 @@ mod tests {
 
         assert_eq!(prefixes.len(), jobs.len());
         assert_eq!(script_names.len(), jobs.len());
+    }
+
+    #[test]
+    fn action_query_jobs_bundle_shared_support_module() {
+        let jobs = [
+            &EXPORT_ACTIONS_JSONL_JOB,
+            &EXPORT_BINDINGS_INDEX_JSONL_JOB,
+            &FIND_EVENTS_JOB,
+        ];
+
+        for job in jobs {
+            assert!(
+                job.support_files
+                    .iter()
+                    .any(|file| file.file_name == "renderdog_action_query.py")
+            );
+        }
     }
 }

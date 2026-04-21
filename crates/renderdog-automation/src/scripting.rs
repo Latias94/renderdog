@@ -67,11 +67,24 @@ impl From<QRenderDocPythonError> for QRenderDocJsonError {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct QRenderDocScriptFile {
+    pub file_name: &'static str,
+    pub content: &'static str,
+}
+
+impl QRenderDocScriptFile {
+    pub(crate) const fn new(file_name: &'static str, content: &'static str) -> Self {
+        Self { file_name, content }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct QRenderDocJsonJob {
     pub run_dir_prefix: &'static str,
     pub script_file_name: &'static str,
     pub script_content: &'static str,
+    pub support_files: &'static [QRenderDocScriptFile],
 }
 
 impl QRenderDocJsonJob {
@@ -84,6 +97,21 @@ impl QRenderDocJsonJob {
             run_dir_prefix,
             script_file_name,
             script_content,
+            support_files: &[],
+        }
+    }
+
+    pub(crate) const fn with_support_files(
+        run_dir_prefix: &'static str,
+        script_file_name: &'static str,
+        script_content: &'static str,
+        support_files: &'static [QRenderDocScriptFile],
+    ) -> Self {
+        Self {
+            run_dir_prefix,
+            script_file_name,
+            script_content,
+            support_files,
         }
     }
 }
@@ -149,6 +177,11 @@ impl RenderDocInstallation {
         let script_path = scripts_dir.join(job.script_file_name);
         write_script_file(&script_path, job.script_content)
             .map_err(QRenderDocJsonError::WriteScript)?;
+        for support_file in job.support_files {
+            let support_path = scripts_dir.join(support_file.file_name);
+            write_script_file(&support_path, support_file.content)
+                .map_err(QRenderDocJsonError::WriteScript)?;
+        }
 
         let run_dir = create_qrenderdoc_run_dir(&scripts_dir, job.run_dir_prefix)
             .map_err(QRenderDocJsonError::CreateScriptsDir)?;
