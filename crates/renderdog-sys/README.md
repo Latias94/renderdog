@@ -12,7 +12,4 @@ This crate ships pregenerated bindings for docs.rs. Maintainers can regenerate b
 Binding regeneration requires either the workspace `third-party/renderdoc` submodule or an
 explicit `RENDERDOG_SYS_HEADER=/path/to/renderdoc_app.h`.
 
-It also exposes small shared helpers for workspace-pinned RenderDoc replay version matching, so
-`renderdog-automation` and `renderdog-replay` can use one consistent version policy.
-
 See the [workspace README](../../README.md) for overall project goals and setup.

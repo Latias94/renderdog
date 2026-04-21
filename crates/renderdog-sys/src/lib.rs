@@ -16,8 +16,4 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::all)]
 
-mod version;
-
-pub use version::*;
-
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

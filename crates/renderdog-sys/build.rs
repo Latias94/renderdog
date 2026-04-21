@@ -6,7 +6,6 @@ use std::{
 #[derive(Debug, Clone)]
 struct RenderDocSource {
     bindings_header_path: Option<PathBuf>,
-    workspace_replay_version: String,
 }
 
 fn main() {
@@ -14,9 +13,6 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let pregenerated = manifest_dir.join("src").join("bindings_pregenerated.rs");
-    let vendor_replay_version = manifest_dir
-        .join("vendor")
-        .join("renderdoc_replay_version.txt");
     let submodule_header = workspace_root(&manifest_dir)
         .join("third-party")
         .join("renderdoc")
@@ -24,37 +20,19 @@ fn main() {
         .join("api")
         .join("app")
         .join("renderdoc_app.h");
-    let submodule_replay_version_header = workspace_root(&manifest_dir)
-        .join("third-party")
-        .join("renderdoc")
-        .join("renderdoc")
-        .join("api")
-        .join("replay")
-        .join("version.h");
 
     println!(
         "cargo:rerun-if-changed={}",
         manifest_dir.join("build.rs").display()
     );
     println!("cargo:rerun-if-changed={}", pregenerated.display());
-    println!("cargo:rerun-if-changed={}", vendor_replay_version.display());
     println!("cargo:rerun-if-changed={}", submodule_header.display());
-    println!(
-        "cargo:rerun-if-changed={}",
-        submodule_replay_version_header.display()
-    );
     println!("cargo:rerun-if-env-changed=RENDERDOG_SYS_HEADER");
-    println!("cargo:rerun-if-env-changed=RENDERDOG_SYS_REPLAY_VERSION_HEADER");
     println!("cargo:rerun-if-env-changed=RENDERDOG_SYS_REGEN_BINDINGS");
     println!("cargo:rerun-if-env-changed=RENDERDOG_SYS_VERBOSE");
 
     let out_bindings = out_dir.join("bindings.rs");
-    let renderdoc_source = select_renderdoc_source(
-        &manifest_dir,
-        &vendor_replay_version,
-        &submodule_header,
-        &submodule_replay_version_header,
-    );
+    let renderdoc_source = select_renderdoc_source(&submodule_header);
 
     // docs.rs should never require a native toolchain (clang/libclang).
     let docs_rs = env::var("DOCS_RS").is_ok();
@@ -96,9 +74,6 @@ fn main() {
             );
         }
     }
-
-    let workspace_replay_version = renderdoc_source.workspace_replay_version.clone();
-    println!("cargo:rustc-env=RENDERDOG_SYS_WORKSPACE_REPLAY_VERSION={workspace_replay_version}");
 }
 
 #[cfg(feature = "bindgen")]
@@ -144,30 +119,21 @@ fn workspace_root(manifest_dir: &Path) -> PathBuf {
     manifest_dir.join("..").join("..")
 }
 
-fn select_renderdoc_source(
-    manifest_dir: &Path,
-    vendor_replay_version: &Path,
-    submodule_header: &Path,
-    submodule_replay_version_header: &Path,
-) -> RenderDocSource {
+fn select_renderdoc_source(submodule_header: &Path) -> RenderDocSource {
     if let Some(header_path) = explicit_header_path() {
-        let replay_version_header = explicit_replay_version_header_path(&header_path);
         return RenderDocSource {
             bindings_header_path: Some(header_path),
-            workspace_replay_version: read_replay_version_header(&replay_version_header),
         };
     }
 
     if submodule_header.is_file() {
         return RenderDocSource {
             bindings_header_path: Some(submodule_header.to_path_buf()),
-            workspace_replay_version: read_replay_version_header(submodule_replay_version_header),
         };
     }
 
     RenderDocSource {
         bindings_header_path: None,
-        workspace_replay_version: read_replay_version_file(vendor_replay_version, manifest_dir),
     }
 }
 
@@ -181,85 +147,6 @@ fn explicit_header_path() -> Option<PathBuf> {
         "RENDERDOG_SYS_HEADER is set but not a file: {}",
         path.display()
     );
-}
-
-fn explicit_replay_version_header_path(header_path: &Path) -> PathBuf {
-    if let Some(path) = env::var_os("RENDERDOG_SYS_REPLAY_VERSION_HEADER").map(PathBuf::from) {
-        if path.is_file() {
-            return path;
-        }
-        panic!(
-            "RENDERDOG_SYS_REPLAY_VERSION_HEADER is set but not a file: {}",
-            path.display()
-        );
-    }
-
-    if let Some(path) = infer_replay_version_header_path(header_path)
-        && path.is_file()
-    {
-        return path;
-    }
-
-    panic!(
-        "RENDERDOG_SYS_HEADER is set to {}, but no matching replay version header could be inferred. \
-         Set RENDERDOG_SYS_REPLAY_VERSION_HEADER to the corresponding renderdoc/api/replay/version.h.",
-        header_path.display()
-    );
-}
-
-fn infer_replay_version_header_path(header_path: &Path) -> Option<PathBuf> {
-    let app_dir = header_path.parent()?;
-    let api_dir = app_dir.parent()?;
-    Some(api_dir.join("replay").join("version.h"))
-}
-
-fn read_replay_version_header(path: &Path) -> String {
-    let content = fs::read_to_string(path).unwrap_or_else(|err| {
-        panic!(
-            "failed to read RenderDoc replay version header at {}: {err}",
-            path.display()
-        )
-    });
-    parse_replay_version_header(&content).unwrap_or_else(|| {
-        panic!(
-            "failed to parse RenderDoc replay version header at {}",
-            path.display()
-        )
-    })
-}
-
-fn read_replay_version_file(path: &Path, manifest_dir: &Path) -> String {
-    let version = fs::read_to_string(path).unwrap_or_else(|err| {
-        panic!(
-            "failed to read vendored replay version at {} (workspace root: {}): {err}",
-            path.display(),
-            workspace_root(manifest_dir).display()
-        )
-    });
-    let version = version.trim();
-    if version.is_empty() {
-        panic!("vendored replay version file is empty: {}", path.display());
-    }
-    version.to_string()
-}
-
-fn parse_replay_version_header(content: &str) -> Option<String> {
-    let mut major: Option<String> = None;
-    let mut minor: Option<String> = None;
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if let Some(value) = trimmed.strip_prefix("#define RENDERDOC_VERSION_MAJOR") {
-            major = Some(value.trim().to_string());
-        } else if let Some(value) = trimmed.strip_prefix("#define RENDERDOC_VERSION_MINOR") {
-            minor = Some(value.trim().to_string());
-        }
-    }
-
-    match (major, minor) {
-        (Some(major), Some(minor)) => Some(format!("{major}.{minor}")),
-        _ => None,
-    }
 }
 
 fn parse_bool_env(key: &str) -> bool {
