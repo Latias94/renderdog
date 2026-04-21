@@ -1,19 +1,14 @@
 import json
 import os
-import traceback
 
 import renderdoc as rd
 
 from renderdog_action_query import ActionFilter, walk_actions
+from renderdog_qrenderdoc import run_json_job, with_capture_controller
 
 
 REQ_PATH = "export_bindings_index_jsonl.request.json"
 RESP_PATH = "export_bindings_index_jsonl.response.json"
-
-
-def write_envelope(ok: bool, result=None, error: str = None) -> None:
-    with open(RESP_PATH, "w", encoding="utf-8") as f:
-        json.dump({"ok": ok, "result": result, "error": error}, f, ensure_ascii=False)
 
 
 def try_res_name(controller, rid) -> str:
@@ -74,7 +69,6 @@ def serialize_bindings_for_stage(controller, pipe, stage, include_cbuffers: bool
     ro_name_map = build_reflection_name_map(reflection, "ro")
     rw_name_map = build_reflection_name_map(reflection, "rw")
 
-    # SRVs
     try:
         srvs = pipe.GetReadOnlyResources(stage, False)
         for srv in srvs:
@@ -93,7 +87,6 @@ def serialize_bindings_for_stage(controller, pipe, stage, include_cbuffers: bool
     except Exception:
         pass
 
-    # UAVs
     try:
         uavs = pipe.GetReadWriteResources(stage, False)
         for uav in uavs:
@@ -112,7 +105,6 @@ def serialize_bindings_for_stage(controller, pipe, stage, include_cbuffers: bool
     except Exception:
         pass
 
-    # Constant buffers (metadata only; no variable dumping)
     if include_cbuffers and reflection is not None:
         try:
             for i, cb in enumerate(reflection.constantBlocks):
@@ -169,156 +161,122 @@ def serialize_outputs(controller, pipe):
     return out
 
 
-def main() -> None:
-    with open(REQ_PATH, "r", encoding="utf-8") as f:
-        req = json.load(f)
-
-    rd.InitialiseReplay(rd.GlobalEnvironment(), [])
-
+def handle_request(req):
     os.makedirs(req["output_dir"], exist_ok=True)
 
     bindings_path = os.path.join(req["output_dir"], f"{req['basename']}.bindings.jsonl")
     summary_path = os.path.join(req["output_dir"], f"{req['basename']}.bindings_summary.json")
 
-    cap = rd.OpenCaptureFile()
-    try:
-        result = cap.OpenFile(req["capture_path"], "", None)
-        if result != rd.ResultCode.Succeeded:
-            raise RuntimeError("Couldn't open file: " + str(result))
+    def run(controller):
+        structured_file = controller.GetStructuredFile()
+        roots = controller.GetRootActions()
 
-        if not cap.LocalReplaySupport():
-            raise RuntimeError("Capture cannot be replayed")
+        counters = {"total_drawcalls": 0}
+        action_filter = ActionFilter(
+            only_drawcalls=True,
+            marker_prefix=str(req.get("marker_prefix") or ""),
+            event_min=req.get("event_id_min", None),
+            event_max=req.get("event_id_max", None),
+            name_contains=req.get("name_contains") or "",
+            marker_contains=req.get("marker_contains") or "",
+            case_sensitive=bool(req.get("case_sensitive", False)),
+        )
 
-        result, controller = cap.OpenCapture(rd.ReplayOptions(), None)
-        if result != rd.ResultCode.Succeeded:
-            raise RuntimeError("Couldn't initialise replay: " + str(result))
+        with open(bindings_path, "w", encoding="utf-8") as fp:
+            include_cbuffers = bool(req.get("include_cbuffers", False))
+            include_outputs = bool(req.get("include_outputs", False))
 
-        try:
-            structured_file = controller.GetStructuredFile()
-            roots = controller.GetRootActions()
+            def handle_action(action) -> None:
+                controller.SetFrameEvent(action.event_id, False)
+                pipe = controller.GetPipelineState()
 
-            counters = {"total_drawcalls": 0}
-            action_filter = ActionFilter(
-                only_drawcalls=True,
-                marker_prefix=str(req.get("marker_prefix") or ""),
-                event_min=req.get("event_id_min", None),
-                event_max=req.get("event_id_max", None),
-                name_contains=req.get("name_contains") or "",
-                marker_contains=req.get("marker_contains") or "",
-                case_sensitive=bool(req.get("case_sensitive", False)),
-            )
+                stages = [
+                    rd.ShaderStage.Vertex,
+                    rd.ShaderStage.Hull,
+                    rd.ShaderStage.Domain,
+                    rd.ShaderStage.Geometry,
+                    rd.ShaderStage.Pixel,
+                    rd.ShaderStage.Compute,
+                ]
 
-            with open(bindings_path, "w", encoding="utf-8") as fp:
-                include_cbuffers = bool(req.get("include_cbuffers", False))
-                include_outputs = bool(req.get("include_outputs", False))
+                stage_map = {}
+                shader_names = []
+                resource_names = []
 
-                def handle_action(action) -> None:
-                    controller.SetFrameEvent(action.event_id, False)
-                    pipe = controller.GetPipelineState()
+                for st in stages:
+                    st_info = serialize_bindings_for_stage(
+                        controller,
+                        pipe,
+                        st,
+                        include_cbuffers,
+                    )
+                    if st_info is None:
+                        continue
 
-                    stages = [
-                        rd.ShaderStage.Vertex,
-                        rd.ShaderStage.Hull,
-                        rd.ShaderStage.Domain,
-                        rd.ShaderStage.Geometry,
-                        rd.ShaderStage.Pixel,
-                        rd.ShaderStage.Compute,
-                    ]
+                    st_key = stage_name(st)
+                    stage_map[st_key] = st_info
 
-                    stage_map = {}
-                    shader_names = []
-                    resource_names = []
+                    sh = st_info.get("shader") or {}
+                    if sh.get("name"):
+                        shader_names.append(sh.get("name"))
+                    if sh.get("entry_point"):
+                        shader_names.append(sh.get("entry_point"))
 
-                    for st in stages:
-                        st_info = serialize_bindings_for_stage(
-                            controller,
-                            pipe,
-                            st,
-                            include_cbuffers,
-                        )
-                        if st_info is None:
-                            continue
+                    for srv in st_info.get("srvs") or []:
+                        if srv.get("name"):
+                            resource_names.append(srv.get("name"))
+                        if srv.get("resource_name"):
+                            resource_names.append(srv.get("resource_name"))
+                    for uav in st_info.get("uavs") or []:
+                        if uav.get("name"):
+                            resource_names.append(uav.get("name"))
+                        if uav.get("resource_name"):
+                            resource_names.append(uav.get("resource_name"))
+                    for cb in st_info.get("cbuffers") or []:
+                        if cb.get("name"):
+                            resource_names.append(cb.get("name"))
+                        if cb.get("resource_name"):
+                            resource_names.append(cb.get("resource_name"))
 
-                        st_key = stage_name(st)
-                        stage_map[st_key] = st_info
+                rec = {
+                    "event_id": action.event_id,
+                    "depth": action.depth,
+                    "name": action.name,
+                    "marker_path": action.marker_path,
+                    "stages": stage_map,
+                    "shader_names": shader_names,
+                    "resource_names": resource_names,
+                }
 
-                        sh = st_info.get("shader") or {}
-                        if sh.get("name"):
-                            shader_names.append(sh.get("name"))
-                        if sh.get("entry_point"):
-                            shader_names.append(sh.get("entry_point"))
+                if include_outputs:
+                    rec["outputs"] = serialize_outputs(controller, pipe)
 
-                        for srv in st_info.get("srvs") or []:
-                            if srv.get("name"):
-                                resource_names.append(srv.get("name"))
-                            if srv.get("resource_name"):
-                                resource_names.append(srv.get("resource_name"))
-                        for uav in st_info.get("uavs") or []:
-                            if uav.get("name"):
-                                resource_names.append(uav.get("name"))
-                            if uav.get("resource_name"):
-                                resource_names.append(uav.get("resource_name"))
-                        for cb in st_info.get("cbuffers") or []:
-                            if cb.get("name"):
-                                resource_names.append(cb.get("name"))
-                            if cb.get("resource_name"):
-                                resource_names.append(cb.get("resource_name"))
+                fp.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                counters["total_drawcalls"] += 1
 
-                    rec = {
-                        "event_id": action.event_id,
-                        "depth": action.depth,
-                        "name": action.name,
-                        "marker_path": action.marker_path,
-                        "stages": stage_map,
-                        "shader_names": shader_names,
-                        "resource_names": resource_names,
-                    }
+            walk_actions(structured_file, roots, action_filter, handle_action)
 
-                    if include_outputs:
-                        rec["outputs"] = serialize_outputs(controller, pipe)
+        api = str(controller.GetAPIProperties().pipelineType)
 
-                    fp.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                    counters["total_drawcalls"] += 1
+        summary = {
+            "capture_path": req["capture_path"],
+            "api": api,
+            "total_drawcalls": int(counters["total_drawcalls"]),
+            "bindings_jsonl_path": bindings_path,
+        }
 
-                walk_actions(structured_file, roots, action_filter, handle_action)
+        with open(summary_path, "w", encoding="utf-8") as fp:
+            json.dump(summary, fp, ensure_ascii=False, indent=2)
 
-            api = str(controller.GetAPIProperties().pipelineType)
+        return {
+            "bindings_jsonl_path": bindings_path,
+            "bindings_summary_json_path": summary_path,
+            "total_drawcalls": int(counters["total_drawcalls"]),
+        }
 
-            summary = {
-                "capture_path": req["capture_path"],
-                "api": api,
-                "total_drawcalls": int(counters["total_drawcalls"]),
-                "bindings_jsonl_path": bindings_path,
-            }
-
-            with open(summary_path, "w", encoding="utf-8") as fp:
-                json.dump(summary, fp, ensure_ascii=False, indent=2)
-
-            write_envelope(
-                True,
-                result={
-                    "bindings_jsonl_path": bindings_path,
-                    "bindings_summary_json_path": summary_path,
-                    "total_drawcalls": int(counters["total_drawcalls"]),
-                },
-            )
-            return
-        finally:
-            try:
-                controller.Shutdown()
-            except Exception:
-                pass
-    finally:
-        try:
-            cap.Shutdown()
-        except Exception:
-            pass
-        rd.ShutdownReplay()
+    return with_capture_controller(req["capture_path"], run)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        write_envelope(False, error=traceback.format_exc())
+    run_json_job(REQ_PATH, RESP_PATH, handle_request)
     raise SystemExit(0)

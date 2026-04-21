@@ -1,9 +1,20 @@
 use crate::scripting::{QRenderDocJsonJob, QRenderDocScriptFile};
 
-const ACTION_QUERY_SUPPORT_FILES: &[QRenderDocScriptFile] = &[QRenderDocScriptFile::new(
+const QRENDERDOC_RUNTIME_SUPPORT_FILE: QRenderDocScriptFile = QRenderDocScriptFile::new(
+    "renderdog_qrenderdoc.py",
+    include_str!("../scripts/renderdog_qrenderdoc.py"),
+);
+
+const ACTION_QUERY_SUPPORT_FILE: QRenderDocScriptFile = QRenderDocScriptFile::new(
     "renderdog_action_query.py",
     include_str!("../scripts/renderdog_action_query.py"),
-)];
+);
+
+const QRENDERDOC_RUNTIME_SUPPORT_FILES: &[QRenderDocScriptFile] =
+    &[QRENDERDOC_RUNTIME_SUPPORT_FILE];
+
+const ACTION_QUERY_SUPPORT_FILES: &[QRenderDocScriptFile] =
+    &[QRENDERDOC_RUNTIME_SUPPORT_FILE, ACTION_QUERY_SUPPORT_FILE];
 
 pub(crate) const EXPORT_ACTIONS_JSONL_JOB: QRenderDocJsonJob =
     QRenderDocJsonJob::with_support_files(
@@ -28,35 +39,43 @@ pub(crate) const FIND_EVENTS_JOB: QRenderDocJsonJob = QRenderDocJsonJob::with_su
     ACTION_QUERY_SUPPORT_FILES,
 );
 
-pub(crate) const TRIGGER_CAPTURE_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+pub(crate) const TRIGGER_CAPTURE_JOB: QRenderDocJsonJob = QRenderDocJsonJob::with_support_files(
     "trigger_capture",
     "trigger_capture.py",
     include_str!("../scripts/trigger_capture.py"),
+    QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 
-pub(crate) const REPLAY_LIST_TEXTURES_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "replay_list_textures",
-    "replay_list_textures_json.py",
-    include_str!("../scripts/replay_list_textures_json.py"),
-);
+pub(crate) const REPLAY_LIST_TEXTURES_JOB: QRenderDocJsonJob =
+    QRenderDocJsonJob::with_support_files(
+        "replay_list_textures",
+        "replay_list_textures_json.py",
+        include_str!("../scripts/replay_list_textures_json.py"),
+        QRENDERDOC_RUNTIME_SUPPORT_FILES,
+    );
 
-pub(crate) const REPLAY_PICK_PIXEL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
+pub(crate) const REPLAY_PICK_PIXEL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::with_support_files(
     "replay_pick_pixel",
     "replay_pick_pixel_json.py",
     include_str!("../scripts/replay_pick_pixel_json.py"),
+    QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 
-pub(crate) const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "replay_save_texture_png",
-    "replay_save_texture_png_json.py",
-    include_str!("../scripts/replay_save_texture_png_json.py"),
-);
+pub(crate) const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJsonJob =
+    QRenderDocJsonJob::with_support_files(
+        "replay_save_texture_png",
+        "replay_save_texture_png_json.py",
+        include_str!("../scripts/replay_save_texture_png_json.py"),
+        QRENDERDOC_RUNTIME_SUPPORT_FILES,
+    );
 
-pub(crate) const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJsonJob = QRenderDocJsonJob::new(
-    "replay_save_outputs_png",
-    "replay_save_outputs_png_json.py",
-    include_str!("../scripts/replay_save_outputs_png_json.py"),
-);
+pub(crate) const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJsonJob =
+    QRenderDocJsonJob::with_support_files(
+        "replay_save_outputs_png",
+        "replay_save_outputs_png_json.py",
+        include_str!("../scripts/replay_save_outputs_png_json.py"),
+        QRENDERDOC_RUNTIME_SUPPORT_FILES,
+    );
 
 #[cfg(test)]
 mod tests {
@@ -107,6 +126,28 @@ mod tests {
                 job.support_files
                     .iter()
                     .any(|file| file.file_name == "renderdog_action_query.py")
+            );
+        }
+    }
+
+    #[test]
+    fn all_jobs_bundle_shared_qrenderdoc_runtime_module() {
+        let jobs = [
+            &EXPORT_ACTIONS_JSONL_JOB,
+            &EXPORT_BINDINGS_INDEX_JSONL_JOB,
+            &FIND_EVENTS_JOB,
+            &TRIGGER_CAPTURE_JOB,
+            &REPLAY_LIST_TEXTURES_JOB,
+            &REPLAY_PICK_PIXEL_JOB,
+            &REPLAY_SAVE_TEXTURE_PNG_JOB,
+            &REPLAY_SAVE_OUTPUTS_PNG_JOB,
+        ];
+
+        for job in jobs {
+            assert!(
+                job.support_files
+                    .iter()
+                    .any(|file| file.file_name == "renderdog_qrenderdoc.py")
             );
         }
     }

@@ -88,19 +88,6 @@ pub(crate) struct QRenderDocJsonJob {
 }
 
 impl QRenderDocJsonJob {
-    pub(crate) const fn new(
-        run_dir_prefix: &'static str,
-        script_file_name: &'static str,
-        script_content: &'static str,
-    ) -> Self {
-        Self {
-            run_dir_prefix,
-            script_file_name,
-            script_content,
-            support_files: &[],
-        }
-    }
-
     pub(crate) const fn with_support_files(
         run_dir_prefix: &'static str,
         script_file_name: &'static str,
