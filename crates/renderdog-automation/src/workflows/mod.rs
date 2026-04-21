@@ -290,14 +290,6 @@ pub struct TriggerCaptureRequest {
     pub trigger: TriggerCaptureOptions,
 }
 
-impl PrepareQRenderDocJsonRequest for TriggerCaptureRequest {
-    type Error = QRenderDocJsonError;
-
-    fn prepare_in_cwd(&self, _cwd: &Path) -> Result<Self, Self::Error> {
-        Ok(self.clone())
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureResponse {
     #[serde(flatten)]
@@ -316,14 +308,6 @@ pub(crate) struct ExportActionsRequest {
     pub drawcall_scope: DrawcallScope,
     #[serde(flatten)]
     pub filter: EventFilter,
-}
-
-impl PrepareQRenderDocJsonRequest for ExportActionsRequest {
-    type Error = QRenderDocJsonError;
-
-    fn prepare_in_cwd(&self, _cwd: &Path) -> Result<Self, Self::Error> {
-        Ok(self.clone())
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -478,14 +462,6 @@ pub(crate) struct ExportBindingsIndexRequest {
     pub filter: EventFilter,
     #[serde(flatten)]
     pub bindings: BindingsExportOptions,
-}
-
-impl PrepareQRenderDocJsonRequest for ExportBindingsIndexRequest {
-    type Error = QRenderDocJsonError;
-
-    fn prepare_in_cwd(&self, _cwd: &Path) -> Result<Self, Self::Error> {
-        Ok(self.clone())
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

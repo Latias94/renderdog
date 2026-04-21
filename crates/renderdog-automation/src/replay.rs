@@ -321,7 +321,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayListTexturesRequest,
     ) -> Result<ReplayListTexturesResponse, ReplayListTexturesError> {
-        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_LIST_TEXTURES_JOB, req)
+        self.run_qrenderdoc_json_job_in_cwd(cwd, REPLAY_LIST_TEXTURES_JOB, req)
     }
 
     pub fn replay_pick_pixel(
@@ -329,7 +329,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplayPickPixelRequest,
     ) -> Result<ReplayPickPixelResponse, ReplayPickPixelError> {
-        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_PICK_PIXEL_JOB, req)
+        self.run_qrenderdoc_json_job_in_cwd(cwd, REPLAY_PICK_PIXEL_JOB, req)
     }
 
     pub fn replay_save_texture_png(
@@ -337,7 +337,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveTexturePngRequest,
     ) -> Result<ReplaySaveTexturePngResponse, ReplaySaveTexturePngError> {
-        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_SAVE_TEXTURE_PNG_JOB, req)
+        self.run_qrenderdoc_json_job_in_cwd(cwd, REPLAY_SAVE_TEXTURE_PNG_JOB, req)
     }
 
     pub fn replay_save_outputs_png(
@@ -345,7 +345,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &ReplaySaveOutputsPngRequest,
     ) -> Result<ReplaySaveOutputsPngResponse, ReplaySaveOutputsPngError> {
-        self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_SAVE_OUTPUTS_PNG_JOB, req)
+        self.run_qrenderdoc_json_job_in_cwd(cwd, REPLAY_SAVE_OUTPUTS_PNG_JOB, req)
     }
 }
 

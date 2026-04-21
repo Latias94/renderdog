@@ -141,13 +141,14 @@ impl From<CommandError> for QRenderDocPythonError {
     }
 }
 
-pub(crate) trait PrepareQRenderDocJsonRequest: Clone + Serialize {
+pub(crate) trait PrepareQRenderDocJsonRequest: Serialize + Sized {
     type Error: From<QRenderDocJsonError>;
 
     fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error>;
 }
 
 impl RenderDocInstallation {
+    // Use this when the request is already normalized and ready to serialize as-is.
     pub(crate) fn run_qrenderdoc_json_job<TReq, TResp>(
         &self,
         cwd: &Path,
@@ -205,7 +206,8 @@ impl RenderDocInstallation {
         }
     }
 
-    pub(crate) fn run_prepared_qrenderdoc_json_job<TReq, TResp>(
+    // Use this when the request depends on cwd-relative normalization or validation first.
+    pub(crate) fn run_qrenderdoc_json_job_in_cwd<TReq, TResp>(
         &self,
         cwd: &Path,
         job: QRenderDocJsonJob,

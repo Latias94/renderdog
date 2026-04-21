@@ -13,6 +13,6 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsRequest,
     ) -> Result<FindEventsResponse, FindEventsError> {
-        self.run_prepared_qrenderdoc_json_job(cwd, FIND_EVENTS_JOB, req)
+        self.run_qrenderdoc_json_job_in_cwd(cwd, FIND_EVENTS_JOB, req)
     }
 }
