@@ -242,6 +242,23 @@ std::string runtime_version_string_from_module(void *lib)
   return std::string(version);
 }
 
+std::runtime_error result_error(const char *operation, const ResultDetails &result)
+{
+  std::string detail;
+  if(result.internal_msg)
+    detail = result.internal_msg->c_str();
+  else
+    detail = "ResultCode(" + std::to_string(static_cast<uint32_t>(result.code)) + ")";
+
+  return std::runtime_error(std::string(operation) + ": " + detail);
+}
+
+std::runtime_error texture_index_error(uint32_t texture_index, size_t texture_count)
+{
+  return std::runtime_error("texture_index out of range: " + std::to_string(texture_index) +
+                            " >= " + std::to_string(texture_count));
+}
+
 void acquire_replay_runtime(void *lib)
 {
   std::lock_guard<std::mutex> lock(g_replay_runtime_mutex);
@@ -422,7 +439,7 @@ void ReplaySession::open_capture(rust::Str capture_path)
   if(!open_res.OK())
   {
     capture_file->Shutdown();
-    throw std::runtime_error("OpenFile failed");
+    throw result_error("OpenFile failed", open_res);
   }
   trace("open_capture: OpenFile ok");
 
@@ -434,7 +451,7 @@ void ReplaySession::open_capture(rust::Str capture_path)
     if(pair.second)
       pair.second->Shutdown();
     capture_file->Shutdown();
-    throw std::runtime_error("OpenCapture failed");
+    throw result_error("OpenCapture failed", pair.first);
   }
 
   capture_file_ = capture_file;
@@ -511,7 +528,7 @@ rust::Vec<float> ReplaySession::pick_pixel(uint32_t texture_index, uint32_t x, u
 
   const auto &textures = controller_->GetTextures();
   if(texture_index >= textures.size())
-    throw std::runtime_error("texture_index out of range");
+    throw texture_index_error(texture_index, textures.size());
 
   const auto &t = textures[texture_index];
   Subresource sub(0, 0, 0);
@@ -532,7 +549,7 @@ void ReplaySession::save_texture_png(uint32_t texture_index, rust::Str output_pa
 
   const auto &textures = controller_->GetTextures();
   if(texture_index >= textures.size())
-    throw std::runtime_error("texture_index out of range");
+    throw texture_index_error(texture_index, textures.size());
 
   const auto &t = textures[texture_index];
 
@@ -545,7 +562,7 @@ void ReplaySession::save_texture_png(uint32_t texture_index, rust::Str output_pa
   ResultDetails res = controller_->SaveTexture(save, out_path);
   if(!res.OK())
   {
-    throw std::runtime_error("SaveTexture failed");
+    throw result_error("SaveTexture failed", res);
   }
 }
 
