@@ -152,24 +152,40 @@ impl ReplayRuntime {
 mod tests {
     use super::{ReplayRuntimeError, validate_runtime_version};
 
+    fn workspace_replay_version() -> &'static str {
+        renderdog_sys::workspace_renderdoc_replay_version()
+            .expect("workspace replay version should be available in tests")
+    }
+
+    fn mismatched_replay_version() -> &'static str {
+        match workspace_replay_version() {
+            "0.0" => "999.999",
+            _ => "0.0",
+        }
+    }
+
     #[test]
     fn validate_runtime_version_accepts_normalized_match() {
+        let workspace_version = workspace_replay_version();
+        let runtime_label = format!("RenderDoc v{workspace_version} loaded");
         let runtime_version =
-            validate_runtime_version("RenderDoc v1.44 loaded".to_string(), Some("1.44"))
+            validate_runtime_version(runtime_label.clone(), Some(workspace_version))
                 .expect("version should match");
 
-        assert_eq!(runtime_version, "RenderDoc v1.44 loaded");
+        assert_eq!(runtime_version, runtime_label);
     }
 
     #[test]
     fn validate_runtime_version_rejects_mismatch() {
-        let err = validate_runtime_version("1.43".to_string(), Some("1.44"))
+        let workspace_version = workspace_replay_version();
+        let mismatched_version = mismatched_replay_version();
+        let err = validate_runtime_version(mismatched_version.to_string(), Some(workspace_version))
             .expect_err("version mismatch should fail fast");
 
         match err {
             ReplayRuntimeError::VersionMismatch { expected, actual } => {
-                assert_eq!(expected, "1.44");
-                assert_eq!(actual, "1.43");
+                assert_eq!(expected, workspace_version);
+                assert_eq!(actual, mismatched_version);
             }
             other => panic!("unexpected error: {other}"),
         }
@@ -177,7 +193,7 @@ mod tests {
 
     #[test]
     fn validate_runtime_version_requires_workspace_version() {
-        let err = validate_runtime_version("1.44".to_string(), None)
+        let err = validate_runtime_version(workspace_replay_version().to_string(), None)
             .expect_err("missing workspace version should fail");
 
         assert!(matches!(err, ReplayRuntimeError::WorkspaceVersionUnknown));

@@ -754,6 +754,18 @@ mod tests {
         dir
     }
 
+    fn workspace_replay_version() -> &'static str {
+        renderdog_sys::workspace_renderdoc_replay_version()
+            .expect("workspace replay version should be available in tests")
+    }
+
+    fn mismatched_replay_version() -> &'static str {
+        match workspace_replay_version() {
+            "0.0" => "999.999",
+            _ => "0.0",
+        }
+    }
+
     #[test]
     fn parse_vulkan_layer_diagnosis_detects_unsupported_command() {
         let diag = parse_vulkan_layer_diagnosis(
@@ -815,19 +827,29 @@ administrator privileges required"
 
     #[test]
     fn compute_replay_version_match_uses_workspace_policy() {
+        let workspace_version = workspace_replay_version();
+        let mismatched_version = mismatched_replay_version();
         assert_eq!(
-            compute_replay_version_match(Some("v1.44"), Some("1.44")),
+            compute_replay_version_match(
+                Some(&format!("v{workspace_version}")),
+                Some(workspace_version)
+            ),
             Some(true)
         );
         assert_eq!(
-            compute_replay_version_match(Some("1.43"), Some("1.44")),
+            compute_replay_version_match(Some(mismatched_version), Some(workspace_version)),
             Some(false)
         );
-        assert_eq!(compute_replay_version_match(Some("1.44"), None), None);
+        assert_eq!(
+            compute_replay_version_match(Some(workspace_version), None),
+            None
+        );
     }
 
     #[test]
     fn collect_environment_feedback_reports_version_and_layer_overrides() {
+        let workspace_version = workspace_replay_version();
+        let mismatched_version = mismatched_replay_version();
         let vk_layer_path = std::env::join_paths([Path::new("custom/layers")])
             .expect("valid path list")
             .to_string_lossy()
@@ -847,9 +869,9 @@ administrator privileges required"
             platform: "linux",
             arch: "x86_64",
             is_elevated: None,
-            renderdoccmd_version: Some("1.43"),
+            renderdoccmd_version: Some(mismatched_version),
             renderdoccmd_version_error: None,
-            workspace_renderdoc_version: Some("1.44"),
+            workspace_renderdoc_version: Some(workspace_version),
             replay_version_match: Some(false),
             vulkan_layer: None,
             vulkan_layer_error: None,
@@ -861,7 +883,9 @@ administrator privileges required"
             feedback
                 .warnings
                 .iter()
-                .any(|warning| warning.contains("does not match workspace replay headers `1.44`"))
+                .any(|warning| warning.contains(&format!(
+                    "does not match workspace replay headers `{workspace_version}`"
+                )))
         );
         assert!(feedback.warnings.iter().any(|warning| warning.contains(
             "VK_INSTANCE_LAYERS is set but does not include VK_LAYER_RENDERDOC_Capture"
@@ -875,7 +899,9 @@ administrator privileges required"
             feedback
                 .suggested_commands
                 .iter()
-                .any(|cmd| cmd.contains("Install or select RenderDoc `1.44`"))
+                .any(|cmd| cmd.contains(&format!(
+                    "Install or select RenderDoc `{workspace_version}`"
+                )))
         );
         assert!(feedback.suggested_commands.iter().any(|cmd| {
             cmd.contains("Set VK_INSTANCE_LAYERS to include VK_LAYER_RENDERDOC_Capture")
@@ -884,6 +910,7 @@ administrator privileges required"
 
     #[test]
     fn collect_environment_feedback_reports_vk_registration_actions() {
+        let workspace_version = workspace_replay_version();
         let vk = VulkanLayerDiagnosis {
             supported: true,
             needs_attention: true,
@@ -905,9 +932,9 @@ administrator privileges required"
             platform: "linux",
             arch: "x86_64",
             is_elevated: Some(false),
-            renderdoccmd_version: Some("1.44"),
+            renderdoccmd_version: Some(workspace_version),
             renderdoccmd_version_error: None,
-            workspace_renderdoc_version: Some("1.44"),
+            workspace_renderdoc_version: Some(workspace_version),
             replay_version_match: Some(true),
             vulkan_layer: Some(&vk),
             vulkan_layer_error: None,
@@ -943,6 +970,7 @@ administrator privileges required"
 
     #[test]
     fn collect_environment_feedback_surfaces_probe_errors() {
+        let workspace_version = workspace_replay_version();
         let feedback = collect_environment_feedback(&EnvironmentAssessmentInputs {
             renderdoccmd_exe: Path::new("/renderdoc/renderdoccmd"),
             platform: "linux",
@@ -950,7 +978,7 @@ administrator privileges required"
             is_elevated: None,
             renderdoccmd_version: None,
             renderdoccmd_version_error: Some("spawn failed"),
-            workspace_renderdoc_version: Some("1.44"),
+            workspace_renderdoc_version: Some(workspace_version),
             replay_version_match: None,
             vulkan_layer: None,
             vulkan_layer_error: Some("renderdoccmd output was not valid UTF-8"),
