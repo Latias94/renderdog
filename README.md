@@ -365,17 +365,18 @@ If it needs attention, suggested fixes typically include:
 `RENDERDOG_SYS_REGEN_BINDINGS=1 cargo build -p renderdog-sys --features bindgen`
 
 You can also point to a specific header via `RENDERDOG_SYS_HEADER=/path/to/renderdoc_app.h`.
-When doing so, `renderdog-sys` will infer the matching replay version header from the standard
-RenderDoc layout. If that inference does not work, also set
-`RENDERDOG_SYS_REPLAY_VERSION_HEADER=/path/to/renderdoc/api/replay/version.h`.
 
-The published `renderdog-sys` crate only ships pregenerated bindings plus replay version metadata.
-If you regenerate bindings outside this workspace, you must provide either the RenderDoc submodule
-or an explicit `RENDERDOG_SYS_HEADER`.
+The published `renderdog-sys` crate only ships pregenerated bindings. If you regenerate bindings
+outside this workspace, you must provide either the RenderDoc submodule or an explicit
+`RENDERDOG_SYS_HEADER`.
+
+`renderdog-automation` and `renderdog-replay` vendor the expected replay version metadata inside
+their own crates so version diagnostics remain self-contained when those crates are built outside
+this workspace.
 
 Alternatively, use the helper script (maintainers):
 
-- Update pregenerated bindings: `python scripts/regen_bindings.py`
+- Update pregenerated bindings + vendored replay version metadata: `python scripts/regen_bindings.py`
 - Check without writing: `python scripts/regen_bindings.py --check`
 
 ## Packaging note (workspace vs crates.io)

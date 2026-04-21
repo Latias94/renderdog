@@ -94,35 +94,45 @@ def parse_replay_version_header(content: str) -> str:
     return f"{major}.{minor}"
 
 
-def sync_vendored_replay_version(root: Path, *, check: bool) -> bool:
+def vendored_replay_version_targets(root: Path) -> list[Path]:
+    return [
+        root / "crates" / "renderdog-automation" / "vendor" / "renderdoc_replay_version.txt",
+        root / "crates" / "renderdog-replay" / "vendor" / "renderdoc_replay_version.txt",
+    ]
+
+
+def sync_vendored_replay_versions(root: Path, *, check: bool) -> bool:
     replay_version_header = (
         root / "third-party" / "renderdoc" / "renderdoc" / "api" / "replay" / "version.h"
-    )
-    vendored_version_file = (
-        root / "crates" / "renderdog-sys" / "vendor" / "renderdoc_replay_version.txt"
     )
 
     if not replay_version_header.is_file():
         return True
 
     expected_version = parse_replay_version_header(replay_version_header.read_text())
-    current_version = (
-        vendored_version_file.read_text().strip() if vendored_version_file.is_file() else ""
-    )
+    all_synced = True
 
-    if current_version == expected_version:
-        return True
-
-    if check:
-        print(
-            "vendored replay version is OUT OF DATE "
-            f"({vendored_version_file}: {current_version or '<missing>'} != {expected_version})."
+    for vendored_version_file in vendored_replay_version_targets(root):
+        current_version = (
+            vendored_version_file.read_text().strip() if vendored_version_file.is_file() else ""
         )
-        return False
 
-    vendored_version_file.write_text(f"{expected_version}\n")
-    print(f"updated: {vendored_version_file}")
-    return True
+        if current_version == expected_version:
+            continue
+
+        if check:
+            print(
+                "vendored replay version is OUT OF DATE "
+                f"({vendored_version_file}: {current_version or '<missing>'} != {expected_version})."
+            )
+            all_synced = False
+            continue
+
+        vendored_version_file.parent.mkdir(parents=True, exist_ok=True)
+        vendored_version_file.write_text(f"{expected_version}\n")
+        print(f"updated: {vendored_version_file}")
+
+    return all_synced
 
 
 def main() -> int:
@@ -170,7 +180,7 @@ def main() -> int:
 
     if args.check:
         same = pregenerated.read_bytes() == generated.read_bytes()
-        versions_ok = sync_vendored_replay_version(root, check=True)
+        versions_ok = sync_vendored_replay_versions(root, check=True)
         if not same:
             print("bindings are OUT OF DATE (run without --check to update).")
             return 1
@@ -183,7 +193,7 @@ def main() -> int:
     shutil.copyfile(generated, tmp)
     tmp.replace(pregenerated)
     print(f"updated: {pregenerated}")
-    sync_vendored_replay_version(root, check=False)
+    sync_vendored_replay_versions(root, check=False)
     return 0
 
 

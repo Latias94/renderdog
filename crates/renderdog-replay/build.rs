@@ -14,8 +14,6 @@ fn main() {
         .join("replay")
         .join("version.h");
     let vendored_replay_version = manifest_dir
-        .join("..")
-        .join("renderdog-sys")
         .join("vendor")
         .join("renderdoc_replay_version.txt");
 
