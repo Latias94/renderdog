@@ -17,9 +17,6 @@ pub enum ReplayRuntimeError {
     #[error("`renderdog-replay` requires the `cxx-replay` feature")]
     FeatureNotEnabled,
 
-    #[error("failed to determine workspace RenderDoc replay header version")]
-    WorkspaceVersionUnknown,
-
     #[error(
         "RenderDoc replay version mismatch: workspace headers expect `{expected}`, runtime library reports `{actual}`"
     )]
@@ -46,13 +43,11 @@ pub enum ReplaySessionError {
 #[cfg(any(feature = "cxx-replay", test))]
 fn validate_runtime_version(
     runtime_version: String,
-    workspace_version: Option<&str>,
+    workspace_version: &str,
 ) -> Result<String, ReplayRuntimeError> {
-    let expected_version = workspace_version.ok_or(ReplayRuntimeError::WorkspaceVersionUnknown)?;
-
-    if !renderdoc_versions_match(&runtime_version, expected_version) {
+    if !renderdoc_versions_match(&runtime_version, workspace_version) {
         return Err(ReplayRuntimeError::VersionMismatch {
-            expected: expected_version.to_string(),
+            expected: workspace_version.to_string(),
             actual: runtime_version,
         });
     }
@@ -158,7 +153,6 @@ mod tests {
 
     fn workspace_replay_version() -> &'static str {
         workspace_renderdoc_replay_version()
-            .expect("workspace replay version should be available in tests")
     }
 
     fn mismatched_replay_version() -> &'static str {
@@ -172,9 +166,8 @@ mod tests {
     fn validate_runtime_version_accepts_normalized_match() {
         let workspace_version = workspace_replay_version();
         let runtime_label = format!("RenderDoc v{workspace_version} loaded");
-        let runtime_version =
-            validate_runtime_version(runtime_label.clone(), Some(workspace_version))
-                .expect("version should match");
+        let runtime_version = validate_runtime_version(runtime_label.clone(), workspace_version)
+            .expect("version should match");
 
         assert_eq!(runtime_version, runtime_label);
     }
@@ -183,7 +176,7 @@ mod tests {
     fn validate_runtime_version_rejects_mismatch() {
         let workspace_version = workspace_replay_version();
         let mismatched_version = mismatched_replay_version();
-        let err = validate_runtime_version(mismatched_version.to_string(), Some(workspace_version))
+        let err = validate_runtime_version(mismatched_version.to_string(), workspace_version)
             .expect_err("version mismatch should fail fast");
 
         match err {
@@ -193,13 +186,5 @@ mod tests {
             }
             other => panic!("unexpected error: {other}"),
         }
-    }
-
-    #[test]
-    fn validate_runtime_version_requires_workspace_version() {
-        let err = validate_runtime_version(workspace_replay_version().to_string(), None)
-            .expect_err("missing workspace version should fail");
-
-        assert!(matches!(err, ReplayRuntimeError::WorkspaceVersionUnknown));
     }
 }

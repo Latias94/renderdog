@@ -1,8 +1,9 @@
-pub(crate) const WORKSPACE_RENDERDOC_REPLAY_VERSION: Option<&str> =
-    option_env!("RENDERDOG_AUTOMATION_WORKSPACE_REPLAY_VERSION");
+const VENDORED_WORKSPACE_RENDERDOC_REPLAY_VERSION: &str =
+    include_str!("../vendor/renderdoc_replay_version.txt");
 
-pub(crate) fn workspace_renderdoc_replay_version() -> Option<&'static str> {
-    WORKSPACE_RENDERDOC_REPLAY_VERSION
+pub(crate) fn workspace_renderdoc_replay_version() -> &'static str {
+    option_env!("RENDERDOG_AUTOMATION_WORKSPACE_REPLAY_VERSION")
+        .unwrap_or_else(|| VENDORED_WORKSPACE_RENDERDOC_REPLAY_VERSION.trim())
 }
 
 pub(crate) fn normalize_renderdoc_version(value: &str) -> Option<String> {

@@ -13,9 +13,6 @@ fn main() {
         .join("api")
         .join("replay")
         .join("version.h");
-    let vendored_replay_version = manifest_dir
-        .join("vendor")
-        .join("renderdoc_replay_version.txt");
 
     println!(
         "cargo:rerun-if-changed={}",
@@ -25,14 +22,8 @@ fn main() {
         "cargo:rerun-if-changed={}",
         submodule_replay_version_header.display()
     );
-    println!(
-        "cargo:rerun-if-changed={}",
-        vendored_replay_version.display()
-    );
 
-    if let Some(version) =
-        workspace_replay_version(&submodule_replay_version_header, &vendored_replay_version)
-    {
+    if let Some(version) = workspace_replay_version(&submodule_replay_version_header) {
         println!("cargo:rustc-env=RENDERDOG_REPLAY_WORKSPACE_VERSION={version}");
     }
 
@@ -86,18 +77,10 @@ fn main() {
     println!("cargo:rerun-if-changed=include/renderdoc_runtime_api.h");
 }
 
-fn workspace_replay_version(submodule_header: &Path, vendored_version: &Path) -> Option<String> {
+fn workspace_replay_version(submodule_header: &Path) -> Option<String> {
     if submodule_header.is_file() {
         let content = fs::read_to_string(submodule_header).ok()?;
         return parse_replay_version_header(&content);
-    }
-
-    if vendored_version.is_file() {
-        let version = fs::read_to_string(vendored_version).ok()?;
-        let version = version.trim();
-        if !version.is_empty() {
-            return Some(version.to_string());
-        }
     }
 
     None

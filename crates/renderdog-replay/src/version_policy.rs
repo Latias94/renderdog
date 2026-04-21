@@ -1,10 +1,11 @@
 #[cfg(any(feature = "cxx-replay", test))]
-pub(crate) const WORKSPACE_RENDERDOC_REPLAY_VERSION: Option<&str> =
-    option_env!("RENDERDOG_REPLAY_WORKSPACE_VERSION");
+const VENDORED_WORKSPACE_RENDERDOC_REPLAY_VERSION: &str =
+    include_str!("../vendor/renderdoc_replay_version.txt");
 
 #[cfg(any(feature = "cxx-replay", test))]
-pub(crate) fn workspace_renderdoc_replay_version() -> Option<&'static str> {
-    WORKSPACE_RENDERDOC_REPLAY_VERSION
+pub(crate) fn workspace_renderdoc_replay_version() -> &'static str {
+    option_env!("RENDERDOG_REPLAY_WORKSPACE_VERSION")
+        .unwrap_or_else(|| VENDORED_WORKSPACE_RENDERDOC_REPLAY_VERSION.trim())
 }
 
 #[cfg(any(feature = "cxx-replay", test))]

@@ -41,7 +41,7 @@ pub struct InstallationProbeSummary {
     pub renderdoccmd_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub renderdoccmd_version_error: Option<String>,
-    pub workspace_renderdoc_version: Option<String>,
+    pub workspace_renderdoc_version: String,
     pub replay_version_match: Option<bool>,
     pub vulkan_layer: Option<VulkanLayerDiagnosis>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -56,8 +56,7 @@ pub struct InstallationDetection {
     pub renderdoccmd_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub renderdoccmd_version_error: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace_renderdoc_version: Option<String>,
+    pub workspace_renderdoc_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replay_version_match: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,7 +93,7 @@ struct EnvironmentAssessmentInputs<'a> {
     is_elevated: Option<bool>,
     renderdoccmd_version: Option<&'a str>,
     renderdoccmd_version_error: Option<&'a str>,
-    workspace_renderdoc_version: Option<&'a str>,
+    workspace_renderdoc_version: &'a str,
     replay_version_match: Option<bool>,
     vulkan_layer: Option<&'a VulkanLayerDiagnosis>,
     vulkan_layer_error: Option<&'a str>,
@@ -252,7 +251,7 @@ impl RenderDocInstallation {
             is_elevated,
             renderdoccmd_version: installation.renderdoccmd_version.as_deref(),
             renderdoccmd_version_error: installation.renderdoccmd_version_error.as_deref(),
-            workspace_renderdoc_version: installation.workspace_renderdoc_version.as_deref(),
+            workspace_renderdoc_version: installation.workspace_renderdoc_version.as_str(),
             replay_version_match: installation.replay_version_match,
             vulkan_layer: installation.vulkan_layer.as_ref(),
             vulkan_layer_error: installation.vulkan_layer_error.as_deref(),
@@ -277,10 +276,10 @@ impl RenderDocInstallation {
             Ok(version) => (Some(version.trim().to_string()), None),
             Err(err) => (None, Some(err.to_string())),
         };
-        let workspace_renderdoc_version = workspace_renderdoc_replay_version().map(str::to_owned);
+        let workspace_renderdoc_version = workspace_renderdoc_replay_version().to_owned();
         let replay_version_match = compute_replay_version_match(
             renderdoccmd_version.as_deref(),
-            workspace_renderdoc_version.as_deref(),
+            &workspace_renderdoc_version,
         );
         let (vulkan_layer, vulkan_layer_error) = match self.diagnose_vulkan_layer() {
             Ok(diag) => (Some(diag), None),
@@ -409,12 +408,10 @@ fn parse_vulkan_layer_diagnosis(
 
 fn compute_replay_version_match(
     renderdoccmd_version: Option<&str>,
-    workspace_renderdoc_version: Option<&str>,
+    workspace_renderdoc_version: &str,
 ) -> Option<bool> {
-    match (renderdoccmd_version, workspace_renderdoc_version) {
-        (Some(installed), Some(workspace)) => Some(renderdoc_versions_match(installed, workspace)),
-        _ => None,
-    }
+    renderdoccmd_version
+        .map(|installed| renderdoc_versions_match(installed, workspace_renderdoc_version))
 }
 
 fn assess_environment(inputs: &EnvironmentAssessmentInputs<'_>) -> Vec<EnvironmentFinding> {
@@ -448,14 +445,12 @@ fn assess_environment(inputs: &EnvironmentAssessmentInputs<'_>) -> Vec<Environme
         });
     }
 
-    if let (Some(false), Some(installed), Some(workspace)) = (
-        inputs.replay_version_match,
-        inputs.renderdoccmd_version,
-        inputs.workspace_renderdoc_version,
-    ) {
+    if let (Some(false), Some(installed)) =
+        (inputs.replay_version_match, inputs.renderdoccmd_version)
+    {
         findings.push(EnvironmentFinding::ReplayVersionMismatch {
             installed: installed.to_string(),
-            workspace: workspace.to_string(),
+            workspace: inputs.workspace_renderdoc_version.to_string(),
         });
     }
 
@@ -758,7 +753,6 @@ mod tests {
 
     fn workspace_replay_version() -> &'static str {
         workspace_renderdoc_replay_version()
-            .expect("workspace replay version should be available in tests")
     }
 
     fn mismatched_replay_version() -> &'static str {
@@ -832,20 +826,14 @@ administrator privileges required"
         let workspace_version = workspace_replay_version();
         let mismatched_version = mismatched_replay_version();
         assert_eq!(
-            compute_replay_version_match(
-                Some(&format!("v{workspace_version}")),
-                Some(workspace_version)
-            ),
+            compute_replay_version_match(Some(&format!("v{workspace_version}")), workspace_version),
             Some(true)
         );
         assert_eq!(
-            compute_replay_version_match(Some(mismatched_version), Some(workspace_version)),
+            compute_replay_version_match(Some(mismatched_version), workspace_version),
             Some(false)
         );
-        assert_eq!(
-            compute_replay_version_match(Some(workspace_version), None),
-            None
-        );
+        assert_eq!(compute_replay_version_match(None, workspace_version), None);
     }
 
     #[test]
@@ -873,7 +861,7 @@ administrator privileges required"
             is_elevated: None,
             renderdoccmd_version: Some(mismatched_version),
             renderdoccmd_version_error: None,
-            workspace_renderdoc_version: Some(workspace_version),
+            workspace_renderdoc_version: workspace_version,
             replay_version_match: Some(false),
             vulkan_layer: None,
             vulkan_layer_error: None,
@@ -936,7 +924,7 @@ administrator privileges required"
             is_elevated: Some(false),
             renderdoccmd_version: Some(workspace_version),
             renderdoccmd_version_error: None,
-            workspace_renderdoc_version: Some(workspace_version),
+            workspace_renderdoc_version: workspace_version,
             replay_version_match: Some(true),
             vulkan_layer: Some(&vk),
             vulkan_layer_error: None,
@@ -980,7 +968,7 @@ administrator privileges required"
             is_elevated: None,
             renderdoccmd_version: None,
             renderdoccmd_version_error: Some("spawn failed"),
-            workspace_renderdoc_version: Some(workspace_version),
+            workspace_renderdoc_version: workspace_version,
             replay_version_match: None,
             vulkan_layer: None,
             vulkan_layer_error: Some("renderdoccmd output was not valid UTF-8"),
