@@ -75,29 +75,46 @@ pub enum FindEventsAndSaveOutputsPngError {
     Replay(#[from] ReplaySaveOutputsPngError),
 }
 
-impl FindEventsAndSaveOutputsPngRequest {
-    fn find_request(&self) -> FindEventsRequest {
-        FindEventsRequest {
-            capture: self.capture.clone(),
-            drawcall_scope: DrawcallScope {
-                only_drawcalls: self.only_drawcalls,
+#[derive(Debug, Clone)]
+struct PreparedFindAndSaveOutputs {
+    find: FindEventsRequest,
+    selection: FindEventSelection,
+    output: ExportOutput,
+    include_depth: bool,
+}
+
+impl PreparedFindAndSaveOutputs {
+    fn from_request(req: &FindEventsAndSaveOutputsPngRequest) -> Self {
+        Self {
+            find: FindEventsRequest {
+                capture: req.capture.clone(),
+                drawcall_scope: DrawcallScope {
+                    only_drawcalls: req.only_drawcalls,
+                },
+                filter: req.filter.clone(),
+                limit: req.limit,
             },
-            filter: self.filter.clone(),
-            limit: self.limit,
+            selection: req.selection,
+            output: req.output.clone(),
+            include_depth: req.include_depth,
         }
     }
 
     fn replay_request(
         &self,
-        capture: CaptureInput,
-        selected_event_id: u32,
-    ) -> ReplaySaveOutputsPngRequest {
-        ReplaySaveOutputsPngRequest {
-            capture,
+        find: &FindEventsResponse,
+    ) -> Result<ReplaySaveOutputsPngRequest, FindEventsAndSaveOutputsPngError> {
+        let selected_event_id = self
+            .selection
+            .select_event_id(find)
+            .ok_or(FindEventsAndSaveOutputsPngError::NoMatchingEvents)?;
+
+        Ok(ReplaySaveOutputsPngRequest {
+            capture: find.capture.clone(),
             selection: ReplayEventSelector::event_id(selected_event_id),
             output: self.output.clone(),
             include_depth: self.include_depth,
-        }
+        })
     }
 }
 
@@ -107,16 +124,9 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsAndSaveOutputsPngRequest,
     ) -> Result<FindEventsAndSaveOutputsPngResponse, FindEventsAndSaveOutputsPngError> {
-        let find = self.find_events(cwd, &req.find_request())?;
-        let selected_event_id = req
-            .selection
-            .select_event_id(&find)
-            .ok_or(FindEventsAndSaveOutputsPngError::NoMatchingEvents)?;
-
-        let replay = self.replay_save_outputs_png(
-            cwd,
-            &req.replay_request(find.capture.clone(), selected_event_id),
-        )?;
+        let prepared = PreparedFindAndSaveOutputs::from_request(req);
+        let find = self.find_events(cwd, &prepared.find)?;
+        let replay = self.replay_save_outputs_png(cwd, &prepared.replay_request(&find)?)?;
 
         Ok(FindEventsAndSaveOutputsPngResponse::from_parts(
             find, replay,
@@ -131,6 +141,7 @@ mod tests {
     use super::{
         FindEventSelection, FindEventsAndSaveOutputsPngError, FindEventsAndSaveOutputsPngRequest,
         FindEventsAndSaveOutputsPngResponse, FindEventsLimit, FindEventsResponse,
+        PreparedFindAndSaveOutputs,
     };
     use crate::{
         CaptureInput, CaptureRef, EventFilter, ExportOutput, FindEventsSummary, OutputRef,
@@ -177,18 +188,27 @@ mod tests {
             include_depth: true,
         };
 
-        let find = req.find_request();
-        let replay = req.replay_request(
-            CaptureInput {
-                capture_path: "/tmp/project/captures/frame.rdc".to_string(),
-            },
-            99,
-        );
+        let prepared = PreparedFindAndSaveOutputs::from_request(&req);
+        let replay = prepared
+            .replay_request(&FindEventsResponse {
+                capture: CaptureRef::new("/tmp/project/captures/frame.rdc"),
+                summary: FindEventsSummary {
+                    total_matches: 2,
+                    truncated: false,
+                    first_event_id: Some(11),
+                    last_event_id: Some(99),
+                },
+                matches: Vec::new(),
+            })
+            .expect("build replay request");
 
-        assert!(find.drawcall_scope.only_drawcalls);
-        assert_eq!(find.filter.marker_contains.as_deref(), Some("fret"));
-        assert_eq!(find.limit.max_results, Some(5));
-        assert_eq!(find.capture.capture_path, "captures/frame.rdc");
+        assert!(prepared.find.drawcall_scope.only_drawcalls);
+        assert_eq!(
+            prepared.find.filter.marker_contains.as_deref(),
+            Some("fret")
+        );
+        assert_eq!(prepared.find.limit.max_results, Some(5));
+        assert_eq!(prepared.find.capture.capture_path, "captures/frame.rdc");
         assert_eq!(
             replay.capture.capture_path,
             "/tmp/project/captures/frame.rdc"
@@ -200,6 +220,40 @@ mod tests {
         );
         assert_eq!(replay.output.basename.as_deref(), Some("frame"));
         assert!(replay.include_depth);
+    }
+
+    #[test]
+    fn workflow_plan_rejects_missing_selected_event() {
+        let prepared =
+            PreparedFindAndSaveOutputs::from_request(&FindEventsAndSaveOutputsPngRequest {
+                capture: CaptureInput {
+                    capture_path: "captures/frame.rdc".to_string(),
+                },
+                selection: FindEventSelection::First,
+                only_drawcalls: true,
+                filter: EventFilter::default(),
+                limit: FindEventsLimit::default(),
+                output: ExportOutput::default(),
+                include_depth: false,
+            });
+
+        let err = prepared
+            .replay_request(&FindEventsResponse {
+                capture: CaptureRef::new("/tmp/project/captures/frame.rdc"),
+                summary: FindEventsSummary {
+                    total_matches: 0,
+                    truncated: false,
+                    first_event_id: None,
+                    last_event_id: None,
+                },
+                matches: Vec::new(),
+            })
+            .expect_err("missing matches should fail");
+
+        assert!(matches!(
+            err,
+            FindEventsAndSaveOutputsPngError::NoMatchingEvents
+        ));
     }
 
     #[test]
