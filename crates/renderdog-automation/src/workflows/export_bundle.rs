@@ -116,8 +116,8 @@ impl RenderDocInstallation {
         let prepared = PreparedBundleExport::resolved_in_cwd(cwd, req)
             .map_err(ExportBundleError::CreateOutputDir)?;
 
-        let actions = self.export_actions_jsonl(cwd, &prepared.actions)?;
-        let bindings = self.export_bindings_index_jsonl(cwd, &prepared.bindings)?;
+        let actions = self.export_actions(cwd, &prepared.actions)?;
+        let bindings = self.export_bindings_index(cwd, &prepared.bindings)?;
 
         let post_action_plan = PreparedCapturePostActions::resolved_in_cwd(
             cwd,

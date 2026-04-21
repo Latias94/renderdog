@@ -16,17 +16,17 @@ const QRENDERDOC_RUNTIME_SUPPORT_FILES: &[QRenderDocScriptFile] =
 const ACTION_QUERY_SUPPORT_FILES: &[QRenderDocScriptFile] =
     &[QRENDERDOC_RUNTIME_SUPPORT_FILE, ACTION_QUERY_SUPPORT_FILE];
 
-pub(crate) const EXPORT_ACTIONS_JSONL_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
-    "export_actions_jsonl",
-    "export_actions_jsonl.py",
-    include_str!("../scripts/export_actions_jsonl.py"),
+pub(crate) const EXPORT_ACTIONS_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
+    "export_actions",
+    "export_actions.py",
+    include_str!("../scripts/export_actions.py"),
     ACTION_QUERY_SUPPORT_FILES,
 );
 
-pub(crate) const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
-    "export_bindings_index_jsonl",
-    "export_bindings_index_jsonl.py",
-    include_str!("../scripts/export_bindings_index_jsonl.py"),
+pub(crate) const EXPORT_BINDINGS_INDEX_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
+    "export_bindings_index",
+    "export_bindings_index.py",
+    include_str!("../scripts/export_bindings_index.py"),
     ACTION_QUERY_SUPPORT_FILES,
 );
 
@@ -77,16 +77,16 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        EXPORT_ACTIONS_JSONL_JOB, EXPORT_BINDINGS_INDEX_JSONL_JOB, FIND_EVENTS_JOB,
-        REPLAY_LIST_TEXTURES_JOB, REPLAY_PICK_PIXEL_JOB, REPLAY_SAVE_OUTPUTS_PNG_JOB,
-        REPLAY_SAVE_TEXTURE_PNG_JOB, TRIGGER_CAPTURE_JOB,
+        EXPORT_ACTIONS_JOB, EXPORT_BINDINGS_INDEX_JOB, FIND_EVENTS_JOB, REPLAY_LIST_TEXTURES_JOB,
+        REPLAY_PICK_PIXEL_JOB, REPLAY_SAVE_OUTPUTS_PNG_JOB, REPLAY_SAVE_TEXTURE_PNG_JOB,
+        TRIGGER_CAPTURE_JOB,
     };
 
     #[test]
     fn qrenderdoc_job_registry_uses_unique_prefixes_and_script_names() {
         let jobs = [
-            &EXPORT_ACTIONS_JSONL_JOB,
-            &EXPORT_BINDINGS_INDEX_JSONL_JOB,
+            &EXPORT_ACTIONS_JOB,
+            &EXPORT_BINDINGS_INDEX_JOB,
             &FIND_EVENTS_JOB,
             &TRIGGER_CAPTURE_JOB,
             &REPLAY_LIST_TEXTURES_JOB,
@@ -111,8 +111,8 @@ mod tests {
     #[test]
     fn action_query_jobs_bundle_shared_support_module() {
         let jobs = [
-            &EXPORT_ACTIONS_JSONL_JOB,
-            &EXPORT_BINDINGS_INDEX_JSONL_JOB,
+            &EXPORT_ACTIONS_JOB,
+            &EXPORT_BINDINGS_INDEX_JOB,
             &FIND_EVENTS_JOB,
         ];
 
@@ -128,8 +128,8 @@ mod tests {
     #[test]
     fn all_jobs_bundle_shared_qrenderdoc_runtime_module() {
         let jobs = [
-            &EXPORT_ACTIONS_JSONL_JOB,
-            &EXPORT_BINDINGS_INDEX_JSONL_JOB,
+            &EXPORT_ACTIONS_JOB,
+            &EXPORT_BINDINGS_INDEX_JOB,
             &FIND_EVENTS_JOB,
             &TRIGGER_CAPTURE_JOB,
             &REPLAY_LIST_TEXTURES_JOB,

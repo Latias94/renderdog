@@ -5,8 +5,8 @@ from renderdog_action_query import ActionFilter, is_drawcall_like, walk_actions
 from renderdog_qrenderdoc import run_job, with_capture_controller
 
 
-REQUEST_PATH = "export_actions_jsonl.request"
-RESPONSE_PATH = "export_actions_jsonl.response"
+REQUEST_PATH = "export_actions.request"
+RESPONSE_PATH = "export_actions.response"
 
 
 def handle_request(req):

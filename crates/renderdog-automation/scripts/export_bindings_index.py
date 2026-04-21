@@ -7,8 +7,8 @@ from renderdog_action_query import ActionFilter, walk_actions
 from renderdog_qrenderdoc import run_job, with_capture_controller
 
 
-REQUEST_PATH = "export_bindings_index_jsonl.request"
-RESPONSE_PATH = "export_bindings_index_jsonl.response"
+REQUEST_PATH = "export_bindings_index.request"
+RESPONSE_PATH = "export_bindings_index.response"
 
 
 def try_res_name(controller, rid) -> str:
