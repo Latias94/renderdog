@@ -49,7 +49,8 @@ pub struct SaveThumbnailResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct OpenCaptureUiRequest {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -155,7 +156,8 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &OpenCaptureUiRequest,
     ) -> Result<OpenCaptureUiResponse, OpenCaptureUiError> {
-        let capture_path = resolve_path_from_cwd(cwd, &req.capture_path);
+        let capture = req.capture.normalized_in_cwd(cwd);
+        let capture_path = Path::new(&capture.capture_path);
         let child = self.open_capture_in_ui(&capture_path)?;
 
         Ok(OpenCaptureUiResponse {
@@ -311,5 +313,23 @@ mod tests {
         );
         assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("output"));
+    }
+
+    #[test]
+    fn open_capture_ui_request_serializes_capture_flattened() {
+        let req = OpenCaptureUiRequest {
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert!(!object.contains_key("capture"));
     }
 }

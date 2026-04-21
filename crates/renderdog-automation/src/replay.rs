@@ -4,24 +4,25 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::QRenderDocJsonError;
 use crate::qrenderdoc_jobs::{
     REPLAY_LIST_TEXTURES_JOB, REPLAY_PICK_PIXEL_JOB, REPLAY_SAVE_OUTPUTS_PNG_JOB,
     REPLAY_SAVE_TEXTURE_PNG_JOB,
 };
 use crate::scripting::PrepareQRenderDocJsonRequest;
 use crate::{CaptureInput, ExportOutput, OutputFile, RenderDocInstallation};
-use crate::{QRenderDocJsonError, normalize_capture_path};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayListTexturesRequest {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
     pub event_id: Option<u32>,
 }
 
 impl ReplayListTexturesRequest {
     pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
         Self {
-            capture_path: normalize_capture_path(cwd, &self.capture_path),
+            capture: self.capture.normalized_in_cwd(cwd),
             ..self.clone()
         }
     }
@@ -58,7 +59,8 @@ pub struct ReplayListTexturesResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayPickPixelRequest {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
     pub event_id: Option<u32>,
     pub texture_index: u32,
     pub x: u32,
@@ -68,7 +70,7 @@ pub struct ReplayPickPixelRequest {
 impl ReplayPickPixelRequest {
     pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
         Self {
-            capture_path: normalize_capture_path(cwd, &self.capture_path),
+            capture: self.capture.normalized_in_cwd(cwd),
             ..self.clone()
         }
     }
@@ -228,7 +230,10 @@ mod tests {
 
     use serde_json::Value;
 
-    use super::{ReplaySaveOutputsPngRequest, ReplaySaveTexturePngRequest};
+    use super::{
+        ReplayListTexturesRequest, ReplayPickPixelRequest, ReplaySaveOutputsPngRequest,
+        ReplaySaveTexturePngRequest,
+    };
     use crate::{CaptureInput, ExportOutput, OutputFile};
 
     #[test]
@@ -289,6 +294,55 @@ mod tests {
         );
         assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("output"));
+    }
+
+    #[test]
+    fn replay_list_textures_request_serializes_capture_flattened() {
+        let req = ReplayListTexturesRequest {
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+            event_id: Some(42),
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(object.get("event_id"), Some(&Value::Number(42_u32.into())));
+        assert!(!object.contains_key("capture"));
+    }
+
+    #[test]
+    fn replay_pick_pixel_request_serializes_capture_flattened() {
+        let req = ReplayPickPixelRequest {
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+            event_id: Some(42),
+            texture_index: 3,
+            x: 10,
+            y: 20,
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(object.get("event_id"), Some(&Value::Number(42_u32.into())));
+        assert_eq!(
+            object.get("texture_index"),
+            Some(&Value::Number(3_u32.into()))
+        );
+        assert_eq!(object.get("x"), Some(&Value::Number(10_u32.into())));
+        assert_eq!(object.get("y"), Some(&Value::Number(20_u32.into())));
+        assert!(!object.contains_key("capture"));
     }
 
     #[test]

@@ -41,7 +41,7 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::OpenCaptureUiResponse>, String> {
         let tool = "renderdoc_open_capture_ui";
         let run = ToolRun::start(tool, || {
-            tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
+            tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         });
         let res = run.with_install_and_cwd("open capture UI", req, |install, cwd, req| {
             install.open_capture_ui_in_cwd(&cwd, &req)
