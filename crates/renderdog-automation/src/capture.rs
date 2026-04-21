@@ -43,17 +43,8 @@ pub struct SaveThumbnailRequest {
     pub output: OutputFile,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct SaveThumbnailResponse {
-    #[serde(flatten)]
-    pub output: OutputRef,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct OpenCaptureUiRequest {
-    #[serde(flatten)]
-    pub capture: CaptureInput,
-}
+pub type SaveThumbnailResponse = OutputRef;
+pub type OpenCaptureUiRequest = CaptureInput;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct OpenCaptureUiResponse {
@@ -149,9 +140,7 @@ impl RenderDocInstallation {
 
         self.save_thumbnail(&capture_path, &output_path)?;
 
-        Ok(SaveThumbnailResponse {
-            output: OutputRef::new(output_path.display().to_string()),
-        })
+        Ok(OutputRef::new(output_path.display().to_string()))
     }
 
     pub fn open_capture_ui_in_cwd(
@@ -159,7 +148,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &OpenCaptureUiRequest,
     ) -> Result<OpenCaptureUiResponse, OpenCaptureUiError> {
-        let capture = req.capture.normalized_in_cwd(cwd);
+        let capture = req.normalized_in_cwd(cwd);
         let capture_path = Path::new(&capture.capture_path);
         let child = self.open_capture_in_ui(&capture_path)?;
 
@@ -321,9 +310,7 @@ mod tests {
     #[test]
     fn open_capture_ui_request_serializes_capture_flattened() {
         let req = OpenCaptureUiRequest {
-            capture: CaptureInput {
-                capture_path: "/tmp/frame.rdc".to_string(),
-            },
+            capture_path: "/tmp/frame.rdc".to_string(),
         };
 
         let json = serde_json::to_value(req).expect("serialize request");
@@ -338,9 +325,7 @@ mod tests {
 
     #[test]
     fn save_thumbnail_response_serializes_output_flattened() {
-        let response = SaveThumbnailResponse {
-            output: OutputRef::new("/tmp/frame.png"),
-        };
+        let response = SaveThumbnailResponse::new("/tmp/frame.png");
 
         let json = serde_json::to_value(response).expect("serialize response");
         let object = json.as_object().expect("response object");
@@ -349,7 +334,6 @@ mod tests {
             object.get("output_path"),
             Some(&Value::String("/tmp/frame.png".to_string()))
         );
-        assert!(!object.contains_key("output"));
     }
 
     #[test]
