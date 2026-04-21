@@ -385,14 +385,62 @@ impl From<Vec<String>> for MarkerPath {
     }
 }
 
+const EVENT_FLAG_NAMES: &[(u32, &str)] = &[
+    (0x0001, "Clear"),
+    (0x0002, "Drawcall"),
+    (0x0004, "Dispatch"),
+    (0x0008, "MeshDispatch"),
+    (0x0010, "CmdList"),
+    (0x0020, "SetMarker"),
+    (0x0040, "PushMarker"),
+    (0x0080, "PopMarker"),
+    (0x0100, "Present"),
+    (0x0200, "MultiAction"),
+    (0x0400, "Copy"),
+    (0x0800, "Resolve"),
+    (0x1000, "GenMips"),
+    (0x2000, "PassBoundary"),
+    (0x4000, "DispatchRay"),
+    (0x8000, "BuildAccStruct"),
+    (0x010000, "Indexed"),
+    (0x020000, "Instanced"),
+    (0x040000, "Auto"),
+    (0x080000, "Indirect"),
+    (0x100000, "ClearColor"),
+    (0x200000, "ClearDepthStencil"),
+    (0x400000, "BeginPass"),
+    (0x800000, "EndPass"),
+    (0x1000000, "CommandBufferBoundary"),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct EventFlags {
+    pub bits: u32,
+}
+
+impl EventFlags {
+    pub const DRAWCALL: Self = Self { bits: 0x0002 };
+
+    pub fn new(bits: u32) -> Self {
+        Self { bits }
+    }
+
+    pub fn names(&self) -> Vec<&'static str> {
+        EVENT_FLAG_NAMES
+            .iter()
+            .filter_map(|(bit, name)| (self.bits & bit != 0).then_some(*name))
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FoundEvent {
     pub event_id: u32,
     pub parent_event_id: Option<u32>,
     pub depth: u32,
     pub name: String,
-    pub flags: u64,
-    pub flags_names: Vec<String>,
+    pub flags: EventFlags,
     pub marker_path: MarkerPath,
 }
 
@@ -490,10 +538,11 @@ mod tests {
     use super::{
         ActionsExportArtifacts, BindingsExportArtifacts, BindingsExportOptions,
         BundleExportArtifacts, BundleExportOptions, CaptureInput, CapturePostActionOutputs,
-        CapturePostActions, CaptureRef, DrawcallScope, EventFilter, ExportActionsResponse,
-        ExportBindingsIndexResponse, ExportBundleRequest, ExportBundleResponse, ExportOutput,
-        FindEventsResponse, FindEventsSummary, FoundEvent, MarkerPath, OutputFile,
-        TargetControlRef, TriggerCaptureOptions, TriggerCaptureRequest, TriggerCaptureResponse,
+        CapturePostActions, CaptureRef, DrawcallScope, EventFilter, EventFlags,
+        ExportActionsResponse, ExportBindingsIndexResponse, ExportBundleRequest,
+        ExportBundleResponse, ExportOutput, FindEventsResponse, FindEventsSummary, FoundEvent,
+        MarkerPath, OutputFile, TargetControlRef, TriggerCaptureOptions, TriggerCaptureRequest,
+        TriggerCaptureResponse,
     };
 
     #[test]
@@ -719,8 +768,7 @@ mod tests {
             parent_event_id: Some(11),
             depth: 3,
             name: "DrawIndexed".to_string(),
-            flags: 1,
-            flags_names: vec!["Drawcall".to_string()],
+            flags: EventFlags::DRAWCALL,
             marker_path: MarkerPath::from(vec!["Frame".to_string(), "Main".to_string()]),
         };
 
@@ -728,12 +776,15 @@ mod tests {
         let object = json.as_object().expect("event object");
 
         assert_eq!(event.marker_path_joined(), "Frame/Main");
+        assert_eq!(event.flags.names(), vec!["Drawcall"]);
         assert!(
             object
                 .get("marker_path")
                 .and_then(Value::as_array)
                 .is_some()
         );
+        assert_eq!(object.get("flags"), Some(&Value::Number(2_u32.into())));
+        assert!(!object.contains_key("flags_names"));
         assert!(!object.contains_key("marker_path_joined"));
     }
 

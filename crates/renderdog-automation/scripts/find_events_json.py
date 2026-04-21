@@ -8,29 +8,6 @@ REQ_PATH = "find_events_json.request.json"
 RESP_PATH = "find_events_json.response.json"
 
 
-FLAG_NAMES = [
-    ("Drawcall", rd.ActionFlags.Drawcall),
-    ("Dispatch", rd.ActionFlags.Dispatch),
-    ("MeshDispatch", rd.ActionFlags.MeshDispatch),
-    ("DispatchRay", rd.ActionFlags.DispatchRay),
-    ("Present", rd.ActionFlags.Present),
-    ("PushMarker", rd.ActionFlags.PushMarker),
-    ("PopMarker", rd.ActionFlags.PopMarker),
-    ("PassBoundary", rd.ActionFlags.PassBoundary),
-    ("BeginPass", rd.ActionFlags.BeginPass),
-    ("EndPass", rd.ActionFlags.EndPass),
-    ("CommandBufferBoundary", rd.ActionFlags.CommandBufferBoundary),
-]
-
-
-def flags_to_names(flags):
-    names = []
-    for name, bit in FLAG_NAMES:
-        if flags & bit:
-            names.append(name)
-    return names
-
-
 def is_drawcall_like(flags: int) -> bool:
     return bool(
         (flags & rd.ActionFlags.Drawcall)
@@ -167,7 +144,6 @@ def iter_actions(
                         "depth": int(depth),
                         "name": name_str,
                         "flags": int(flags),
-                        "flags_names": flags_to_names(flags),
                         "marker_path": effective_marker_path,
                     }
                 )
