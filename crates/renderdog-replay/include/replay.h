@@ -27,7 +27,7 @@ public:
   void open_capture(rust::Str capture_path);
   void set_frame_event(uint32_t event_id);
 
-  rust::String list_textures_json() const;
+  rust::String list_textures_serialized() const;
   rust::Vec<float> pick_pixel(uint32_t texture_index, uint32_t x, uint32_t y) const;
   void save_texture_png(uint32_t texture_index, rust::Str output_path) const;
 

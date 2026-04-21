@@ -45,10 +45,8 @@ fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     println!("[cxx_replay_pick_pixel] open_capture ok");
 
-    let textures = replay
-        .list_textures_json()
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
-    println!("textures: {textures}");
+    let textures = replay.list_textures().map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("textures ({}) = {textures:#?}", textures.len());
 
     let pix = replay
         .pick_pixel(texture_index, x, y)

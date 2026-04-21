@@ -11,7 +11,7 @@ pub(crate) mod cxx_ffi {
         fn replay_session_new_current() -> Result<UniquePtr<ReplaySession>>;
         fn open_capture(self: Pin<&mut ReplaySession>, capture_path: &str) -> Result<()>;
         fn set_frame_event(self: Pin<&mut ReplaySession>, event_id: u32) -> Result<()>;
-        fn list_textures_json(self: &ReplaySession) -> Result<String>;
+        fn list_textures_serialized(self: &ReplaySession) -> Result<String>;
         fn pick_pixel(self: &ReplaySession, texture_index: u32, x: u32, y: u32)
         -> Result<Vec<f32>>;
         fn save_texture_png(

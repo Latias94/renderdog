@@ -7,6 +7,7 @@
 mod ffi;
 mod version_policy;
 
+use serde::Deserialize;
 use thiserror::Error;
 
 #[cfg(any(feature = "cxx-replay", test))]
@@ -35,9 +36,26 @@ pub enum ReplaySessionError {
     #[error("pick_pixel returned {0} values (expected 4)")]
     InvalidPickPixelReturnLen(usize),
 
+    #[error("failed to decode replay texture list: {0}")]
+    InvalidTextureList(#[from] serde_json::Error),
+
     #[cfg(feature = "cxx-replay")]
     #[error(transparent)]
     Cxx(#[from] cxx::Exception),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct ReplayTextureInfo {
+    pub index: u32,
+    pub resource_id: u64,
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub depth: u32,
+    pub mips: u32,
+    pub array_size: u32,
+    pub ms_samp: u32,
+    pub byte_size: u64,
 }
 
 #[cfg(any(feature = "cxx-replay", test))]
@@ -53,6 +71,11 @@ fn validate_runtime_version(
     }
 
     Ok(runtime_version)
+}
+
+#[cfg(any(feature = "cxx-replay", test))]
+fn parse_texture_list(serialized: &str) -> Result<Vec<ReplayTextureInfo>, ReplaySessionError> {
+    serde_json::from_str(serialized).map_err(ReplaySessionError::InvalidTextureList)
 }
 
 #[cfg(feature = "cxx-replay")]
@@ -101,8 +124,8 @@ impl ReplaySession {
         Ok(())
     }
 
-    pub fn list_textures_json(&self) -> Result<String, ReplaySessionError> {
-        Ok(self.inner.list_textures_json()?)
+    pub fn list_textures(&self) -> Result<Vec<ReplayTextureInfo>, ReplaySessionError> {
+        parse_texture_list(&self.inner.list_textures_serialized()?)
     }
 
     pub fn pick_pixel(
@@ -149,7 +172,9 @@ impl ReplayRuntime {
 mod tests {
     use crate::version_policy::workspace_renderdoc_replay_version;
 
-    use super::{ReplayRuntimeError, validate_runtime_version};
+    use super::{
+        ReplayRuntimeError, ReplaySessionError, parse_texture_list, validate_runtime_version,
+    };
 
     fn workspace_replay_version() -> &'static str {
         workspace_renderdoc_replay_version()
@@ -186,5 +211,47 @@ mod tests {
             }
             other => panic!("unexpected error: {other}"),
         }
+    }
+
+    #[test]
+    fn parse_texture_list_decodes_serialized_snapshot() {
+        let textures = parse_texture_list(
+            r#"
+            [
+              {
+                "index": 3,
+                "resource_id": 42,
+                "name": "Color Target",
+                "width": 1920,
+                "height": 1080,
+                "depth": 1,
+                "mips": 1,
+                "array_size": 1,
+                "ms_samp": 4,
+                "byte_size": 8294400
+              }
+            ]
+            "#,
+        )
+        .expect("serialized texture list should decode");
+
+        assert_eq!(textures.len(), 1);
+        let texture = &textures[0];
+        assert_eq!(texture.index, 3);
+        assert_eq!(texture.resource_id, 42);
+        assert_eq!(texture.name, "Color Target");
+        assert_eq!(texture.width, 1920);
+        assert_eq!(texture.height, 1080);
+        assert_eq!(texture.depth, 1);
+        assert_eq!(texture.mips, 1);
+        assert_eq!(texture.array_size, 1);
+        assert_eq!(texture.ms_samp, 4);
+        assert_eq!(texture.byte_size, 8294400);
+    }
+
+    #[test]
+    fn parse_texture_list_rejects_invalid_json() {
+        let err = parse_texture_list("{").expect_err("invalid JSON should fail");
+        assert!(matches!(err, ReplaySessionError::InvalidTextureList(_)));
     }
 }

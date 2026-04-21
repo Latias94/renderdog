@@ -259,6 +259,15 @@ std::runtime_error texture_index_error(uint32_t texture_index, size_t texture_co
                             " >= " + std::to_string(texture_count));
 }
 
+uint64_t resource_id_to_u64(const ResourceId &resource_id)
+{
+  static_assert(sizeof(ResourceId) == sizeof(uint64_t), "ResourceId is expected to be 64-bit");
+
+  uint64_t value = 0;
+  std::memcpy(&value, &resource_id, sizeof(value));
+  return value;
+}
+
 void acquire_replay_runtime(void *lib)
 {
   std::lock_guard<std::mutex> lock(g_replay_runtime_mutex);
@@ -475,7 +484,7 @@ void ReplaySession::set_frame_event(uint32_t event_id)
   controller_->SetFrameEvent(event_id, true);
 }
 
-rust::String ReplaySession::list_textures_json() const
+rust::String ReplaySession::list_textures_serialized() const
 {
   ensure_opened();
 
@@ -499,6 +508,8 @@ rust::String ReplaySession::list_textures_json() const
     out += "{";
     out += "\"index\":";
     out += std::to_string((uint32_t)i);
+    out += ",\"resource_id\":";
+    out += std::to_string(resource_id_to_u64(t.resourceId));
     out += ",\"name\":\"";
     out += json_escape(name);
     out += "\"";
@@ -510,11 +521,11 @@ rust::String ReplaySession::list_textures_json() const
     out += std::to_string(t.depth);
     out += ",\"mips\":";
     out += std::to_string(t.mips);
-    out += ",\"arraysize\":";
+    out += ",\"array_size\":";
     out += std::to_string(t.arraysize);
-    out += ",\"msSamp\":";
+    out += ",\"ms_samp\":";
     out += std::to_string(t.msSamp);
-    out += ",\"byteSize\":";
+    out += ",\"byte_size\":";
     out += std::to_string((uint64_t)t.byteSize);
     out += "}";
   }
