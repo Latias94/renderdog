@@ -10,7 +10,7 @@ impl RenderdogMcpServer {
         name = "renderdoc_capture_and_export_bundle_jsonl",
         description = "One-shot workflow: start target under renderdoccmd capture, trigger capture via target control, then export <basename>.actions.jsonl (+ summary) and <basename>.bindings.jsonl (+ bindings_summary)."
     )]
-    async fn capture_and_export_bundle_jsonl(
+    async fn capture_and_export_bundle_tool(
         &self,
         Parameters(req): Parameters<CwdRequest<renderdog::CaptureAndExportBundleRequest>>,
     ) -> Result<Json<renderdog::CaptureAndExportBundleResponse>, String> {
@@ -26,7 +26,7 @@ impl RenderdogMcpServer {
         let res = run.with_install_and_cwd(
             "one-shot capture/export bundle",
             req,
-            |install, cwd, req| install.capture_and_export_bundle_jsonl(&cwd, &req),
+            |install, cwd, req| install.capture_and_export_bundle(&cwd, &req),
         )?;
 
         tracing::info!(

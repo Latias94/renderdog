@@ -108,7 +108,7 @@ impl PreparedCapturePostActions {
 }
 
 impl RenderDocInstallation {
-    pub fn export_bundle_jsonl(
+    pub fn export_bundle(
         &self,
         cwd: &Path,
         req: &ExportBundleRequest,

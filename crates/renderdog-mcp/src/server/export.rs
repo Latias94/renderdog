@@ -10,7 +10,7 @@ impl RenderdogMcpServer {
         name = "renderdoc_export_bundle_jsonl",
         description = "Export both actions + bindings index from an existing .rdc capture, and optionally save a thumbnail/open qrenderdoc UI."
     )]
-    async fn export_bundle_jsonl(
+    async fn export_bundle_tool(
         &self,
         Parameters(req): Parameters<CwdRequest<renderdog::ExportBundleRequest>>,
     ) -> Result<Json<renderdog::ExportBundleResponse>, String> {
@@ -19,7 +19,7 @@ impl RenderdogMcpServer {
             tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         });
         let res = run.with_install_and_cwd("export bundle", req, |install, cwd, req| {
-            install.export_bundle_jsonl(&cwd, &req)
+            install.export_bundle(&cwd, &req)
         })?;
 
         tracing::info!(

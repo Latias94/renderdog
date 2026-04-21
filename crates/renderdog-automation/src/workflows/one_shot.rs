@@ -69,13 +69,13 @@ impl CompletedOneShotCapture {
 }
 
 impl RenderDocInstallation {
-    pub fn capture_and_export_bundle_jsonl(
+    pub fn capture_and_export_bundle(
         &self,
         cwd: &Path,
         req: &CaptureAndExportBundleRequest,
     ) -> Result<CaptureAndExportBundleResponse, CaptureAndExportBundleError> {
         let capture = self.capture_one_shot(cwd, req)?;
-        let export = self.export_bundle_jsonl(cwd, &capture.export)?;
+        let export = self.export_bundle(cwd, &capture.export)?;
 
         Ok(capture.into_response(export))
     }

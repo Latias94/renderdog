@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let cwd = std::env::current_dir()?;
-    let res = install.capture_and_export_bundle_jsonl(
+    let res = install.capture_and_export_bundle(
         &cwd,
         &renderdog::CaptureAndExportBundleRequest {
             target: renderdog::CaptureTargetRequest {

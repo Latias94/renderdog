@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
 
     let install = renderdog::RenderDocInstallation::detect()?;
 
-    let res = install.export_bundle_jsonl(
+    let res = install.export_bundle(
         &cwd,
         &renderdog::ExportBundleRequest {
             capture: renderdog::CaptureInput { capture_path },
