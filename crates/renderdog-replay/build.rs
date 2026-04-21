@@ -52,4 +52,5 @@ fn main() {
     println!("cargo:rerun-if-changed=src/ffi.rs");
     println!("cargo:rerun-if-changed=src/replay.cc");
     println!("cargo:rerun-if-changed=include/replay.h");
+    println!("cargo:rerun-if-changed=include/renderdoc_runtime_api.h");
 }

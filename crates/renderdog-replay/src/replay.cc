@@ -15,21 +15,8 @@
 #include <dlfcn.h>
 #endif
 
-// RenderDoc replay API headers (from submodule: third-party/renderdoc)
-//
-// NOTE: On Windows, RenderDoc headers declare some APIs as `dllimport`, which normally requires
-// linking against `renderdoc.lib`. For this experimental crate we want to be purely runtime-loaded,
-// so we:
-//   1) include apidefs.h once to get platform defines like RENDERDOC_CC
-//   2) override RENDERDOC_IMPORT_API/RENDERDOC_API to be blank for subsequent headers
-//   3) provide local stubs for `RENDERDOC_AllocArrayMem` / `RENDERDOC_FreeArrayMem` that forward to
-//      the real functions resolved from the loaded renderdoc module.
-#include "apidefs.h"
-#undef RENDERDOC_IMPORT_API
-#define RENDERDOC_IMPORT_API
-#undef RENDERDOC_API
-#define RENDERDOC_API
-#include "renderdoc_replay.h"
+// Keep RenderDoc header import overrides in one shim so submodule upgrades only touch one file.
+#include "renderdoc_runtime_api.h"
 
 // Mark this process as a replay program so RenderDoc doesn't try to capture or hook itself.
 REPLAY_PROGRAM_MARKER();
