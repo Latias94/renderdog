@@ -104,6 +104,101 @@ struct EnvironmentFeedback {
     suggested_commands: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+enum EnvironmentFinding {
+    RenderdocVersionQueryFailed {
+        error: String,
+    },
+    VulkanLayerDiagnosisFailed {
+        error: String,
+    },
+    ExperimentalMacOsSupport,
+    UnsupportedLinuxArch {
+        arch: String,
+    },
+    UnsupportedWindowsArch {
+        arch: String,
+    },
+    ReplayVersionMismatch {
+        installed: String,
+        workspace: String,
+    },
+    VulkanLayerStatus {
+        summary: String,
+    },
+    VulkanLayerAttention {
+        summary: String,
+        suggested_commands: Vec<String>,
+    },
+    VulkanLayerNeedsElevation,
+    MissingRenderDocInstanceLayer,
+    MissingRenderDocManifestDir {
+        manifest_dirs: Vec<PathBuf>,
+    },
+}
+
+impl EnvironmentFinding {
+    fn warning(&self) -> String {
+        match self {
+            Self::RenderdocVersionQueryFailed { error } => {
+                format!("Failed to query `renderdoccmd version`: {error}")
+            }
+            Self::VulkanLayerDiagnosisFailed { error } => {
+                format!("Failed to diagnose Vulkan layer registration: {error}")
+            }
+            Self::ExperimentalMacOsSupport => "RenderDoc on macOS is experimental and not officially supported for debugging; capture/replay may be unreliable.".to_string(),
+            Self::UnsupportedLinuxArch { arch } => format!(
+                "RenderDoc officially supports only x86_64 Linux; current arch is `{arch}` (ARM/32-bit targets are not supported)."
+            ),
+            Self::UnsupportedWindowsArch { arch } => format!(
+                "RenderDoc Windows support is primarily x86_64; current arch is `{arch}` and may not work."
+            ),
+            Self::ReplayVersionMismatch {
+                installed,
+                workspace,
+            } => format!(
+                "Installed RenderDoc version `{installed}` does not match workspace replay headers `{workspace}`; `renderdog-replay` requires an exact match and should be rebuilt after switching versions."
+            ),
+            Self::VulkanLayerStatus { summary } => summary.clone(),
+            Self::VulkanLayerAttention { summary, .. } => summary.clone(),
+            Self::VulkanLayerNeedsElevation => "Vulkan layer registration may require administrator privileges. Re-run the registration command as administrator.".to_string(),
+            Self::MissingRenderDocInstanceLayer => "VK_INSTANCE_LAYERS is set but does not include VK_LAYER_RENDERDOC_Capture; this can prevent RenderDoc's layer from being enabled.".to_string(),
+            Self::MissingRenderDocManifestDir { manifest_dirs } => format!(
+                "VK_LAYER_PATH is set but does not appear to include the RenderDoc Vulkan layer manifest directory. Detected manifest dirs: {}",
+                display_paths(manifest_dirs).join(" | ")
+            ),
+        }
+    }
+
+    fn suggested_commands(&self, renderdoccmd_exe: &Path) -> Vec<String> {
+        match self {
+            Self::ReplayVersionMismatch { workspace, .. } => vec![format!(
+                "Install or select RenderDoc `{workspace}` when using `renderdog-replay`, or switch `third-party/renderdoc` to match the installed version and rebuild."
+            )],
+            Self::VulkanLayerAttention {
+                suggested_commands, ..
+            } => {
+                let mut commands = suggested_commands.clone();
+                commands.push(format!(
+                    "\"{}\" capture <your_exe> [args...] (fallback: injection-based capture)",
+                    renderdoccmd_exe.display()
+                ));
+                commands
+            }
+            Self::MissingRenderDocInstanceLayer => vec![
+                "Set VK_INSTANCE_LAYERS to include VK_LAYER_RENDERDOC_Capture, or clear it if it is forcing a different layer set.".to_string(),
+            ],
+            Self::MissingRenderDocManifestDir { .. } => {
+                let sep = if cfg!(windows) { ";" } else { ":" };
+                vec![format!(
+                    "Update VK_LAYER_PATH to include the detected directories (separator `{sep}`), or unset VK_LAYER_PATH if it is causing conflicts."
+                )]
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
 impl RenderDocInstallation {
     pub fn diagnose_vulkan_layer(&self) -> Result<VulkanLayerDiagnosis, VulkanLayerDiagnosisError> {
         let output = Command::new(&self.renderdoccmd_exe)
@@ -322,39 +417,35 @@ fn compute_replay_version_match(
     }
 }
 
-fn collect_environment_feedback(inputs: &EnvironmentAssessmentInputs<'_>) -> EnvironmentFeedback {
-    let mut warnings: Vec<String> = Vec::new();
-    let mut suggested_commands: Vec<String> = Vec::new();
+fn assess_environment(inputs: &EnvironmentAssessmentInputs<'_>) -> Vec<EnvironmentFinding> {
+    let mut findings = Vec::new();
 
     if let Some(err) = inputs.renderdoccmd_version_error {
-        warnings.push(format!("Failed to query `renderdoccmd version`: {err}"));
+        findings.push(EnvironmentFinding::RenderdocVersionQueryFailed {
+            error: err.to_string(),
+        });
     }
 
     if let Some(err) = inputs.vulkan_layer_error {
-        warnings.push(format!(
-            "Failed to diagnose Vulkan layer registration: {err}"
-        ));
+        findings.push(EnvironmentFinding::VulkanLayerDiagnosisFailed {
+            error: err.to_string(),
+        });
     }
 
     if inputs.platform == "macos" {
-        warnings.push(
-            "RenderDoc on macOS is experimental and not officially supported for debugging; capture/replay may be unreliable."
-                .to_string(),
-        );
+        findings.push(EnvironmentFinding::ExperimentalMacOsSupport);
     }
 
     if inputs.platform == "linux" && inputs.arch != "x86_64" {
-        warnings.push(format!(
-            "RenderDoc officially supports only x86_64 Linux; current arch is `{}` (ARM/32-bit targets are not supported).",
-            inputs.arch
-        ));
+        findings.push(EnvironmentFinding::UnsupportedLinuxArch {
+            arch: inputs.arch.to_string(),
+        });
     }
 
     if inputs.platform == "windows" && inputs.arch != "x86_64" {
-        warnings.push(format!(
-            "RenderDoc Windows support is primarily x86_64; current arch is `{}` and may not work.",
-            inputs.arch
-        ));
+        findings.push(EnvironmentFinding::UnsupportedWindowsArch {
+            arch: inputs.arch.to_string(),
+        });
     }
 
     if let (Some(false), Some(installed), Some(workspace)) = (
@@ -362,24 +453,22 @@ fn collect_environment_feedback(inputs: &EnvironmentAssessmentInputs<'_>) -> Env
         inputs.renderdoccmd_version,
         inputs.workspace_renderdoc_version,
     ) {
-        warnings.push(format!(
-            "Installed RenderDoc version `{installed}` does not match workspace replay headers `{workspace}`; `renderdog-replay` requires an exact match and should be rebuilt after switching versions."
-        ));
-        suggested_commands.push(format!(
-            "Install or select RenderDoc `{workspace}` when using `renderdog-replay`, or switch `third-party/renderdoc` to match the installed version and rebuild."
-        ));
+        findings.push(EnvironmentFinding::ReplayVersionMismatch {
+            installed: installed.to_string(),
+            workspace: workspace.to_string(),
+        });
     }
 
     if let Some(vk) = inputs.vulkan_layer {
         if !vk.supported || vk.unfixable {
-            warnings.push(vk.summary.clone());
+            findings.push(EnvironmentFinding::VulkanLayerStatus {
+                summary: vk.summary.clone(),
+            });
         } else if vk.needs_attention {
-            warnings.push(vk.summary.clone());
-            suggested_commands.extend(vk.suggested_commands.iter().cloned());
-            suggested_commands.push(format!(
-                "\"{}\" capture <your_exe> [args...] (fallback: injection-based capture)",
-                inputs.renderdoccmd_exe.display()
-            ));
+            findings.push(EnvironmentFinding::VulkanLayerAttention {
+                summary: vk.summary.clone(),
+                suggested_commands: vk.suggested_commands.clone(),
+            });
         }
     }
 
@@ -387,14 +476,13 @@ fn collect_environment_feedback(inputs: &EnvironmentAssessmentInputs<'_>) -> Env
         && vk.need_elevation
         && vk.needs_attention
     {
-        warnings.push("Vulkan layer registration may require administrator privileges. Re-run the registration command as administrator.".to_string());
+        findings.push(EnvironmentFinding::VulkanLayerNeedsElevation);
     }
 
     let vk_instance_layers = env_var_value(inputs.env, "VK_INSTANCE_LAYERS").unwrap_or("");
     if !vk_instance_layers.is_empty() && !vk_instance_layers.contains("VK_LAYER_RENDERDOC_Capture")
     {
-        warnings.push("VK_INSTANCE_LAYERS is set but does not include VK_LAYER_RENDERDOC_Capture; this can prevent RenderDoc's layer from being enabled.".to_string());
-        suggested_commands.push("Set VK_INSTANCE_LAYERS to include VK_LAYER_RENDERDOC_Capture, or clear it if it is forcing a different layer set.".to_string());
+        findings.push(EnvironmentFinding::MissingRenderDocInstanceLayer);
     }
 
     let vk_layer_path = env_var_value(inputs.env, "VK_LAYER_PATH").unwrap_or("");
@@ -405,16 +493,20 @@ fn collect_environment_feedback(inputs: &EnvironmentAssessmentInputs<'_>) -> Env
             .iter()
             .any(|dir| search_paths.iter().any(|entry| paths_match(entry, dir)));
         if !any_in_path {
-            warnings.push(format!(
-                "VK_LAYER_PATH is set but does not appear to include the RenderDoc Vulkan layer manifest directory. Detected manifest dirs: {}",
-                display_paths(&manifest_dirs).join(" | ")
-            ));
-            let sep = if cfg!(windows) { ";" } else { ":" };
-            suggested_commands.push(format!(
-                "Update VK_LAYER_PATH to include the detected directories (separator `{sep}`), or unset VK_LAYER_PATH if it is causing conflicts."
-            ));
+            findings.push(EnvironmentFinding::MissingRenderDocManifestDir { manifest_dirs });
         }
     }
+
+    findings
+}
+
+fn collect_environment_feedback(inputs: &EnvironmentAssessmentInputs<'_>) -> EnvironmentFeedback {
+    let findings = assess_environment(inputs);
+    let warnings = findings.iter().map(EnvironmentFinding::warning).collect();
+    let suggested_commands = findings
+        .iter()
+        .flat_map(|finding| finding.suggested_commands(inputs.renderdoccmd_exe))
+        .collect();
 
     EnvironmentFeedback {
         warnings,
