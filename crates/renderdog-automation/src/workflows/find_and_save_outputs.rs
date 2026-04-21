@@ -135,7 +135,7 @@ mod tests {
     };
     use crate::{
         CaptureInput, CaptureRef, EventFilter, ExportOutput, OutputRef, ReplaySaveOutputsPngError,
-        ReplaySaveOutputsPngResponse, SelectedReplayContext,
+        ReplaySaveOutputsPngResponse, ReplaySavedImageKind, SelectedReplayContext,
     };
 
     #[test]
@@ -227,7 +227,7 @@ mod tests {
                     event_id: 42,
                 },
                 outputs: vec![crate::ReplaySavedImage {
-                    kind: "color".to_string(),
+                    kind: ReplaySavedImageKind::Color,
                     index: Some(0),
                     resource_id: 7,
                     output: OutputRef::new("/tmp/color0.png"),

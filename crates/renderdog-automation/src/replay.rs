@@ -211,9 +211,16 @@ impl PrepareQRenderDocJsonRequest for ReplaySaveOutputsPngRequest {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ReplaySavedImageKind {
+    Color,
+    Depth,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaySavedImage {
-    pub kind: String,
+    pub kind: ReplaySavedImageKind,
     pub index: Option<u32>,
     pub resource_id: u64,
     #[serde(flatten)]
@@ -283,7 +290,8 @@ mod tests {
         PixelPosition, ReplayContext, ReplayListTexturesRequest, ReplayListTexturesResponse,
         ReplayPickPixelRequest, ReplayPickPixelResponse, ReplaySaveOutputsPngRequest,
         ReplaySaveOutputsPngResponse, ReplaySaveTexturePngRequest, ReplaySaveTexturePngResponse,
-        ReplaySavedImage, ReplayTextureInfo, ReplayTextureRef, SelectedReplayContext,
+        ReplaySavedImage, ReplaySavedImageKind, ReplayTextureInfo, ReplayTextureRef,
+        SelectedReplayContext,
     };
     use crate::{CaptureInput, ExportOutput, OutputFile, OutputRef};
 
@@ -552,7 +560,7 @@ mod tests {
         let response = ReplaySaveOutputsPngResponse {
             context: SelectedReplayContext::new("/tmp/frame.rdc", 42),
             outputs: vec![ReplaySavedImage {
-                kind: "color".to_string(),
+                kind: ReplaySavedImageKind::Color,
                 index: Some(0),
                 resource_id: 7,
                 output: OutputRef::new("/tmp/color0.png"),
@@ -575,11 +583,41 @@ mod tests {
             Some(&Value::String("/tmp/frame.rdc".to_string()))
         );
         assert_eq!(object.get("event_id"), Some(&Value::Number(42_u32.into())));
+        assert_eq!(first.get("kind"), Some(&Value::String("color".to_string())));
         assert_eq!(
             first.get("output_path"),
             Some(&Value::String("/tmp/color0.png".to_string()))
         );
         assert!(!object.contains_key("context"));
         assert!(!first.contains_key("output"));
+    }
+
+    #[test]
+    fn replay_saved_image_kind_deserializes_wire_values() {
+        let image: ReplaySavedImage = serde_json::from_value(serde_json::Value::Object(
+            [
+                (
+                    "kind".to_string(),
+                    serde_json::Value::String("depth".to_string()),
+                ),
+                ("index".to_string(), serde_json::Value::Null),
+                (
+                    "resource_id".to_string(),
+                    serde_json::Value::Number(7_u64.into()),
+                ),
+                (
+                    "output_path".to_string(),
+                    serde_json::Value::String("/tmp/depth.png".to_string()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        ))
+        .expect("deserialize saved image");
+
+        assert!(matches!(image.kind, ReplaySavedImageKind::Depth));
+        assert_eq!(image.index, None);
+        assert_eq!(image.resource_id, 7);
+        assert_eq!(image.output.output_path, "/tmp/depth.png");
     }
 }

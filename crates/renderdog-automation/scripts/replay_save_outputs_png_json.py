@@ -7,6 +7,8 @@ import renderdoc as rd
 
 REQ_PATH = "replay_save_outputs_png_json.request.json"
 RESP_PATH = "replay_save_outputs_png_json.response.json"
+OUTPUT_KIND_COLOR = "color"
+OUTPUT_KIND_DEPTH = "depth"
 
 
 def write_response(obj) -> None:
@@ -144,7 +146,7 @@ def main() -> None:
 
                 outputs.append(
                     {
-                        "kind": "color",
+                        "kind": OUTPUT_KIND_COLOR,
                         "index": int(i),
                         "resource_id": int(rid),
                         "output_path": out_path,
@@ -171,7 +173,7 @@ def main() -> None:
 
                     outputs.append(
                         {
-                            "kind": "depth",
+                            "kind": OUTPUT_KIND_DEPTH,
                             "index": None,
                             "resource_id": int(rid),
                             "output_path": out_path,
