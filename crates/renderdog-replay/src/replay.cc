@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <map>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 
@@ -39,6 +40,8 @@ static std::atomic<void *> g_renderdoc_module{nullptr};
 
 static std::atomic<pRENDERDOC_AllocArrayMem> g_alloc_array_mem{nullptr};
 static std::atomic<pRENDERDOC_FreeArrayMem> g_free_array_mem{nullptr};
+static std::mutex g_replay_runtime_mutex;
+static size_t g_replay_runtime_users = 0;
 
 static RenderdocModule store_renderdoc_module(RenderdocModule module)
 {
@@ -239,6 +242,38 @@ std::string runtime_version_string_from_module(void *lib)
   return std::string(version);
 }
 
+void acquire_replay_runtime(void *lib)
+{
+  std::lock_guard<std::mutex> lock(g_replay_runtime_mutex);
+  if(g_replay_runtime_users == 0)
+  {
+    using pRENDERDOC_InitialiseReplay =
+        void(RENDERDOC_CC *)(GlobalEnvironment, const rdcarray<rdcstr> &);
+    auto init = load_symbol<pRENDERDOC_InitialiseReplay>(lib, "RENDERDOC_InitialiseReplay");
+
+    GlobalEnvironment env;
+    rdcarray<rdcstr> args;
+    init(env, args);
+  }
+
+  g_replay_runtime_users++;
+}
+
+void release_replay_runtime(void *lib)
+{
+  std::lock_guard<std::mutex> lock(g_replay_runtime_mutex);
+  if(g_replay_runtime_users == 0)
+    return;
+
+  g_replay_runtime_users--;
+  if(g_replay_runtime_users != 0)
+    return;
+
+  using pRENDERDOC_ShutdownReplay = void(RENDERDOC_CC *)();
+  auto shutdown = load_symbol<pRENDERDOC_ShutdownReplay>(lib, "RENDERDOC_ShutdownReplay");
+  shutdown();
+}
+
 std::string json_escape(const rdcstr &s)
 {
   const char *p = s.c_str();
@@ -314,31 +349,18 @@ rust::String replay_runtime_probe(rust::Str renderdoc_path)
 
 ReplaySession::~ReplaySession()
 {
-  if(controller_)
-  {
-    controller_->Shutdown();
-    controller_ = nullptr;
-  }
+  close_capture_state();
 
-  if(capture_file_)
+  if(replay_runtime_acquired_)
   {
-    capture_file_->Shutdown();
-    capture_file_ = nullptr;
-  }
-
-  if(replay_initialised_)
-  {
-    // If we can, call ShutdownReplay. This is best-effort.
-    using pRENDERDOC_ShutdownReplay = void(RENDERDOC_CC *)();
     try
     {
-      auto sym = load_symbol<pRENDERDOC_ShutdownReplay>(lib_, "RENDERDOC_ShutdownReplay");
-      sym();
+      release_replay_runtime(lib_);
     }
     catch(...)
     {
     }
-    replay_initialised_ = false;
+    replay_runtime_acquired_ = false;
   }
 
   // The allocator trampolines cache process-global function pointers into the loaded
@@ -354,58 +376,75 @@ void ReplaySession::ensure_loaded()
   lib_ = renderdoc_module_ptr(ensure_renderdoc_module_loaded(nullptr));
 }
 
+void ReplaySession::close_capture_state()
+{
+  if(controller_)
+  {
+    controller_->Shutdown();
+    controller_ = nullptr;
+  }
+
+  if(capture_file_)
+  {
+    capture_file_->Shutdown();
+    capture_file_ = nullptr;
+  }
+}
+
 void ReplaySession::open_capture(rust::Str capture_path)
 {
   trace("open_capture: begin");
   ensure_loaded();
   trace("open_capture: ensure_loaded ok");
 
-  if(!replay_initialised_)
+  if(!replay_runtime_acquired_)
   {
     trace("open_capture: init replay");
-    using pRENDERDOC_InitialiseReplay = void(RENDERDOC_CC *)(GlobalEnvironment, const rdcarray<rdcstr> &);
-    auto init = load_symbol<pRENDERDOC_InitialiseReplay>(lib_, "RENDERDOC_InitialiseReplay");
-
-    GlobalEnvironment env;
-    rdcarray<rdcstr> args;
-    init(env, args);
-    replay_initialised_ = true;
+    acquire_replay_runtime(lib_);
+    replay_runtime_acquired_ = true;
     trace("open_capture: init replay ok");
   }
+
+  close_capture_state();
 
   trace("open_capture: open capture file");
   using pRENDERDOC_OpenCaptureFile = ICaptureFile *(RENDERDOC_CC *)();
   auto open_file = load_symbol<pRENDERDOC_OpenCaptureFile>(lib_, "RENDERDOC_OpenCaptureFile");
 
-  capture_file_ = open_file();
-  if(!capture_file_)
+  ICaptureFile *capture_file = open_file();
+  if(!capture_file)
     throw std::runtime_error("RENDERDOC_OpenCaptureFile returned null");
   trace("open_capture: open capture file ok");
 
   rdcstr filename(std::string(capture_path.data(), capture_path.size()).c_str());
   trace("open_capture: OpenFile");
-  ResultDetails open_res = capture_file_->OpenFile(filename, rdcstr("rdc"), nullptr);
+  ResultDetails open_res = capture_file->OpenFile(filename, rdcstr("rdc"), nullptr);
   if(!open_res.OK())
   {
+    capture_file->Shutdown();
     throw std::runtime_error("OpenFile failed");
   }
   trace("open_capture: OpenFile ok");
 
   trace("open_capture: OpenCapture");
   ReplayOptions opts;
-  auto pair = capture_file_->OpenCapture(opts, nullptr);
+  auto pair = capture_file->OpenCapture(opts, nullptr);
   if(!pair.first.OK() || pair.second == nullptr)
   {
+    if(pair.second)
+      pair.second->Shutdown();
+    capture_file->Shutdown();
     throw std::runtime_error("OpenCapture failed");
   }
 
+  capture_file_ = capture_file;
   controller_ = pair.second;
   trace("open_capture: OpenCapture ok");
 }
 
 void ReplaySession::ensure_opened() const
 {
-  if(!replay_initialised_)
+  if(!replay_runtime_acquired_)
     throw std::runtime_error("replay not initialised");
   if(!capture_file_)
     throw std::runtime_error("capture not opened (call open_capture first)");

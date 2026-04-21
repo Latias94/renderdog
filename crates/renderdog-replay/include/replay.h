@@ -36,9 +36,10 @@ private:
 
   void ensure_loaded();
   void ensure_opened() const;
+  void close_capture_state();
 
   void *lib_ = nullptr;
-  bool replay_initialised_ = false;
+  bool replay_runtime_acquired_ = false;
 
   ::ICaptureFile *capture_file_ = nullptr;
   ::IReplayController *controller_ = nullptr;

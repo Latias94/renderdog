@@ -54,6 +54,8 @@ sessions against that already-selected process-global runtime.
 
 `renderdog-replay` also treats the RenderDoc runtime as process-global: once one RenderDoc module
 has been loaded, switching to a different installation in the same process is rejected explicitly.
+Replay sessions share that process-global replay runtime, and calling `open_capture(...)` again on
+the same session will replace the previously opened capture/controller state.
 
 If it cannot be found via the OS loader, set one of:
 
