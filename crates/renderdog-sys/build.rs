@@ -3,18 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RenderDocSourceKind {
-    Explicit,
-    Submodule,
-    Vendor,
-}
-
 #[derive(Debug, Clone)]
 struct RenderDocSource {
-    kind: RenderDocSourceKind,
     header_path: PathBuf,
-    replay_version_header: Option<PathBuf>,
+    workspace_replay_version: String,
 }
 
 fn main() {
@@ -61,6 +53,8 @@ fn main() {
     let out_bindings = out_dir.join("bindings.rs");
     let renderdoc_source = select_renderdoc_source(
         &manifest_dir,
+        &vendor_header,
+        &vendor_replay_version,
         &submodule_header,
         &submodule_replay_version_header,
     );
@@ -97,8 +91,7 @@ fn main() {
         }
     }
 
-    let workspace_replay_version =
-        read_workspace_replay_version(&manifest_dir, &renderdoc_source, &vendor_replay_version);
+    let workspace_replay_version = renderdoc_source.workspace_replay_version.clone();
     println!("cargo:rustc-env=RENDERDOG_SYS_WORKSPACE_REPLAY_VERSION={workspace_replay_version}");
 }
 
@@ -147,29 +140,29 @@ fn workspace_root(manifest_dir: &Path) -> PathBuf {
 
 fn select_renderdoc_source(
     manifest_dir: &Path,
+    vendor_header: &Path,
+    vendor_replay_version: &Path,
     submodule_header: &Path,
     submodule_replay_version_header: &Path,
 ) -> RenderDocSource {
     if let Some(header_path) = explicit_header_path() {
+        let replay_version_header = explicit_replay_version_header_path(&header_path);
         return RenderDocSource {
-            kind: RenderDocSourceKind::Explicit,
-            replay_version_header: Some(explicit_replay_version_header_path(&header_path)),
             header_path,
+            workspace_replay_version: read_replay_version_header(&replay_version_header),
         };
     }
 
     if submodule_header.is_file() {
         return RenderDocSource {
-            kind: RenderDocSourceKind::Submodule,
             header_path: submodule_header.to_path_buf(),
-            replay_version_header: Some(submodule_replay_version_header.to_path_buf()),
+            workspace_replay_version: read_replay_version_header(submodule_replay_version_header),
         };
     }
 
     RenderDocSource {
-        kind: RenderDocSourceKind::Vendor,
-        header_path: manifest_dir.join("vendor").join("renderdoc_app.h"),
-        replay_version_header: None,
+        header_path: vendor_header.to_path_buf(),
+        workspace_replay_version: read_replay_version_file(vendor_replay_version, manifest_dir),
     }
 }
 
@@ -213,50 +206,6 @@ fn infer_replay_version_header_path(header_path: &Path) -> Option<PathBuf> {
     let app_dir = header_path.parent()?;
     let api_dir = app_dir.parent()?;
     Some(api_dir.join("replay").join("version.h"))
-}
-
-fn read_workspace_replay_version(
-    manifest_dir: &Path,
-    renderdoc_source: &RenderDocSource,
-    vendor_replay_version: &Path,
-) -> String {
-    match renderdoc_source.kind {
-        RenderDocSourceKind::Explicit => read_replay_version_header(
-            renderdoc_source
-                .replay_version_header
-                .as_deref()
-                .expect("explicit source should always provide replay version header"),
-        ),
-        RenderDocSourceKind::Submodule => {
-            let submodule_version = read_replay_version_header(
-                renderdoc_source
-                    .replay_version_header
-                    .as_deref()
-                    .expect("submodule source should always provide replay version header"),
-            );
-            let vendored_version = read_replay_version_file(vendor_replay_version, manifest_dir);
-
-            if submodule_version != vendored_version {
-                panic!(
-                    "RenderDoc replay version metadata is out of sync: submodule header at {} reports {}, \
-                     but vendored fallback at {} reports {}. Update the vendored version file before building.",
-                    renderdoc_source
-                        .replay_version_header
-                        .as_deref()
-                        .expect("submodule source should always provide replay version header")
-                        .display(),
-                    submodule_version,
-                    vendor_replay_version.display(),
-                    vendored_version
-                );
-            }
-
-            submodule_version
-        }
-        RenderDocSourceKind::Vendor => {
-            read_replay_version_file(vendor_replay_version, manifest_dir)
-        }
-    }
 }
 
 fn read_replay_version_header(path: &Path) -> String {
