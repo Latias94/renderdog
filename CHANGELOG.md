@@ -10,6 +10,26 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 - (TBD)
 
+## [0.3.0] - 2026-04-21
+
+### Added
+
+- Experimental `renderdog-replay` crate for stateful replay sessions, including texture listing, pixel picking, and texture PNG export.
+- Structured RenderDoc diagnostics in `renderdog-automation` and `renderdog-mcp`, including installation detection, replay-version compatibility checks, Vulkan layer analysis, and suggested remediation commands.
+
+### Changed
+
+- Vendored RenderDoc headers and replay metadata now target RenderDoc 1.44. The experimental replay runtime now checks for an exact runtime/header match, and diagnostics surface mismatches explicitly.
+- `renderdog-automation` now centers on typed bundle/replay workflows via `RenderDocInstallation`; low-level command and qrenderdoc scripting helpers are no longer part of the public API.
+- Bundle/find/replay request and response payloads were simplified around flatter workflow models. If you construct JSON manually or deserialize tool outputs, review the updated examples before upgrading.
+- Replay output export now uses explicit event selection (`last_drawcall` or `event:<id>`), with `last_drawcall` as the default.
+- `renderdog-mcp` is now workspace-only (`publish = false`) and should be run from source instead of installed from crates.io.
+
+### Removed
+
+- Deprecated in-app alias `RenderDog`; use `RenderDocInApp`.
+- Obsolete low-level automation/MCP capture entrypoints in favor of the bundle/replay/diagnostics workflows.
+
 ## [0.2.0] - 2026-01-10
 
 ### Added

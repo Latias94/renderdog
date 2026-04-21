@@ -33,10 +33,10 @@ Repository: https://github.com/Latias94/renderdog
 - Linux (x86_64): supported; in-app loader uses `librenderdoc.so`/`librenderdoc.so.1` by default.
 - macOS: RenderDoc is experimental and not officially supported for debugging; `renderdog` may compile but capture/replay can be unreliable.
 
-## Installation (crates.io)
+## Installation
 
-- Library: `cargo add renderdog`
-- MCP server (binary): `cargo install renderdog-mcp`
+- Library from crates.io: `cargo add renderdog`
+- MCP server from source: `cargo run -p renderdog-mcp`
 
 ## Prerequisites
 
@@ -94,7 +94,7 @@ Use this when you want a local/manual workflow (or your own automation) without 
 
 Use this when you want an AI agent to drive capture/replay/export via tool calls.
 
-- Run the server (stdio): `cargo run -p renderdog-mcp` (or `cargo install renderdog-mcp` then `renderdog-mcp`)
+- Run the server (stdio): `cargo run -p renderdog-mcp`
 - Recommended tool entrypoints:
   - One-shot capture + export bundle: `renderdoc_capture_and_export_bundle_jsonl`
   - Export bundle from an existing `.rdc`: `renderdoc_export_bundle_jsonl`
