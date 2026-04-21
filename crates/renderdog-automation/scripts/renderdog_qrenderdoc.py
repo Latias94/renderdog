@@ -4,24 +4,24 @@ import traceback
 import renderdoc as rd
 
 
-def load_request(request_path):
+def load_job_request(request_path):
     with open(request_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def write_envelope(response_path, ok: bool, result=None, error: str = None) -> None:
+def write_job_response(response_path, ok: bool, result=None, error=None) -> None:
     with open(response_path, "w", encoding="utf-8") as f:
         json.dump({"ok": ok, "result": result, "error": error}, f, ensure_ascii=False)
 
 
-def run_json_job(request_path, response_path, handler) -> None:
+def run_job(request_path, response_path, handler) -> None:
     try:
-        request = load_request(request_path)
+        request = load_job_request(request_path)
         result = handler(request)
     except Exception:
-        write_envelope(response_path, False, error=traceback.format_exc())
+        write_job_response(response_path, False, error=traceback.format_exc())
     else:
-        write_envelope(response_path, True, result=result)
+        write_job_response(response_path, True, result=result)
 
 
 def with_replay(callback):

@@ -13,7 +13,7 @@ use crate::default_scripts_dir;
 use crate::{CommandSpec, ToolInvocationError, run_command_expect_success};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct QRenderDocJobEnvelope<T> {
+pub(crate) struct QRenderDocJobResponse<T> {
     pub ok: bool,
     pub result: Option<T>,
     pub error: Option<String>,
@@ -49,14 +49,16 @@ pub enum QRenderDocJobError {
     CreateScriptsDir(std::io::Error),
     #[error("failed to write python script: {0}")]
     WriteScript(std::io::Error),
-    #[error("failed to write request JSON: {0}")]
+    #[error("failed to write job request: {0}")]
     WriteRequest(std::io::Error),
+    #[error("failed to serialize job request: {0}")]
+    SerializeRequest(serde_json::Error),
     #[error("qrenderdoc execution failed: {0}")]
     QRenderDocExecution(Box<QRenderDocExecutionError>),
-    #[error("failed to read response JSON: {0}")]
+    #[error("failed to read job response: {0}")]
     ReadResponse(std::io::Error),
-    #[error("failed to parse JSON: {0}")]
-    ParseJson(serde_json::Error),
+    #[error("failed to deserialize job response: {0}")]
+    DeserializeResponse(serde_json::Error),
     #[error("qrenderdoc script error: {0}")]
     ScriptError(String),
 }
@@ -177,13 +179,13 @@ impl RenderDocInstallation {
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(job.script_file_name);
-        let request_path = run_dir.join(format!("{job_file_stem}.request.json"));
-        let response_path = run_dir.join(format!("{job_file_stem}.response.json"));
+        let request_path = run_dir.join(format!("{job_file_stem}.request"));
+        let response_path = run_dir.join(format!("{job_file_stem}.response"));
         remove_if_exists(&response_path).map_err(QRenderDocJobError::WriteRequest)?;
 
         std::fs::write(
             &request_path,
-            serde_json::to_vec(request).map_err(QRenderDocJobError::ParseJson)?,
+            serde_json::to_vec(request).map_err(QRenderDocJobError::SerializeRequest)?,
         )
         .map_err(QRenderDocJobError::WriteRequest)?;
 
@@ -194,14 +196,15 @@ impl RenderDocInstallation {
         })?;
 
         let bytes = std::fs::read(&response_path).map_err(QRenderDocJobError::ReadResponse)?;
-        let env: QRenderDocJobEnvelope<TResp> =
-            serde_json::from_slice(&bytes).map_err(QRenderDocJobError::ParseJson)?;
-        if env.ok {
-            env.result
+        let response: QRenderDocJobResponse<TResp> =
+            serde_json::from_slice(&bytes).map_err(QRenderDocJobError::DeserializeResponse)?;
+        if response.ok {
+            response
+                .result
                 .ok_or_else(|| QRenderDocJobError::ScriptError("missing result".into()))
         } else {
             Err(QRenderDocJobError::ScriptError(
-                env.error.unwrap_or_else(|| "unknown error".into()),
+                response.error.unwrap_or_else(|| "unknown error".into()),
             ))
         }
     }

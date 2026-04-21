@@ -4,14 +4,14 @@ import renderdoc as rd
 
 from renderdog_qrenderdoc import (
     get_texture_by_index,
-    run_json_job,
+    run_job,
     set_frame_event_if_present,
     with_capture_controller,
 )
 
 
-REQ_PATH = "replay_save_texture_png.request.json"
-RESP_PATH = "replay_save_texture_png.response.json"
+REQUEST_PATH = "replay_save_texture_png.request"
+RESPONSE_PATH = "replay_save_texture_png.response"
 
 
 def handle_request(req):
@@ -43,5 +43,5 @@ def handle_request(req):
 
 
 if __name__ == "__main__":
-    run_json_job(REQ_PATH, RESP_PATH, handle_request)
+    run_job(REQUEST_PATH, RESPONSE_PATH, handle_request)
     raise SystemExit(0)

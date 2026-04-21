@@ -4,11 +4,11 @@ import os
 import renderdoc as rd
 
 from renderdog_action_query import ActionFilter, walk_actions
-from renderdog_qrenderdoc import run_json_job, with_capture_controller
+from renderdog_qrenderdoc import run_job, with_capture_controller
 
 
-REQ_PATH = "export_bindings_index_jsonl.request.json"
-RESP_PATH = "export_bindings_index_jsonl.response.json"
+REQUEST_PATH = "export_bindings_index_jsonl.request"
+RESPONSE_PATH = "export_bindings_index_jsonl.response"
 
 
 def try_res_name(controller, rid) -> str:
@@ -278,5 +278,5 @@ def handle_request(req):
 
 
 if __name__ == "__main__":
-    run_json_job(REQ_PATH, RESP_PATH, handle_request)
+    run_job(REQUEST_PATH, RESPONSE_PATH, handle_request)
     raise SystemExit(0)

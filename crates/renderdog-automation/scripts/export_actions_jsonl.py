@@ -2,11 +2,11 @@ import json
 import os
 
 from renderdog_action_query import ActionFilter, is_drawcall_like, walk_actions
-from renderdog_qrenderdoc import run_json_job, with_capture_controller
+from renderdog_qrenderdoc import run_job, with_capture_controller
 
 
-REQ_PATH = "export_actions_jsonl.request.json"
-RESP_PATH = "export_actions_jsonl.response.json"
+REQUEST_PATH = "export_actions_jsonl.request"
+RESPONSE_PATH = "export_actions_jsonl.response"
 
 
 def handle_request(req):
@@ -75,5 +75,5 @@ def handle_request(req):
 
 
 if __name__ == "__main__":
-    run_json_job(REQ_PATH, RESP_PATH, handle_request)
+    run_job(REQUEST_PATH, RESPONSE_PATH, handle_request)
     raise SystemExit(0)

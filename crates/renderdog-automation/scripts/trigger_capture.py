@@ -2,11 +2,11 @@ import time
 
 import renderdoc as rd
 
-from renderdog_qrenderdoc import run_json_job, with_replay
+from renderdog_qrenderdoc import run_job, with_replay
 
 
-REQ_PATH = "trigger_capture.request.json"
-RESP_PATH = "trigger_capture.response.json"
+REQUEST_PATH = "trigger_capture.request"
+RESPONSE_PATH = "trigger_capture.response"
 
 
 def handle_request(req):
@@ -49,5 +49,5 @@ def handle_request(req):
 
 
 if __name__ == "__main__":
-    run_json_job(REQ_PATH, RESP_PATH, handle_request)
+    run_job(REQUEST_PATH, RESPONSE_PATH, handle_request)
     raise SystemExit(0)
