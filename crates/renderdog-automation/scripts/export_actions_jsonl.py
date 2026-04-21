@@ -14,43 +14,6 @@ def write_envelope(ok: bool, result=None, error: str = None) -> None:
         json.dump({"ok": ok, "result": result, "error": error}, f, ensure_ascii=False)
 
 
-FLAG_NAMES = [
-    ("Clear", rd.ActionFlags.Clear),
-    ("Drawcall", rd.ActionFlags.Drawcall),
-    ("Dispatch", rd.ActionFlags.Dispatch),
-    ("MeshDispatch", rd.ActionFlags.MeshDispatch),
-    ("CmdList", rd.ActionFlags.CmdList),
-    ("SetMarker", rd.ActionFlags.SetMarker),
-    ("PushMarker", rd.ActionFlags.PushMarker),
-    ("PopMarker", rd.ActionFlags.PopMarker),
-    ("Present", rd.ActionFlags.Present),
-    ("MultiAction", rd.ActionFlags.MultiAction),
-    ("Copy", rd.ActionFlags.Copy),
-    ("Resolve", rd.ActionFlags.Resolve),
-    ("GenMips", rd.ActionFlags.GenMips),
-    ("PassBoundary", rd.ActionFlags.PassBoundary),
-    ("DispatchRay", rd.ActionFlags.DispatchRay),
-    ("BuildAccStruct", rd.ActionFlags.BuildAccStruct),
-    ("Indexed", rd.ActionFlags.Indexed),
-    ("Instanced", rd.ActionFlags.Instanced),
-    ("Auto", rd.ActionFlags.Auto),
-    ("Indirect", rd.ActionFlags.Indirect),
-    ("ClearColor", rd.ActionFlags.ClearColor),
-    ("ClearDepthStencil", rd.ActionFlags.ClearDepthStencil),
-    ("BeginPass", rd.ActionFlags.BeginPass),
-    ("EndPass", rd.ActionFlags.EndPass),
-    ("CommandBufferBoundary", rd.ActionFlags.CommandBufferBoundary),
-]
-
-
-def flags_to_names(flags):
-    names = []
-    for name, bit in FLAG_NAMES:
-        if flags & bit:
-            names.append(name)
-    return names
-
-
 def is_drawcall_like(flags: int) -> bool:
     return bool(
         (flags & rd.ActionFlags.Drawcall)
@@ -130,13 +93,12 @@ def iter_actions(structured_file, actions, marker_stack, parent_event_id, depth,
         if should_emit:
             rec = {
                 "event_id": eid,
-            "parent_event_id": int(parent_event_id) if parent_event_id is not None else None,
-            "depth": int(depth),
-            "name": name_str,
-            "flags": int(flags),
-            "flags_names": flags_to_names(flags),
-            "marker_path": effective_marker_path,
-            "num_children": int(len(a.children)),
+                "parent_event_id": int(parent_event_id) if parent_event_id is not None else None,
+                "depth": int(depth),
+                "name": name_str,
+                "flags": int(flags),
+                "marker_path": effective_marker_path,
+                "num_children": int(len(a.children)),
             }
 
             out_fp.write(json.dumps(rec, ensure_ascii=False) + "\n")
