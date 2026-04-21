@@ -11,6 +11,7 @@ Requirements:
 - Python 3.9+
 - Rust toolchain + `cargo`
 - bindgen prerequisites (libclang) available on the machine
+- either `third-party/renderdoc` checked out or `RENDERDOG_SYS_HEADER` pointing to `renderdoc_app.h`
 
 Note:
 - docs.rs builds use the pregenerated bindings (no bindgen).

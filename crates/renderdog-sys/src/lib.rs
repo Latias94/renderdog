@@ -8,6 +8,9 @@
 //!
 //! - `RENDERDOG_SYS_REGEN_BINDINGS=1 cargo build -p renderdog-sys --features bindgen`
 //! - or `python scripts/regen_bindings.py` from the workspace root
+//!
+//! Regeneration requires either the workspace `third-party/renderdoc` submodule or
+//! `RENDERDOG_SYS_HEADER=/path/to/renderdoc_app.h`.
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]

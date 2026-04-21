@@ -5,7 +5,7 @@ use std::{
 
 #[derive(Debug, Clone)]
 struct RenderDocSource {
-    header_path: PathBuf,
+    bindings_header_path: Option<PathBuf>,
     workspace_replay_version: String,
 }
 
@@ -14,7 +14,6 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let pregenerated = manifest_dir.join("src").join("bindings_pregenerated.rs");
-    let vendor_header = manifest_dir.join("vendor").join("renderdoc_app.h");
     let vendor_replay_version = manifest_dir
         .join("vendor")
         .join("renderdoc_replay_version.txt");
@@ -38,7 +37,6 @@ fn main() {
         manifest_dir.join("build.rs").display()
     );
     println!("cargo:rerun-if-changed={}", pregenerated.display());
-    println!("cargo:rerun-if-changed={}", vendor_header.display());
     println!("cargo:rerun-if-changed={}", vendor_replay_version.display());
     println!("cargo:rerun-if-changed={}", submodule_header.display());
     println!(
@@ -53,7 +51,6 @@ fn main() {
     let out_bindings = out_dir.join("bindings.rs");
     let renderdoc_source = select_renderdoc_source(
         &manifest_dir,
-        &vendor_header,
         &vendor_replay_version,
         &submodule_header,
         &submodule_replay_version_header,
@@ -72,8 +69,17 @@ fn main() {
                  Enable it via: cargo build -p renderdog-sys --features bindgen"
             );
         }
+        let header = renderdoc_source
+            .bindings_header_path
+            .as_deref()
+            .unwrap_or_else(|| {
+                panic!(
+                    "RENDERDOG_SYS_REGEN_BINDINGS requires either the `third-party/renderdoc` \
+                     submodule or `RENDERDOG_SYS_HEADER=/path/to/renderdoc_app.h`."
+                )
+            });
 
-        generate_bindings(&renderdoc_source.header_path, &out_bindings);
+        generate_bindings(header, &out_bindings);
         sanitize_bindings_file(&out_bindings);
     } else {
         if docs_rs && env::var_os("RENDERDOG_SYS_REGEN_BINDINGS").is_some() {
@@ -140,7 +146,6 @@ fn workspace_root(manifest_dir: &Path) -> PathBuf {
 
 fn select_renderdoc_source(
     manifest_dir: &Path,
-    vendor_header: &Path,
     vendor_replay_version: &Path,
     submodule_header: &Path,
     submodule_replay_version_header: &Path,
@@ -148,20 +153,20 @@ fn select_renderdoc_source(
     if let Some(header_path) = explicit_header_path() {
         let replay_version_header = explicit_replay_version_header_path(&header_path);
         return RenderDocSource {
-            header_path,
+            bindings_header_path: Some(header_path),
             workspace_replay_version: read_replay_version_header(&replay_version_header),
         };
     }
 
     if submodule_header.is_file() {
         return RenderDocSource {
-            header_path: submodule_header.to_path_buf(),
+            bindings_header_path: Some(submodule_header.to_path_buf()),
             workspace_replay_version: read_replay_version_header(submodule_replay_version_header),
         };
     }
 
     RenderDocSource {
-        header_path: vendor_header.to_path_buf(),
+        bindings_header_path: None,
         workspace_replay_version: read_replay_version_file(vendor_replay_version, manifest_dir),
     }
 }

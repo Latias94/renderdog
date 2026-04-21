@@ -369,6 +369,10 @@ When doing so, `renderdog-sys` will infer the matching replay version header fro
 RenderDoc layout. If that inference does not work, also set
 `RENDERDOG_SYS_REPLAY_VERSION_HEADER=/path/to/renderdoc/api/replay/version.h`.
 
+The published `renderdog-sys` crate only ships pregenerated bindings plus replay version metadata.
+If you regenerate bindings outside this workspace, you must provide either the RenderDoc submodule
+or an explicit `RENDERDOG_SYS_HEADER`.
+
 Alternatively, use the helper script (maintainers):
 
 - Update pregenerated bindings: `python scripts/regen_bindings.py`
