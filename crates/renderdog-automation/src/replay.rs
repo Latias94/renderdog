@@ -192,8 +192,8 @@ pub type ReplaySaveTexturePngError = QRenderDocJsonError;
 pub enum ReplaySaveOutputsPngError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
-    #[error(transparent)]
-    Replay(#[from] QRenderDocJsonError),
+    #[error("replay job failed: {0}")]
+    Job(#[from] QRenderDocJsonError),
 }
 
 impl RenderDocInstallation {

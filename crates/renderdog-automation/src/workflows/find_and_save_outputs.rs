@@ -76,19 +76,8 @@ pub enum FindEventsAndSaveOutputsPngError {
     Find(#[from] FindEventsError),
     #[error("no matching events found")]
     NoMatchingEvents,
-    #[error("failed to create output dir: {0}")]
-    CreateOutputDir(std::io::Error),
     #[error("save outputs PNG failed: {0}")]
-    Replay(ReplaySaveOutputsPngError),
-}
-
-impl From<ReplaySaveOutputsPngError> for FindEventsAndSaveOutputsPngError {
-    fn from(value: ReplaySaveOutputsPngError) -> Self {
-        match value {
-            ReplaySaveOutputsPngError::CreateOutputDir(err) => Self::CreateOutputDir(err),
-            other => Self::Replay(other),
-        }
-    }
+    Replay(#[from] ReplaySaveOutputsPngError),
 }
 
 impl FindEventsAndSaveOutputsPngRequest {
@@ -147,9 +136,10 @@ impl RenderDocInstallation {
 #[cfg(test)]
 mod tests {
     use super::{
-        FindEventSelection, FindEventsAndSaveOutputsPngRequest, FindEventsLimit, FindEventsResponse,
+        FindEventSelection, FindEventsAndSaveOutputsPngError, FindEventsAndSaveOutputsPngRequest,
+        FindEventsLimit, FindEventsResponse,
     };
-    use crate::{CaptureInput, EventFilter, ExportOutput};
+    use crate::{CaptureInput, EventFilter, ExportOutput, ReplaySaveOutputsPngError};
 
     #[test]
     fn find_event_selection_picks_first_or_last_match() {
@@ -202,5 +192,18 @@ mod tests {
         assert_eq!(replay.output_dir.as_deref(), Some("artifacts/replay"));
         assert_eq!(replay.basename.as_deref(), Some("frame"));
         assert!(replay.include_depth);
+    }
+
+    #[test]
+    fn workflow_error_wraps_replay_save_outputs_error() {
+        let err: FindEventsAndSaveOutputsPngError = ReplaySaveOutputsPngError::CreateOutputDir(
+            std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+        )
+        .into();
+
+        assert!(matches!(
+            err,
+            FindEventsAndSaveOutputsPngError::Replay(ReplaySaveOutputsPngError::CreateOutputDir(_))
+        ));
     }
 }
