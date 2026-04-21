@@ -23,7 +23,6 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `renderdog-automation` now centers on typed bundle/replay workflows via `RenderDocInstallation`; low-level command and qrenderdoc scripting helpers are no longer part of the public API.
 - Bundle/find/replay request and response payloads were simplified around flatter workflow models. If you construct JSON manually or deserialize tool outputs, review the updated examples before upgrading.
 - Replay output export now uses explicit event selection (`last_drawcall` or `event:<id>`), with `last_drawcall` as the default.
-- `renderdog-mcp` is now workspace-only (`publish = false`) and should be run from source instead of installed from crates.io.
 
 ### Removed
 

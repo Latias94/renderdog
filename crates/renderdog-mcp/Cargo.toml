@@ -6,7 +6,6 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
-publish = false
 description = "MCP server exposing RenderDoc automation workflows (capture/export/diagnostics)."
 readme = "README.md"
 

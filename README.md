@@ -36,6 +36,7 @@ Repository: https://github.com/Latias94/renderdog
 ## Installation
 
 - Library from crates.io: `cargo add renderdog`
+- MCP server from crates.io: `cargo install renderdog-mcp`
 - MCP server from source: `cargo run -p renderdog-mcp`
 
 ## Prerequisites
@@ -94,7 +95,7 @@ Use this when you want a local/manual workflow (or your own automation) without 
 
 Use this when you want an AI agent to drive capture/replay/export via tool calls.
 
-- Run the server (stdio): `cargo run -p renderdog-mcp`
+- Run the server (stdio): `cargo run -p renderdog-mcp` (or `cargo install renderdog-mcp` then `renderdog-mcp`)
 - Recommended tool entrypoints:
   - One-shot capture + export bundle: `renderdoc_capture_and_export_bundle_jsonl`
   - Export bundle from an existing `.rdc`: `renderdoc_export_bundle_jsonl`
@@ -259,6 +260,7 @@ Gemini CLI can manage MCP servers either via commands or by editing `settings.js
 
 Run the server locally (stdio transport):
 
+- From crates.io: `renderdog-mcp`
 - From source: `cargo run -p renderdog-mcp`
 
 `renderdog-mcp` provides one-shot tools that can:
@@ -380,11 +382,13 @@ Alternatively, use the helper script (maintainers):
 
 ## Packaging note (workspace vs crates.io)
 
-This repository is a Cargo workspace. `renderdog-mcp` is intentionally workspace-only
-(`publish = false`), so do not treat `cargo package -p renderdog-mcp` as a required release gate.
+This repository is a Cargo workspace. When you add new cross-crate APIs locally (for example new
+`renderdog-automation` functions used by `renderdog-mcp`), `cargo package -p renderdog-mcp` will
+only pass after the corresponding dependency version has been published to crates.io.
 
-During development, use workspace builds/tests (`cargo build`, `cargo nextest run`). Packaging
-checks are still useful for publishable crates such as `renderdog-sys` and `renderdog-automation`.
+During development, use workspace builds/tests (`cargo build`, `cargo nextest run`). For packaging
+checks, you can run `cargo package -p <crate> --allow-dirty`, but verification may still fail until
+dependent workspace crates are published in version order.
 
 ## License
 
