@@ -13,13 +13,17 @@ use crate::scripting::PrepareQRenderDocJsonRequest;
 use crate::{CaptureInput, CaptureRef, ExportOutput, OutputFile, OutputRef, RenderDocInstallation};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ReplayRequestContext {
+pub struct ReplayEventContext<TCapture, TEventId> {
     #[serde(flatten)]
-    pub capture: CaptureInput,
-    pub event_id: Option<u32>,
+    pub capture: TCapture,
+    pub event_id: TEventId,
 }
 
-impl ReplayRequestContext {
+pub type ReplayRequestContext = ReplayEventContext<CaptureInput, Option<u32>>;
+pub type ReplayContext = ReplayEventContext<CaptureRef, Option<u32>>;
+pub type SelectedReplayContext = ReplayEventContext<CaptureRef, u32>;
+
+impl ReplayEventContext<CaptureInput, Option<u32>> {
     pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
         Self {
             capture: self.capture.normalized_in_cwd(cwd),
@@ -64,15 +68,8 @@ pub struct ReplayTextureInfo {
     pub byte_size: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ReplayContext {
-    #[serde(flatten)]
-    pub capture: CaptureRef,
-    pub event_id: Option<u32>,
-}
-
 #[cfg(test)]
-impl ReplayContext {
+impl ReplayEventContext<CaptureRef, Option<u32>> {
     pub(crate) fn new(capture_path: impl Into<String>, event_id: Option<u32>) -> Self {
         Self {
             capture: CaptureRef::new(capture_path),
@@ -81,15 +78,8 @@ impl ReplayContext {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct SelectedReplayContext {
-    #[serde(flatten)]
-    pub capture: CaptureRef,
-    pub event_id: u32,
-}
-
 #[cfg(test)]
-impl SelectedReplayContext {
+impl ReplayEventContext<CaptureRef, u32> {
     pub(crate) fn new(capture_path: impl Into<String>, event_id: u32) -> Self {
         Self {
             capture: CaptureRef::new(capture_path),
