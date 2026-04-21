@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureTargetError,
+    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureRef, CaptureTargetError,
     CaptureTargetRequest, ExportBundleError, ExportBundleRequest, ExportBundleResponse,
     ExportOutput, RenderDocInstallation, TriggerCaptureError, TriggerCaptureOptions,
 };
@@ -25,7 +25,8 @@ pub struct CaptureAndExportBundleRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureAndExportBundleResponse {
     pub target_ident: u32,
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureRef,
     pub capture_file_template: Option<String>,
     pub stdout: String,
     pub stderr: String,
@@ -70,14 +71,11 @@ impl CompletedOneShotCapture {
     }
 
     fn into_response(self, export: ExportBundleResponse) -> CaptureAndExportBundleResponse {
-        let ExportBundleResponse {
-            capture_path,
-            artifacts,
-        } = export;
+        let ExportBundleResponse { capture, artifacts } = export;
 
         CaptureAndExportBundleResponse {
             target_ident: self.target_ident,
-            capture_path,
+            capture,
             capture_file_template: self.capture_file_template,
             stdout: self.stdout,
             stderr: self.stderr,
@@ -117,7 +115,7 @@ impl RenderDocInstallation {
             .normalized_for_capture(
                 cwd,
                 &CaptureInput {
-                    capture_path: capture.capture_path,
+                    capture_path: capture.capture.capture_path,
                 },
             )
             .map_err(OneShotCaptureError::CreateOutputDir)?;
@@ -143,8 +141,9 @@ mod tests {
     };
     use crate::{
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
-        CapturePostActionOutputs, CapturePostActions, CaptureTargetError, CaptureTargetRequest,
-        DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput, TriggerCaptureOptions,
+        CapturePostActionOutputs, CapturePostActions, CaptureRef, CaptureTargetError,
+        CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput,
+        TriggerCaptureOptions,
     };
 
     #[test]
@@ -222,7 +221,7 @@ mod tests {
             stderr: "stderr".to_string(),
         };
         let export = ExportBundleResponse {
-            capture_path: "/tmp/frame.rdc".to_string(),
+            capture: CaptureRef::new("/tmp/frame.rdc"),
             artifacts: BundleExportArtifacts {
                 actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
                 actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
@@ -241,7 +240,7 @@ mod tests {
         let response: CaptureAndExportBundleResponse = capture.into_response(export);
 
         assert_eq!(response.target_ident, 9);
-        assert_eq!(response.capture_path, "/tmp/frame.rdc");
+        assert_eq!(response.capture.capture_path, "/tmp/frame.rdc");
         assert_eq!(
             response.capture_file_template.as_deref(),
             Some("/tmp/frame")
@@ -325,7 +324,7 @@ mod tests {
     fn capture_and_export_bundle_response_serializes_artifacts_flattened() {
         let response = CaptureAndExportBundleResponse {
             target_ident: 9,
-            capture_path: "/tmp/frame.rdc".to_string(),
+            capture: CaptureRef::new("/tmp/frame.rdc"),
             capture_file_template: Some("/tmp/frame".to_string()),
             stdout: "stdout".to_string(),
             stderr: "stderr".to_string(),
@@ -352,6 +351,10 @@ mod tests {
             Some(&Value::Number(9_u32.into()))
         );
         assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(
             object.get("actions_jsonl_path"),
             Some(&Value::String("/tmp/out/frame.actions.jsonl".to_string()))
         );
@@ -363,6 +366,7 @@ mod tests {
             object.get("thumbnail_output_path"),
             Some(&Value::String("/tmp/out/frame.thumb.png".to_string()))
         );
+        assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("artifacts"));
     }
 

@@ -25,7 +25,7 @@ impl RenderdogMcpServer {
         tracing::info!(
             tool = tool,
             elapsed_ms = run.elapsed_ms(),
-            capture_path = %res.capture_path,
+            capture_path = %res.capture.capture_path,
             actions_jsonl_path = %res.artifacts.actions_jsonl_path,
             bindings_jsonl_path = %res.artifacts.bindings_jsonl_path,
             total_actions = res.artifacts.total_actions,

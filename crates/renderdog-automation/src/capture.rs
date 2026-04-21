@@ -9,8 +9,8 @@ use crate::renderdoccmd::{
     CaptureLaunchRequest as CommandCaptureLaunchRequest,
 };
 use crate::{
-    CaptureInput, OpenCaptureUiError, OutputFile, RenderDocInstallation, ToolInvocationError,
-    default_artifacts_dir, resolve_path_from_cwd,
+    CaptureInput, CaptureRef, OpenCaptureUiError, OutputFile, OutputRef, RenderDocInstallation,
+    ToolInvocationError, default_artifacts_dir, resolve_path_from_cwd,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -44,7 +44,8 @@ pub struct SaveThumbnailRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SaveThumbnailResponse {
-    pub output_path: String,
+    #[serde(flatten)]
+    pub output: OutputRef,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -55,7 +56,8 @@ pub struct OpenCaptureUiRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct OpenCaptureUiResponse {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureRef,
     pub pid: u32,
 }
 
@@ -147,7 +149,7 @@ impl RenderDocInstallation {
         self.save_thumbnail(&capture_path, &output_path)?;
 
         Ok(SaveThumbnailResponse {
-            output_path: output_path.display().to_string(),
+            output: OutputRef::new(output_path.display().to_string()),
         })
     }
 
@@ -161,7 +163,7 @@ impl RenderDocInstallation {
         let child = self.open_capture_in_ui(&capture_path)?;
 
         Ok(OpenCaptureUiResponse {
-            capture_path: capture_path.display().to_string(),
+            capture: CaptureRef::new(capture_path.display().to_string()),
             pid: child.id(),
         })
     }
@@ -330,6 +332,40 @@ mod tests {
             object.get("capture_path"),
             Some(&Value::String("/tmp/frame.rdc".to_string()))
         );
+        assert!(!object.contains_key("capture"));
+    }
+
+    #[test]
+    fn save_thumbnail_response_serializes_output_flattened() {
+        let response = SaveThumbnailResponse {
+            output: OutputRef::new("/tmp/frame.png"),
+        };
+
+        let json = serde_json::to_value(response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(
+            object.get("output_path"),
+            Some(&Value::String("/tmp/frame.png".to_string()))
+        );
+        assert!(!object.contains_key("output"));
+    }
+
+    #[test]
+    fn open_capture_ui_response_serializes_capture_flattened() {
+        let response = OpenCaptureUiResponse {
+            capture: CaptureRef::new("/tmp/frame.rdc"),
+            pid: 123,
+        };
+
+        let json = serde_json::to_value(response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(object.get("pid"), Some(&Value::Number(123_u32.into())));
         assert!(!object.contains_key("capture"));
     }
 }

@@ -53,7 +53,7 @@ impl RenderdogMcpServer {
         tracing::info!(
             tool = tool,
             elapsed_ms = run.elapsed_ms(),
-            selected_event_id = res.selected_event_id,
+            selected_event_id = res.selected_event_id(),
             images = res.replay.outputs.len(),
             "ok"
         );

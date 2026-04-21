@@ -25,7 +25,7 @@ impl RenderdogMcpServer {
         tracing::info!(
             tool = tool,
             elapsed_ms = run.elapsed_ms(),
-            output_path = %res.output_path,
+            output_path = %res.output.output_path,
             "ok"
         );
         Ok(Json(res))

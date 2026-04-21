@@ -106,6 +106,32 @@ impl OutputFile {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CaptureRef {
+    pub capture_path: String,
+}
+
+impl CaptureRef {
+    pub(crate) fn new(capture_path: impl Into<String>) -> Self {
+        Self {
+            capture_path: capture_path.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OutputRef {
+    pub output_path: String,
+}
+
+impl OutputRef {
+    pub(crate) fn new(output_path: impl Into<String>) -> Self {
+        Self {
+            output_path: output_path.into(),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CapturePostActions {
     #[serde(default)]
@@ -258,7 +284,8 @@ impl PrepareQRenderDocJsonRequest for TriggerCaptureRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureResponse {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureRef,
     pub frame_number: u32,
     pub api: String,
 }
@@ -285,7 +312,8 @@ impl PrepareQRenderDocJsonRequest for ExportActionsRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub(crate) struct ExportActionsResponse {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureRef,
     pub actions_jsonl_path: String,
     pub summary_json_path: String,
     pub total_actions: u64,
@@ -335,7 +363,8 @@ pub struct FoundEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FindEventsResponse {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureRef,
     pub total_matches: u64,
     pub truncated: bool,
     pub first_event_id: Option<u32>,
@@ -365,7 +394,8 @@ impl PrepareQRenderDocJsonRequest for ExportBindingsIndexRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub(crate) struct ExportBindingsIndexResponse {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureRef,
     pub bindings_jsonl_path: String,
     pub summary_json_path: String,
     pub total_drawcalls: u64,
@@ -383,7 +413,8 @@ pub struct ExportBundleRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ExportBundleResponse {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureRef,
     #[serde(flatten)]
     pub artifacts: BundleExportArtifacts,
 }
@@ -391,7 +422,7 @@ pub struct ExportBundleResponse {
 impl ExportBundleResponse {
     pub(crate) fn from_parts(capture_path: String, artifacts: BundleExportArtifacts) -> Self {
         Self {
-            capture_path,
+            capture: CaptureRef::new(capture_path),
             artifacts,
         }
     }
@@ -405,10 +436,10 @@ mod tests {
 
     use super::{
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
-        CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter,
+        CapturePostActionOutputs, CapturePostActions, CaptureRef, DrawcallScope, EventFilter,
         ExportActionsResponse, ExportBindingsIndexResponse, ExportBundleRequest,
-        ExportBundleResponse, ExportOutput, OutputFile, TriggerCaptureOptions,
-        TriggerCaptureRequest,
+        ExportBundleResponse, ExportOutput, FindEventsResponse, OutputFile, TriggerCaptureOptions,
+        TriggerCaptureRequest, TriggerCaptureResponse,
     };
 
     #[test]
@@ -495,6 +526,32 @@ mod tests {
     }
 
     #[test]
+    fn trigger_capture_response_serializes_capture_flattened() {
+        let response = TriggerCaptureResponse {
+            capture: CaptureRef::new("/tmp/frame.rdc"),
+            frame_number: 2,
+            api: "Vulkan".to_string(),
+        };
+
+        let json = serde_json::to_value(response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(
+            object.get("frame_number"),
+            Some(&Value::Number(2_u32.into()))
+        );
+        assert_eq!(
+            object.get("api"),
+            Some(&Value::String("Vulkan".to_string()))
+        );
+        assert!(!object.contains_key("capture"));
+    }
+
+    #[test]
     fn export_bundle_request_serializes_bundle_options_flattened() {
         let req = ExportBundleRequest {
             capture: CaptureInput {
@@ -550,19 +607,52 @@ mod tests {
     }
 
     #[test]
+    fn find_events_response_serializes_capture_flattened() {
+        let response = FindEventsResponse {
+            capture: CaptureRef::new("/tmp/frame.rdc"),
+            total_matches: 3,
+            truncated: false,
+            first_event_id: Some(11),
+            last_event_id: Some(42),
+            matches: Vec::new(),
+        };
+
+        let json = serde_json::to_value(response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(
+            object.get("total_matches"),
+            Some(&Value::Number(3_u32.into()))
+        );
+        assert_eq!(
+            object.get("first_event_id"),
+            Some(&Value::Number(11_u32.into()))
+        );
+        assert_eq!(
+            object.get("last_event_id"),
+            Some(&Value::Number(42_u32.into()))
+        );
+        assert!(!object.contains_key("capture"));
+    }
+
+    #[test]
     fn export_bundle_response_serializes_artifacts_flattened() {
         let response = ExportBundleResponse::from_parts(
             "/tmp/frame.rdc".to_string(),
             BundleExportArtifacts::from_parts(
                 ExportActionsResponse {
-                    capture_path: "/tmp/frame.rdc".to_string(),
+                    capture: CaptureRef::new("/tmp/frame.rdc"),
                     actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
                     summary_json_path: "/tmp/out/frame.summary.json".to_string(),
                     total_actions: 10,
                     drawcall_actions: 4,
                 },
                 ExportBindingsIndexResponse {
-                    capture_path: "/tmp/frame.rdc".to_string(),
+                    capture: CaptureRef::new("/tmp/frame.rdc"),
                     bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
                     summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
                     total_drawcalls: 4,
@@ -594,6 +684,7 @@ mod tests {
             Some(&Value::String("/tmp/out/frame.thumb.png".to_string()))
         );
         assert_eq!(object.get("ui_pid"), Some(&Value::Number(123_u32.into())));
+        assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("artifacts"));
     }
 }

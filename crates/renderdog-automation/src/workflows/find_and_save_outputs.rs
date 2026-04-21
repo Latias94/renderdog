@@ -52,21 +52,16 @@ pub struct FindEventsAndSaveOutputsPngRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FindEventsAndSaveOutputsPngResponse {
     pub find: FindEventsResponse,
-    pub selected_event_id: u32,
     pub replay: ReplaySaveOutputsPngResponse,
 }
 
 impl FindEventsAndSaveOutputsPngResponse {
-    fn from_parts(
-        find: FindEventsResponse,
-        selected_event_id: u32,
-        replay: ReplaySaveOutputsPngResponse,
-    ) -> Self {
-        Self {
-            find,
-            selected_event_id,
-            replay,
-        }
+    fn from_parts(find: FindEventsResponse, replay: ReplaySaveOutputsPngResponse) -> Self {
+        Self { find, replay }
+    }
+
+    pub fn selected_event_id(&self) -> u32 {
+        self.replay.context.event_id
     }
 }
 
@@ -125,25 +120,28 @@ impl RenderDocInstallation {
         )?;
 
         Ok(FindEventsAndSaveOutputsPngResponse::from_parts(
-            find,
-            selected_event_id,
-            replay,
+            find, replay,
         ))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
+
     use super::{
         FindEventSelection, FindEventsAndSaveOutputsPngError, FindEventsAndSaveOutputsPngRequest,
-        FindEventsLimit, FindEventsResponse,
+        FindEventsAndSaveOutputsPngResponse, FindEventsLimit, FindEventsResponse,
     };
-    use crate::{CaptureInput, EventFilter, ExportOutput, ReplaySaveOutputsPngError};
+    use crate::{
+        CaptureInput, CaptureRef, EventFilter, ExportOutput, OutputRef, ReplaySaveOutputsPngError,
+        ReplaySaveOutputsPngResponse, SelectedReplayContext,
+    };
 
     #[test]
     fn find_event_selection_picks_first_or_last_match() {
         let find = FindEventsResponse {
-            capture_path: "/tmp/capture.rdc".to_string(),
+            capture: CaptureRef::new("/tmp/capture.rdc"),
             total_matches: 2,
             truncated: false,
             first_event_id: Some(11),
@@ -210,5 +208,44 @@ mod tests {
             err,
             FindEventsAndSaveOutputsPngError::Replay(ReplaySaveOutputsPngError::CreateOutputDir(_))
         ));
+    }
+
+    #[test]
+    fn workflow_response_derives_selected_event_id_from_replay_context() {
+        let response = FindEventsAndSaveOutputsPngResponse::from_parts(
+            FindEventsResponse {
+                capture: CaptureRef::new("/tmp/capture.rdc"),
+                total_matches: 2,
+                truncated: false,
+                first_event_id: Some(11),
+                last_event_id: Some(42),
+                matches: Vec::new(),
+            },
+            ReplaySaveOutputsPngResponse {
+                context: SelectedReplayContext {
+                    capture: CaptureRef::new("/tmp/capture.rdc"),
+                    event_id: 42,
+                },
+                outputs: vec![crate::ReplaySavedImage {
+                    kind: "color".to_string(),
+                    index: Some(0),
+                    resource_id: 7,
+                    output: OutputRef::new("/tmp/color0.png"),
+                }],
+            },
+        );
+
+        let json = serde_json::to_value(&response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(response.selected_event_id(), 42);
+        assert!(!object.contains_key("selected_event_id"));
+        assert_eq!(
+            object
+                .get("replay")
+                .and_then(Value::as_object)
+                .and_then(|replay| replay.get("event_id")),
+            Some(&Value::Number(42_u32.into()))
+        );
     }
 }
