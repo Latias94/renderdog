@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureLaunchReport, CaptureRef,
+    BundleExportArtifacts, BundleExportOptions, CaptureLaunchReport, CaptureRef,
     CaptureTargetError, CaptureTargetRequest, ExportBundleError, ExportBundleRequest,
     ExportBundleResponse, ExportOutput, RenderDocInstallation, TriggerCaptureError,
     TriggerCaptureOptions,
@@ -53,19 +53,10 @@ pub enum CaptureAndExportBundleError {
 
 struct CompletedOneShotCapture {
     launch: CaptureLaunchReport,
-    capture: CaptureInput,
-    output: ExportOutput,
+    export: ExportBundleRequest,
 }
 
 impl CompletedOneShotCapture {
-    fn export_bundle_request(&self, req: &CaptureAndExportBundleRequest) -> ExportBundleRequest {
-        ExportBundleRequest {
-            capture: self.capture.clone(),
-            output: self.output.clone(),
-            bundle: req.bundle.clone(),
-        }
-    }
-
     fn into_response(self, export: ExportBundleResponse) -> CaptureAndExportBundleResponse {
         let ExportBundleResponse { capture, artifacts } = export;
 
@@ -83,8 +74,8 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &CaptureAndExportBundleRequest,
     ) -> Result<CaptureAndExportBundleResponse, CaptureAndExportBundleError> {
-        let capture = self.capture_one_shot(cwd, &req.target, &req.trigger, &req.output)?;
-        let export = self.export_bundle_jsonl(cwd, &capture.export_bundle_request(req))?;
+        let capture = self.capture_one_shot(cwd, req)?;
+        let export = self.export_bundle_jsonl(cwd, &capture.export)?;
 
         Ok(capture.into_response(export))
     }
@@ -92,26 +83,28 @@ impl RenderDocInstallation {
     fn capture_one_shot(
         &self,
         cwd: &Path,
-        target: &CaptureTargetRequest,
-        trigger_options: &TriggerCaptureOptions,
-        output: &ExportOutput,
+        req: &CaptureAndExportBundleRequest,
     ) -> Result<CompletedOneShotCapture, OneShotCaptureError> {
-        let resolved_target = target.resolved_in_cwd(cwd)?;
+        let resolved_target = req.target.resolved_in_cwd(cwd)?;
         let launched_target = self.launch_capture_target(&resolved_target)?;
 
         let triggered_capture = self.trigger_capture_via_target_control(
             cwd,
-            &trigger_options.for_target(launched_target.target),
+            &req.trigger.for_target(launched_target.target),
         )?;
 
-        let (capture, output) = output
+        let (capture, output) = req
+            .output
             .normalized_for_capture(cwd, &triggered_capture.capture)
             .map_err(OneShotCaptureError::CreateOutputDir)?;
 
         Ok(CompletedOneShotCapture {
             launch: launched_target,
-            capture,
-            output,
+            export: ExportBundleRequest {
+                capture,
+                output,
+                bundle: req.bundle.clone(),
+            },
         })
     }
 }
@@ -128,8 +121,8 @@ mod tests {
         ActionsExportArtifacts, BindingsExportArtifacts, BindingsExportOptions,
         BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureLaunchReport,
         CapturePostActionOutputs, CapturePostActions, CaptureRef, CaptureTargetError,
-        CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput,
-        TargetControlRef, TriggerCaptureOptions,
+        CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleRequest,
+        ExportBundleResponse, ExportOutput, TargetControlRef, TriggerCaptureOptions,
     };
 
     #[test]
@@ -141,56 +134,48 @@ mod tests {
                 stdout: "stdout".to_string(),
                 stderr: "stderr".to_string(),
             },
-            capture: CaptureInput {
-                capture_path: "/tmp/frame.rdc".to_string(),
-            },
-            output: ExportOutput {
-                output_dir: Some("/tmp/out".to_string()),
-                basename: Some("frame".to_string()),
-            },
-        };
-        let req = CaptureAndExportBundleRequest {
-            target: CaptureTargetRequest {
-                executable: "game".to_string(),
-                args: vec!["--flag".to_string()],
-                working_dir: None,
-                artifacts_dir: None,
-                capture_template_name: None,
-            },
-            trigger: TriggerCaptureOptions::default(),
-            output: ExportOutput::default(),
-            bundle: BundleExportOptions {
-                drawcall_scope: DrawcallScope {
-                    only_drawcalls: true,
+            export: ExportBundleRequest {
+                capture: CaptureInput {
+                    capture_path: "/tmp/frame.rdc".to_string(),
                 },
-                filter: EventFilter {
-                    marker_contains: Some("fret".to_string()),
-                    ..EventFilter::default()
+                output: ExportOutput {
+                    output_dir: Some("/tmp/out".to_string()),
+                    basename: Some("frame".to_string()),
                 },
-                bindings: BindingsExportOptions {
-                    include_cbuffers: true,
-                    include_outputs: false,
-                },
-                post_actions: CapturePostActions {
-                    save_thumbnail: true,
-                    thumbnail_output_path: Some("thumb.png".to_string()),
-                    open_capture_ui: false,
+                bundle: BundleExportOptions {
+                    drawcall_scope: DrawcallScope {
+                        only_drawcalls: true,
+                    },
+                    filter: EventFilter {
+                        marker_contains: Some("fret".to_string()),
+                        ..EventFilter::default()
+                    },
+                    bindings: BindingsExportOptions {
+                        include_cbuffers: true,
+                        include_outputs: false,
+                    },
+                    post_actions: CapturePostActions {
+                        save_thumbnail: true,
+                        thumbnail_output_path: Some("thumb.png".to_string()),
+                        open_capture_ui: false,
+                    },
                 },
             },
         };
 
-        let export_req = capture.export_bundle_request(&req);
-
-        assert_eq!(export_req.capture.capture_path, "/tmp/frame.rdc");
-        assert_eq!(export_req.output.output_dir.as_deref(), Some("/tmp/out"));
-        assert_eq!(export_req.output.basename.as_deref(), Some("frame"));
-        assert!(export_req.bundle.drawcall_scope.only_drawcalls);
+        assert_eq!(capture.export.capture.capture_path, "/tmp/frame.rdc");
         assert_eq!(
-            export_req.bundle.filter.marker_contains.as_deref(),
+            capture.export.output.output_dir.as_deref(),
+            Some("/tmp/out")
+        );
+        assert_eq!(capture.export.output.basename.as_deref(), Some("frame"));
+        assert!(capture.export.bundle.drawcall_scope.only_drawcalls);
+        assert_eq!(
+            capture.export.bundle.filter.marker_contains.as_deref(),
             Some("fret")
         );
-        assert!(export_req.bundle.bindings.include_cbuffers);
-        assert!(export_req.bundle.post_actions.save_thumbnail);
+        assert!(capture.export.bundle.bindings.include_cbuffers);
+        assert!(capture.export.bundle.post_actions.save_thumbnail);
     }
 
     #[test]
@@ -202,12 +187,25 @@ mod tests {
                 stdout: "stdout".to_string(),
                 stderr: "stderr".to_string(),
             },
-            capture: CaptureInput {
-                capture_path: "/tmp/frame.rdc".to_string(),
-            },
-            output: ExportOutput {
-                output_dir: Some("/tmp/out".to_string()),
-                basename: Some("frame".to_string()),
+            export: ExportBundleRequest {
+                capture: CaptureInput {
+                    capture_path: "/tmp/frame.rdc".to_string(),
+                },
+                output: ExportOutput {
+                    output_dir: Some("/tmp/out".to_string()),
+                    basename: Some("frame".to_string()),
+                },
+                bundle: BundleExportOptions {
+                    drawcall_scope: DrawcallScope {
+                        only_drawcalls: false,
+                    },
+                    filter: EventFilter::default(),
+                    bindings: BindingsExportOptions {
+                        include_cbuffers: false,
+                        include_outputs: false,
+                    },
+                    post_actions: CapturePostActions::default(),
+                },
             },
         };
         let export = ExportBundleResponse {
