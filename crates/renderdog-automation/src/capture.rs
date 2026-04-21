@@ -9,8 +9,8 @@ use crate::renderdoccmd::{
     CaptureLaunchRequest as CommandCaptureLaunchRequest,
 };
 use crate::{
-    OpenCaptureUiError, RenderDocInstallation, ToolInvocationError, default_artifacts_dir,
-    resolve_path_from_cwd,
+    CaptureInput, OpenCaptureUiError, OutputFile, RenderDocInstallation, ToolInvocationError,
+    default_artifacts_dir, resolve_path_from_cwd,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -36,8 +36,10 @@ pub(crate) struct LaunchedCaptureTarget {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SaveThumbnailRequest {
-    pub capture_path: String,
-    pub output_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
+    #[serde(flatten)]
+    pub output: OutputFile,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -132,8 +134,10 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &SaveThumbnailRequest,
     ) -> Result<SaveThumbnailResponse, std::io::Error> {
-        let capture_path = resolve_path_from_cwd(cwd, &req.capture_path);
-        let output_path = resolve_path_from_cwd(cwd, &req.output_path);
+        let capture = req.capture.normalized_in_cwd(cwd);
+        let output = req.output.resolved_in_cwd(cwd);
+        let capture_path = Path::new(&capture.capture_path);
+        let output_path = Path::new(&output.output_path);
 
         if let Some(parent) = output_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -169,7 +173,7 @@ mod tests {
     };
 
     use crate::renderdoccmd::CaptureLaunchError as CommandCaptureLaunchError;
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     use super::*;
 
@@ -281,5 +285,31 @@ mod tests {
             },
         )));
         assert!(matches!(err, CaptureTargetError::LaunchTarget(_)));
+    }
+
+    #[test]
+    fn save_thumbnail_request_serializes_capture_and_output_flattened() {
+        let req = SaveThumbnailRequest {
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+            output: OutputFile {
+                output_path: "/tmp/frame.png".to_string(),
+            },
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(
+            object.get("output_path"),
+            Some(&Value::String("/tmp/frame.png".to_string()))
+        );
+        assert!(!object.contains_key("capture"));
+        assert!(!object.contains_key("output"));
     }
 }

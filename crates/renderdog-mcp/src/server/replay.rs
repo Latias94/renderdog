@@ -70,7 +70,7 @@ impl RenderdogMcpServer {
         let run = ToolRun::start(tool, || {
             tracing::info!(
                 tool = tool,
-                capture_path = %req.inner.capture_path,
+                capture_path = %req.inner.capture.capture_path,
                 texture_index = req.inner.texture_index,
                 "start"
             );

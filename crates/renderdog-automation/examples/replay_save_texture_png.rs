@@ -22,10 +22,10 @@ fn main() -> anyhow::Result<()> {
     let res = install.replay_save_texture_png(
         &cwd,
         &renderdog::ReplaySaveTexturePngRequest {
-            capture_path,
+            capture: renderdog::CaptureInput { capture_path },
             event_id,
             texture_index,
-            output_path,
+            output: renderdog::OutputFile { output_path },
         },
     )?;
 

@@ -16,7 +16,7 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::SaveThumbnailResponse>, String> {
         let tool = "renderdoc_save_thumbnail";
         let run = ToolRun::start(tool, || {
-            tracing::info!(tool = tool, capture_path = %req.inner.capture_path, "start");
+            tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
         });
         let res = run.with_install_and_cwd("save thumbnail", req, |install, cwd, req| {
             install.save_thumbnail_in_cwd(&cwd, &req)

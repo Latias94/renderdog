@@ -26,7 +26,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::scripting::PrepareQRenderDocJsonRequest;
-use crate::{QRenderDocJsonError, normalize_capture_path, prepare_export_target};
+use crate::{
+    QRenderDocJsonError, normalize_capture_path, prepare_export_target,
+    resolve_path_string_from_cwd,
+};
 
 fn default_max_results() -> Option<u32> {
     Some(200)
@@ -87,6 +90,19 @@ impl ExportOutput {
                 basename: Some(prepared.basename),
             },
         ))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OutputFile {
+    pub output_path: String,
+}
+
+impl OutputFile {
+    pub(crate) fn resolved_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            output_path: resolve_path_string_from_cwd(cwd, &self.output_path),
+        }
     }
 }
 
@@ -391,7 +407,8 @@ mod tests {
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
         CapturePostActionOutputs, CapturePostActions, DrawcallScope, EventFilter,
         ExportActionsResponse, ExportBindingsIndexResponse, ExportBundleRequest,
-        ExportBundleResponse, ExportOutput, TriggerCaptureOptions, TriggerCaptureRequest,
+        ExportBundleResponse, ExportOutput, OutputFile, TriggerCaptureOptions,
+        TriggerCaptureRequest,
     };
 
     #[test]
@@ -422,6 +439,17 @@ mod tests {
             Some("/tmp/project/artifacts/renderdoc/exports")
         );
         assert_eq!(output.basename.as_deref(), Some("frame"));
+    }
+
+    #[test]
+    fn output_file_resolves_relative_path_in_cwd() {
+        let output = OutputFile {
+            output_path: "artifacts/frame.png".to_string(),
+        };
+
+        let resolved = output.resolved_in_cwd(Path::new("/tmp/project"));
+
+        assert_eq!(resolved.output_path, "/tmp/project/artifacts/frame.png");
     }
 
     #[test]
