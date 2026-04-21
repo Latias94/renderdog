@@ -98,10 +98,9 @@ impl FindEventsAndSaveOutputsPngRequest {
         selected_event_id: u32,
     ) -> ReplaySaveOutputsPngRequest {
         ReplaySaveOutputsPngRequest {
-            capture_path,
+            capture: CaptureInput { capture_path },
             event_id: Some(selected_event_id),
-            output_dir: self.output.output_dir.clone(),
-            basename: self.output.basename.clone(),
+            output: self.output.clone(),
             include_depth: self.include_depth,
         }
     }
@@ -187,10 +186,16 @@ mod tests {
         assert!(find.drawcall_scope.only_drawcalls);
         assert_eq!(find.filter.marker_contains.as_deref(), Some("fret"));
         assert_eq!(find.limit.max_results, Some(5));
-        assert_eq!(replay.capture_path, "/tmp/project/captures/frame.rdc");
+        assert_eq!(
+            replay.capture.capture_path,
+            "/tmp/project/captures/frame.rdc"
+        );
         assert_eq!(replay.event_id, Some(99));
-        assert_eq!(replay.output_dir.as_deref(), Some("artifacts/replay"));
-        assert_eq!(replay.basename.as_deref(), Some("frame"));
+        assert_eq!(
+            replay.output.output_dir.as_deref(),
+            Some("artifacts/replay")
+        );
+        assert_eq!(replay.output.basename.as_deref(), Some("frame"));
         assert!(replay.include_depth);
     }
 

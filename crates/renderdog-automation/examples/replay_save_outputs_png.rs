@@ -21,10 +21,12 @@ fn main() -> anyhow::Result<()> {
     let res = install.replay_save_outputs_png(
         &cwd,
         &renderdog::ReplaySaveOutputsPngRequest {
-            capture_path,
+            capture: renderdog::CaptureInput { capture_path },
             event_id,
-            output_dir: out_dir.map(|path| path.display().to_string()),
-            basename,
+            output: renderdog::ExportOutput {
+                output_dir: out_dir.map(|path| path.display().to_string()),
+                basename,
+            },
             include_depth: false,
         },
     )?;

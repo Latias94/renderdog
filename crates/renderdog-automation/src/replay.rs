@@ -4,16 +4,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::RenderDocInstallation;
 use crate::qrenderdoc_jobs::{
     REPLAY_LIST_TEXTURES_JOB, REPLAY_PICK_PIXEL_JOB, REPLAY_SAVE_OUTPUTS_PNG_JOB,
     REPLAY_SAVE_TEXTURE_PNG_JOB,
 };
 use crate::scripting::PrepareQRenderDocJsonRequest;
-use crate::{
-    QRenderDocJsonError, normalize_capture_path, prepare_export_target,
-    resolve_path_string_from_cwd,
-};
+use crate::{CaptureInput, ExportOutput, RenderDocInstallation};
+use crate::{QRenderDocJsonError, normalize_capture_path, resolve_path_string_from_cwd};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayListTexturesRequest {
@@ -131,30 +128,23 @@ pub struct ReplaySaveTexturePngResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaySaveOutputsPngRequest {
-    pub capture_path: String,
+    #[serde(flatten)]
+    pub capture: CaptureInput,
     #[serde(default)]
     pub event_id: Option<u32>,
-    #[serde(default)]
-    pub output_dir: Option<String>,
-    #[serde(default)]
-    pub basename: Option<String>,
+    #[serde(flatten)]
+    pub output: ExportOutput,
     #[serde(default)]
     pub include_depth: bool,
 }
 
 impl ReplaySaveOutputsPngRequest {
     pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Result<Self, std::io::Error> {
-        let prepared = prepare_export_target(
-            cwd,
-            &self.capture_path,
-            self.output_dir.as_deref(),
-            self.basename.as_deref(),
-        )?;
+        let (capture, output) = self.output.normalized_for_capture(cwd, &self.capture)?;
 
         Ok(Self {
-            capture_path: prepared.capture_path,
-            output_dir: Some(prepared.output_dir),
-            basename: Some(prepared.basename),
+            capture,
+            output,
             ..self.clone()
         })
     }
@@ -227,5 +217,78 @@ impl RenderDocInstallation {
         req: &ReplaySaveOutputsPngRequest,
     ) -> Result<ReplaySaveOutputsPngResponse, ReplaySaveOutputsPngError> {
         self.run_prepared_qrenderdoc_json_job(cwd, REPLAY_SAVE_OUTPUTS_PNG_JOB, req)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use serde_json::Value;
+
+    use super::ReplaySaveOutputsPngRequest;
+    use crate::{CaptureInput, ExportOutput};
+
+    #[test]
+    fn replay_save_outputs_request_normalizes_via_shared_export_output() {
+        let req = ReplaySaveOutputsPngRequest {
+            capture: CaptureInput {
+                capture_path: "captures/frame.rdc".to_string(),
+            },
+            event_id: Some(42),
+            output: ExportOutput::default(),
+            include_depth: true,
+        };
+
+        let normalized = req
+            .normalized_in_cwd(Path::new("/tmp/project"))
+            .expect("normalize should succeed");
+
+        assert_eq!(
+            normalized.capture.capture_path,
+            "/tmp/project/captures/frame.rdc"
+        );
+        assert_eq!(
+            normalized.output.output_dir.as_deref(),
+            Some("/tmp/project/artifacts/renderdoc/exports")
+        );
+        assert_eq!(normalized.output.basename.as_deref(), Some("frame"));
+        assert_eq!(normalized.event_id, Some(42));
+        assert!(normalized.include_depth);
+    }
+
+    #[test]
+    fn replay_save_outputs_request_serializes_capture_and_output_flattened() {
+        let req = ReplaySaveOutputsPngRequest {
+            capture: CaptureInput {
+                capture_path: "/tmp/frame.rdc".to_string(),
+            },
+            event_id: Some(42),
+            output: ExportOutput {
+                output_dir: Some("/tmp/out".to_string()),
+                basename: Some("frame".to_string()),
+            },
+            include_depth: true,
+        };
+
+        let json = serde_json::to_value(req).expect("serialize request");
+        let object = json.as_object().expect("request object");
+
+        assert_eq!(
+            object.get("capture_path"),
+            Some(&Value::String("/tmp/frame.rdc".to_string()))
+        );
+        assert_eq!(object.get("event_id"), Some(&Value::Number(42_u32.into())));
+        assert_eq!(
+            object.get("output_dir"),
+            Some(&Value::String("/tmp/out".to_string()))
+        );
+        assert_eq!(
+            object.get("basename"),
+            Some(&Value::String("frame".to_string()))
+        );
+        assert_eq!(object.get("include_depth"), Some(&Value::Bool(true)));
+        assert!(!object.contains_key("capture"));
+        assert!(!object.contains_key("output"));
     }
 }

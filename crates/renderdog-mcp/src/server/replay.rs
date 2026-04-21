@@ -101,7 +101,7 @@ impl RenderdogMcpServer {
         let run = ToolRun::start(tool, || {
             tracing::info!(
                 tool = tool,
-                capture_path = %req.inner.capture_path,
+                capture_path = %req.inner.capture.capture_path,
                 event_id = req.inner.event_id.unwrap_or(0),
                 include_depth = req.inner.include_depth,
                 "start"
