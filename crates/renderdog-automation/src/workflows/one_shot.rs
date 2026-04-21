@@ -99,18 +99,13 @@ impl RenderDocInstallation {
         let prepared_target = self.prepare_capture_target(cwd, target)?;
         let launched_target = self.launch_prepared_capture_target(&prepared_target)?;
 
-        let capture = self.trigger_capture_via_target_control(
+        let triggered_capture = self.trigger_capture_via_target_control(
             cwd,
             &trigger_options.for_target(launched_target.target),
         )?;
 
         let (capture, output) = output
-            .normalized_for_capture(
-                cwd,
-                &CaptureInput {
-                    capture_path: capture.capture.capture_path,
-                },
-            )
+            .normalized_for_capture(cwd, &triggered_capture.capture)
             .map_err(OneShotCaptureError::CreateOutputDir)?;
 
         Ok(CompletedOneShotCapture {

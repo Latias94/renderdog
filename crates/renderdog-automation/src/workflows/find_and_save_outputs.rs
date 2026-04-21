@@ -76,9 +76,9 @@ pub enum FindEventsAndSaveOutputsPngError {
 }
 
 impl FindEventsAndSaveOutputsPngRequest {
-    fn find_request(&self, capture: CaptureInput) -> FindEventsRequest {
+    fn find_request(&self) -> FindEventsRequest {
         FindEventsRequest {
-            capture,
+            capture: self.capture.clone(),
             drawcall_scope: DrawcallScope {
                 only_drawcalls: self.only_drawcalls,
             },
@@ -89,11 +89,11 @@ impl FindEventsAndSaveOutputsPngRequest {
 
     fn replay_request(
         &self,
-        capture_path: String,
+        capture: CaptureInput,
         selected_event_id: u32,
     ) -> ReplaySaveOutputsPngRequest {
         ReplaySaveOutputsPngRequest {
-            capture: CaptureInput { capture_path },
+            capture,
             selection: ReplayEventSelector::event_id(selected_event_id),
             output: self.output.clone(),
             include_depth: self.include_depth,
@@ -107,8 +107,7 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsAndSaveOutputsPngRequest,
     ) -> Result<FindEventsAndSaveOutputsPngResponse, FindEventsAndSaveOutputsPngError> {
-        let capture = req.capture.normalized_in_cwd(cwd);
-        let find = self.find_events(cwd, &req.find_request(capture.clone()))?;
+        let find = self.find_events(cwd, &req.find_request())?;
         let selected_event_id = req
             .selection
             .select_event_id(&find)
@@ -116,7 +115,7 @@ impl RenderDocInstallation {
 
         let replay = self.replay_save_outputs_png(
             cwd,
-            &req.replay_request(capture.capture_path, selected_event_id),
+            &req.replay_request(find.capture.clone(), selected_event_id),
         )?;
 
         Ok(FindEventsAndSaveOutputsPngResponse::from_parts(
@@ -178,15 +177,18 @@ mod tests {
             include_depth: true,
         };
 
-        let capture = CaptureInput {
-            capture_path: "/tmp/project/captures/frame.rdc".to_string(),
-        };
-        let find = req.find_request(capture.clone());
-        let replay = req.replay_request(capture.capture_path, 99);
+        let find = req.find_request();
+        let replay = req.replay_request(
+            CaptureInput {
+                capture_path: "/tmp/project/captures/frame.rdc".to_string(),
+            },
+            99,
+        );
 
         assert!(find.drawcall_scope.only_drawcalls);
         assert_eq!(find.filter.marker_contains.as_deref(), Some("fret"));
         assert_eq!(find.limit.max_results, Some(5));
+        assert_eq!(find.capture.capture_path, "captures/frame.rdc");
         assert_eq!(
             replay.capture.capture_path,
             "/tmp/project/captures/frame.rdc"
