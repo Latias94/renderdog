@@ -169,7 +169,6 @@ def iter_actions(
                         "flags": int(flags),
                         "flags_names": flags_to_names(flags),
                         "marker_path": effective_marker_path,
-                        "marker_path_joined": joined_marker_path,
                     }
                 )
             else:
@@ -225,10 +224,12 @@ def main() -> None:
                 True,
                 result={
                     "capture_path": req["capture_path"],
-                    "total_matches": int(counters["total_matches"]),
-                    "truncated": bool(counters["truncated"]),
-                    "first_event_id": counters.get("first_event_id", None),
-                    "last_event_id": counters.get("last_event_id", None),
+                    "summary": {
+                        "total_matches": int(counters["total_matches"]),
+                        "truncated": bool(counters["truncated"]),
+                        "first_event_id": counters.get("first_event_id", None),
+                        "last_event_id": counters.get("last_event_id", None),
+                    },
                     "matches": out_list,
                 },
             )

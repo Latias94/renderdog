@@ -370,6 +370,22 @@ impl PrepareQRenderDocJsonRequest for FindEventsRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct MarkerPath(pub Vec<String>);
+
+impl MarkerPath {
+    pub fn joined(&self) -> String {
+        self.0.join("/")
+    }
+}
+
+impl From<Vec<String>> for MarkerPath {
+    fn from(value: Vec<String>) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FoundEvent {
     pub event_id: u32,
     pub parent_event_id: Option<u32>,
@@ -377,19 +393,39 @@ pub struct FoundEvent {
     pub name: String,
     pub flags: u64,
     pub flags_names: Vec<String>,
-    pub marker_path: Vec<String>,
-    pub marker_path_joined: String,
+    pub marker_path: MarkerPath,
+}
+
+impl FoundEvent {
+    pub fn marker_path_joined(&self) -> String {
+        self.marker_path.joined()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct FindEventsSummary {
+    pub total_matches: u64,
+    pub truncated: bool,
+    pub first_event_id: Option<u32>,
+    pub last_event_id: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FindEventsResponse {
     #[serde(flatten)]
     pub capture: CaptureRef,
-    pub total_matches: u64,
-    pub truncated: bool,
-    pub first_event_id: Option<u32>,
-    pub last_event_id: Option<u32>,
+    pub summary: FindEventsSummary,
     pub matches: Vec<FoundEvent>,
+}
+
+impl FindEventsResponse {
+    pub fn first_event_id(&self) -> Option<u32> {
+        self.summary.first_event_id
+    }
+
+    pub fn last_event_id(&self) -> Option<u32> {
+        self.summary.last_event_id
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -456,8 +492,8 @@ mod tests {
         BundleExportArtifacts, BundleExportOptions, CaptureInput, CapturePostActionOutputs,
         CapturePostActions, CaptureRef, DrawcallScope, EventFilter, ExportActionsResponse,
         ExportBindingsIndexResponse, ExportBundleRequest, ExportBundleResponse, ExportOutput,
-        FindEventsResponse, OutputFile, TargetControlRef, TriggerCaptureOptions,
-        TriggerCaptureRequest, TriggerCaptureResponse,
+        FindEventsResponse, FindEventsSummary, FoundEvent, MarkerPath, OutputFile,
+        TargetControlRef, TriggerCaptureOptions, TriggerCaptureRequest, TriggerCaptureResponse,
     };
 
     #[test]
@@ -641,33 +677,64 @@ mod tests {
     fn find_events_response_serializes_capture_flattened() {
         let response = FindEventsResponse {
             capture: CaptureRef::new("/tmp/frame.rdc"),
-            total_matches: 3,
-            truncated: false,
-            first_event_id: Some(11),
-            last_event_id: Some(42),
+            summary: FindEventsSummary {
+                total_matches: 3,
+                truncated: false,
+                first_event_id: Some(11),
+                last_event_id: Some(42),
+            },
             matches: Vec::new(),
         };
 
         let json = serde_json::to_value(response).expect("serialize response");
         let object = json.as_object().expect("response object");
+        let summary = object
+            .get("summary")
+            .and_then(Value::as_object)
+            .expect("summary object");
 
         assert_eq!(
             object.get("capture_path"),
             Some(&Value::String("/tmp/frame.rdc".to_string()))
         );
         assert_eq!(
-            object.get("total_matches"),
+            summary.get("total_matches"),
             Some(&Value::Number(3_u32.into()))
         );
         assert_eq!(
-            object.get("first_event_id"),
+            summary.get("first_event_id"),
             Some(&Value::Number(11_u32.into()))
         );
         assert_eq!(
-            object.get("last_event_id"),
+            summary.get("last_event_id"),
             Some(&Value::Number(42_u32.into()))
         );
         assert!(!object.contains_key("capture"));
+    }
+
+    #[test]
+    fn found_event_derives_joined_marker_path() {
+        let event = FoundEvent {
+            event_id: 42,
+            parent_event_id: Some(11),
+            depth: 3,
+            name: "DrawIndexed".to_string(),
+            flags: 1,
+            flags_names: vec!["Drawcall".to_string()],
+            marker_path: MarkerPath::from(vec!["Frame".to_string(), "Main".to_string()]),
+        };
+
+        let json = serde_json::to_value(&event).expect("serialize event");
+        let object = json.as_object().expect("event object");
+
+        assert_eq!(event.marker_path_joined(), "Frame/Main");
+        assert!(
+            object
+                .get("marker_path")
+                .and_then(Value::as_array)
+                .is_some()
+        );
+        assert!(!object.contains_key("marker_path_joined"));
     }
 
     #[test]

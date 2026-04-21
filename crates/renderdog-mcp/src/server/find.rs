@@ -25,8 +25,8 @@ impl RenderdogMcpServer {
         tracing::info!(
             tool = tool,
             elapsed_ms = run.elapsed_ms(),
-            total_matches = res.total_matches,
-            truncated = res.truncated,
+            total_matches = res.summary.total_matches,
+            truncated = res.summary.truncated,
             "ok"
         );
         Ok(Json(res))

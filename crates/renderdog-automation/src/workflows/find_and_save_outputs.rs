@@ -25,8 +25,8 @@ pub enum FindEventSelection {
 impl FindEventSelection {
     fn select_event_id(self, find: &FindEventsResponse) -> Option<u32> {
         match self {
-            Self::First => find.first_event_id,
-            Self::Last => find.last_event_id,
+            Self::First => find.first_event_id(),
+            Self::Last => find.last_event_id(),
         }
     }
 }
@@ -134,18 +134,21 @@ mod tests {
         FindEventsAndSaveOutputsPngResponse, FindEventsLimit, FindEventsResponse,
     };
     use crate::{
-        CaptureInput, CaptureRef, EventFilter, ExportOutput, OutputRef, ReplaySaveOutputsPngError,
-        ReplaySaveOutputsPngResponse, ReplaySavedImageKind, SelectedReplayContext,
+        CaptureInput, CaptureRef, EventFilter, ExportOutput, FindEventsSummary, OutputRef,
+        ReplaySaveOutputsPngError, ReplaySaveOutputsPngResponse, ReplaySavedImageKind,
+        SelectedReplayContext,
     };
 
     #[test]
     fn find_event_selection_picks_first_or_last_match() {
         let find = FindEventsResponse {
             capture: CaptureRef::new("/tmp/capture.rdc"),
-            total_matches: 2,
-            truncated: false,
-            first_event_id: Some(11),
-            last_event_id: Some(42),
+            summary: FindEventsSummary {
+                total_matches: 2,
+                truncated: false,
+                first_event_id: Some(11),
+                last_event_id: Some(42),
+            },
             matches: Vec::new(),
         };
 
@@ -215,10 +218,12 @@ mod tests {
         let response = FindEventsAndSaveOutputsPngResponse::from_parts(
             FindEventsResponse {
                 capture: CaptureRef::new("/tmp/capture.rdc"),
-                total_matches: 2,
-                truncated: false,
-                first_event_id: Some(11),
-                last_event_id: Some(42),
+                summary: FindEventsSummary {
+                    total_matches: 2,
+                    truncated: false,
+                    first_event_id: Some(11),
+                    last_event_id: Some(42),
+                },
                 matches: Vec::new(),
             },
             ReplaySaveOutputsPngResponse {
