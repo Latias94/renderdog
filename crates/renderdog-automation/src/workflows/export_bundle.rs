@@ -72,7 +72,7 @@ impl RenderDocInstallation {
         let post_actions = self.apply_capture_post_actions(
             cwd,
             Path::new(&capture_path),
-            &actions.actions_jsonl_path,
+            &actions.artifacts.actions_jsonl_path,
             &req.bundle.post_actions,
         )?;
 

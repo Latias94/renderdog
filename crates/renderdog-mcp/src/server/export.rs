@@ -26,10 +26,10 @@ impl RenderdogMcpServer {
             tool = tool,
             elapsed_ms = run.elapsed_ms(),
             capture_path = %res.capture.capture_path,
-            actions_jsonl_path = %res.artifacts.actions_jsonl_path,
-            bindings_jsonl_path = %res.artifacts.bindings_jsonl_path,
-            total_actions = res.artifacts.total_actions,
-            total_drawcalls = res.artifacts.total_drawcalls,
+            actions_jsonl_path = %res.artifacts.actions.actions_jsonl_path,
+            bindings_jsonl_path = %res.artifacts.bindings.bindings_jsonl_path,
+            total_actions = res.artifacts.actions.total_actions,
+            total_drawcalls = res.artifacts.bindings.total_drawcalls,
             "ok"
         );
 

@@ -218,14 +218,26 @@ pub struct BundleExportOptions {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct BundleExportArtifacts {
+pub struct ActionsExportArtifacts {
     pub actions_jsonl_path: String,
     pub actions_summary_json_path: String,
     pub total_actions: u64,
     pub drawcall_actions: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct BindingsExportArtifacts {
     pub bindings_jsonl_path: String,
     pub bindings_summary_json_path: String,
     pub total_drawcalls: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct BundleExportArtifacts {
+    #[serde(flatten)]
+    pub actions: ActionsExportArtifacts,
+    #[serde(flatten)]
+    pub bindings: BindingsExportArtifacts,
     #[serde(flatten)]
     pub post_actions: CapturePostActionOutputs,
 }
@@ -236,14 +248,14 @@ impl BundleExportArtifacts {
         bindings: ExportBindingsIndexResponse,
         post_actions: CapturePostActionOutputs,
     ) -> Self {
+        let ExportActionsResponse { artifacts: actions } = actions;
+        let ExportBindingsIndexResponse {
+            artifacts: bindings,
+        } = bindings;
+
         Self {
-            actions_jsonl_path: actions.actions_jsonl_path,
-            actions_summary_json_path: actions.summary_json_path,
-            total_actions: actions.total_actions,
-            drawcall_actions: actions.drawcall_actions,
-            bindings_jsonl_path: bindings.bindings_jsonl_path,
-            bindings_summary_json_path: bindings.summary_json_path,
-            total_drawcalls: bindings.total_drawcalls,
+            actions,
+            bindings,
             post_actions,
         }
     }
@@ -325,11 +337,7 @@ impl PrepareQRenderDocJsonRequest for ExportActionsRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub(crate) struct ExportActionsResponse {
     #[serde(flatten)]
-    pub capture: CaptureRef,
-    pub actions_jsonl_path: String,
-    pub summary_json_path: String,
-    pub total_actions: u64,
-    pub drawcall_actions: u64,
+    pub artifacts: ActionsExportArtifacts,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -407,10 +415,7 @@ impl PrepareQRenderDocJsonRequest for ExportBindingsIndexRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub(crate) struct ExportBindingsIndexResponse {
     #[serde(flatten)]
-    pub capture: CaptureRef,
-    pub bindings_jsonl_path: String,
-    pub summary_json_path: String,
-    pub total_drawcalls: u64,
+    pub artifacts: BindingsExportArtifacts,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -447,11 +452,12 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
-        CapturePostActionOutputs, CapturePostActions, CaptureRef, DrawcallScope, EventFilter,
-        ExportActionsResponse, ExportBindingsIndexResponse, ExportBundleRequest,
-        ExportBundleResponse, ExportOutput, FindEventsResponse, OutputFile, TargetControlRef,
-        TriggerCaptureOptions, TriggerCaptureRequest, TriggerCaptureResponse,
+        ActionsExportArtifacts, BindingsExportArtifacts, BindingsExportOptions,
+        BundleExportArtifacts, BundleExportOptions, CaptureInput, CapturePostActionOutputs,
+        CapturePostActions, CaptureRef, DrawcallScope, EventFilter, ExportActionsResponse,
+        ExportBindingsIndexResponse, ExportBundleRequest, ExportBundleResponse, ExportOutput,
+        FindEventsResponse, OutputFile, TargetControlRef, TriggerCaptureOptions,
+        TriggerCaptureRequest, TriggerCaptureResponse,
     };
 
     #[test]
@@ -670,17 +676,20 @@ mod tests {
             "/tmp/frame.rdc".to_string(),
             BundleExportArtifacts::from_parts(
                 ExportActionsResponse {
-                    capture: CaptureRef::new("/tmp/frame.rdc"),
-                    actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
-                    summary_json_path: "/tmp/out/frame.summary.json".to_string(),
-                    total_actions: 10,
-                    drawcall_actions: 4,
+                    artifacts: ActionsExportArtifacts {
+                        actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
+                        actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
+                        total_actions: 10,
+                        drawcall_actions: 4,
+                    },
                 },
                 ExportBindingsIndexResponse {
-                    capture: CaptureRef::new("/tmp/frame.rdc"),
-                    bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
-                    summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
-                    total_drawcalls: 4,
+                    artifacts: BindingsExportArtifacts {
+                        bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
+                        bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json"
+                            .to_string(),
+                        total_drawcalls: 4,
+                    },
                 },
                 CapturePostActionOutputs {
                     thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
@@ -711,5 +720,7 @@ mod tests {
         assert_eq!(object.get("ui_pid"), Some(&Value::Number(123_u32.into())));
         assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("artifacts"));
+        assert!(!object.contains_key("actions"));
+        assert!(!object.contains_key("bindings"));
     }
 }

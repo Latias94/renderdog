@@ -379,9 +379,8 @@ def main() -> None:
             write_envelope(
                 True,
                 result={
-                    "capture_path": req["capture_path"],
                     "bindings_jsonl_path": bindings_path,
-                    "summary_json_path": summary_path,
+                    "bindings_summary_json_path": summary_path,
                     "total_drawcalls": int(counters["total_drawcalls"]),
                 },
             )

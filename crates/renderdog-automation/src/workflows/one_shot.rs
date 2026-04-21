@@ -130,10 +130,11 @@ mod tests {
         CompletedOneShotCapture, OneShotCaptureError,
     };
     use crate::{
-        BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
-        CaptureLaunchReport, CapturePostActionOutputs, CapturePostActions, CaptureRef,
-        CaptureTargetError, CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleResponse,
-        ExportOutput, TargetControlRef, TriggerCaptureOptions,
+        ActionsExportArtifacts, BindingsExportArtifacts, BindingsExportOptions,
+        BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureLaunchReport,
+        CapturePostActionOutputs, CapturePostActions, CaptureRef, CaptureTargetError,
+        CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput,
+        TargetControlRef, TriggerCaptureOptions,
     };
 
     #[test]
@@ -217,13 +218,17 @@ mod tests {
         let export = ExportBundleResponse {
             capture: CaptureRef::new("/tmp/frame.rdc"),
             artifacts: BundleExportArtifacts {
-                actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
-                actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
-                total_actions: 10,
-                drawcall_actions: 4,
-                bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
-                bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
-                total_drawcalls: 4,
+                actions: ActionsExportArtifacts {
+                    actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
+                    actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
+                    total_actions: 10,
+                    drawcall_actions: 4,
+                },
+                bindings: BindingsExportArtifacts {
+                    bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
+                    bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
+                    total_drawcalls: 4,
+                },
                 post_actions: CapturePostActionOutputs {
                     thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
                     ui_pid: Some(123),
@@ -242,10 +247,10 @@ mod tests {
         assert_eq!(response.launch.stdout, "stdout");
         assert_eq!(response.launch.stderr, "stderr");
         assert_eq!(
-            response.artifacts.actions_jsonl_path,
+            response.artifacts.actions.actions_jsonl_path,
             "/tmp/out/frame.actions.jsonl"
         );
-        assert_eq!(response.artifacts.total_drawcalls, 4);
+        assert_eq!(response.artifacts.bindings.total_drawcalls, 4);
         assert_eq!(
             response
                 .artifacts
@@ -327,13 +332,17 @@ mod tests {
             },
             capture: CaptureRef::new("/tmp/frame.rdc"),
             artifacts: BundleExportArtifacts {
-                actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
-                actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
-                total_actions: 10,
-                drawcall_actions: 4,
-                bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
-                bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
-                total_drawcalls: 4,
+                actions: ActionsExportArtifacts {
+                    actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
+                    actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
+                    total_actions: 10,
+                    drawcall_actions: 4,
+                },
+                bindings: BindingsExportArtifacts {
+                    bindings_jsonl_path: "/tmp/out/frame.bindings.jsonl".to_string(),
+                    bindings_summary_json_path: "/tmp/out/frame.bindings_summary.json".to_string(),
+                    total_drawcalls: 4,
+                },
                 post_actions: CapturePostActionOutputs {
                     thumbnail_output_path: Some("/tmp/out/frame.thumb.png".to_string()),
                     ui_pid: Some(123),
@@ -379,6 +388,8 @@ mod tests {
         assert!(!object.contains_key("launch"));
         assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("artifacts"));
+        assert!(!object.contains_key("actions"));
+        assert!(!object.contains_key("bindings"));
     }
 
     #[test]
