@@ -48,14 +48,23 @@ fn default_timeout_s() -> u32 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CaptureInput {
+pub struct CapturePath {
     pub capture_path: String,
 }
 
-impl CaptureInput {
+pub type CaptureInput = CapturePath;
+pub type CaptureRef = CapturePath;
+
+impl CapturePath {
     pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
         Self {
             capture_path: normalize_capture_path(cwd, &self.capture_path),
+        }
+    }
+
+    pub(crate) fn new(capture_path: impl Into<String>) -> Self {
+        Self {
+            capture_path: capture_path.into(),
         }
     }
 }
@@ -94,37 +103,20 @@ impl ExportOutput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct OutputFile {
+pub struct OutputPath {
     pub output_path: String,
 }
 
-impl OutputFile {
+pub type OutputFile = OutputPath;
+pub type OutputRef = OutputPath;
+
+impl OutputPath {
     pub(crate) fn resolved_in_cwd(&self, cwd: &Path) -> Self {
         Self {
             output_path: resolve_path_string_from_cwd(cwd, &self.output_path),
         }
     }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CaptureRef {
-    pub capture_path: String,
-}
-
-impl CaptureRef {
-    pub(crate) fn new(capture_path: impl Into<String>) -> Self {
-        Self {
-            capture_path: capture_path.into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct OutputRef {
-    pub output_path: String,
-}
-
-impl OutputRef {
     pub(crate) fn new(output_path: impl Into<String>) -> Self {
         Self {
             output_path: output_path.into(),
