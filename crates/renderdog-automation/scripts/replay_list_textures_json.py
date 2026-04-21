@@ -1,4 +1,8 @@
-from renderdog_qrenderdoc import run_json_job, with_capture_controller
+from renderdog_qrenderdoc import (
+    run_json_job,
+    set_frame_event_if_present,
+    with_capture_controller,
+)
 
 
 REQ_PATH = "replay_list_textures_json.request.json"
@@ -7,9 +11,7 @@ RESP_PATH = "replay_list_textures_json.response.json"
 
 def handle_request(req):
     def run(controller):
-        event_id = req.get("event_id", None)
-        if event_id is not None:
-            controller.SetFrameEvent(int(event_id), True)
+        event_id = set_frame_event_if_present(controller, req.get("event_id", None))
 
         name_by_id = {}
         try:

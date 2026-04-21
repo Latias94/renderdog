@@ -2,7 +2,12 @@ import os
 
 import renderdoc as rd
 
-from renderdog_qrenderdoc import run_json_job, with_capture_controller
+from renderdog_qrenderdoc import (
+    is_drawcall_like,
+    run_json_job,
+    set_frame_event_if_present,
+    with_capture_controller,
+)
 
 
 REQ_PATH = "replay_save_outputs_png_json.request.json"
@@ -27,12 +32,7 @@ def pick_default_event_id(controller) -> int:
     drawcalls = []
     for a in actions:
         try:
-            if (
-                (a.flags & rd.ActionFlags.Drawcall)
-                or (a.flags & rd.ActionFlags.Dispatch)
-                or (a.flags & rd.ActionFlags.MeshDispatch)
-                or (a.flags & rd.ActionFlags.DispatchRay)
-            ):
+            if is_drawcall_like(a.flags):
                 drawcalls.append(a)
         except Exception:
             pass
@@ -97,7 +97,7 @@ def handle_request(req):
         if event_id is None:
             event_id = pick_default_event_id(controller)
 
-        controller.SetFrameEvent(int(event_id), True)
+        event_id = set_frame_event_if_present(controller, event_id)
 
         pipe = controller.GetPipelineState()
         outputs = []

@@ -2,7 +2,12 @@ import os
 
 import renderdoc as rd
 
-from renderdog_qrenderdoc import run_json_job, with_capture_controller
+from renderdog_qrenderdoc import (
+    get_texture_by_index,
+    run_json_job,
+    set_frame_event_if_present,
+    with_capture_controller,
+)
 
 
 REQ_PATH = "replay_save_texture_png_json.request.json"
@@ -15,16 +20,8 @@ def handle_request(req):
         os.makedirs(out_dir, exist_ok=True)
 
     def run(controller):
-        event_id = req.get("event_id", None)
-        if event_id is not None:
-            controller.SetFrameEvent(int(event_id), True)
-
-        textures = controller.GetTextures()
-        idx = int(req["texture_index"])
-        if idx < 0 or idx >= len(textures):
-            raise RuntimeError("texture_index out of range")
-
-        t = textures[idx]
+        event_id = set_frame_event_if_present(controller, req.get("event_id", None))
+        idx, t = get_texture_by_index(controller, req["texture_index"])
 
         save = rd.TextureSave()
         save.resourceId = t.resourceId
@@ -38,7 +35,7 @@ def handle_request(req):
         return {
             "capture_path": req["capture_path"],
             "event_id": event_id,
-            "texture_index": int(req["texture_index"]),
+            "texture_index": idx,
             "output_path": str(req["output_path"]),
         }
 

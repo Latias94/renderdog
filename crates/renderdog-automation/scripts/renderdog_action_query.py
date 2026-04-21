@@ -1,5 +1,7 @@
 import renderdoc as rd
 
+from renderdog_qrenderdoc import is_drawcall_like
+
 
 def normalize(value: str, case_sensitive: bool) -> str:
     if value is None:
@@ -13,15 +15,6 @@ def marker_path_join(marker_path) -> str:
     if not marker_path:
         return ""
     return "/".join([str(x) for x in marker_path])
-
-
-def is_drawcall_like(flags: int) -> bool:
-    return bool(
-        (flags & rd.ActionFlags.Drawcall)
-        or (flags & rd.ActionFlags.Dispatch)
-        or (flags & rd.ActionFlags.MeshDispatch)
-        or (flags & rd.ActionFlags.DispatchRay)
-    )
 
 
 class ActionFilter:

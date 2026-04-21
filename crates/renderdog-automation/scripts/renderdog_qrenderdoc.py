@@ -61,3 +61,30 @@ def with_capture_controller(capture_path, callback):
                 pass
 
     return with_replay(run)
+
+
+def is_drawcall_like(flags: int) -> bool:
+    return bool(
+        (flags & rd.ActionFlags.Drawcall)
+        or (flags & rd.ActionFlags.Dispatch)
+        or (flags & rd.ActionFlags.MeshDispatch)
+        or (flags & rd.ActionFlags.DispatchRay)
+    )
+
+
+def set_frame_event_if_present(controller, event_id, apply_changes: bool = True):
+    if event_id is None:
+        return None
+
+    event_id = int(event_id)
+    controller.SetFrameEvent(event_id, apply_changes)
+    return event_id
+
+
+def get_texture_by_index(controller, texture_index):
+    textures = controller.GetTextures()
+    texture_index = int(texture_index)
+    if texture_index < 0 or texture_index >= len(textures):
+        raise RuntimeError("texture_index out of range")
+
+    return texture_index, textures[texture_index]
