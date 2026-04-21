@@ -13,7 +13,7 @@ use crate::default_scripts_dir;
 use crate::{CommandSpec, ToolInvocationError, run_command_expect_success};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct QRenderDocJsonEnvelope<T> {
+pub(crate) struct QRenderDocJobEnvelope<T> {
     pub ok: bool,
     pub result: Option<T>,
     pub error: Option<String>,
@@ -44,7 +44,7 @@ pub(crate) fn create_qrenderdoc_run_dir(
 }
 
 #[derive(Debug, Error)]
-pub enum QRenderDocJsonError {
+pub enum QRenderDocJobError {
     #[error("failed to create scripts dir: {0}")]
     CreateScriptsDir(std::io::Error),
     #[error("failed to write python script: {0}")]
@@ -61,7 +61,7 @@ pub enum QRenderDocJsonError {
     ScriptError(String),
 }
 
-impl From<QRenderDocPythonError> for QRenderDocJsonError {
+impl From<QRenderDocPythonError> for QRenderDocJobError {
     fn from(value: QRenderDocPythonError) -> Self {
         Self::QRenderDocExecution(Box::new(QRenderDocExecutionError::from(value)))
     }
@@ -80,14 +80,14 @@ impl QRenderDocScriptFile {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct QRenderDocJsonJob {
+pub(crate) struct QRenderDocJob {
     pub run_dir_prefix: &'static str,
     pub script_file_name: &'static str,
     pub script_content: &'static str,
     pub support_files: &'static [QRenderDocScriptFile],
 }
 
-impl QRenderDocJsonJob {
+impl QRenderDocJob {
     pub(crate) const fn with_support_files(
         run_dir_prefix: &'static str,
         script_file_name: &'static str,
@@ -141,51 +141,51 @@ impl From<CommandError> for QRenderDocPythonError {
     }
 }
 
-pub(crate) trait PrepareQRenderDocJsonRequest: Serialize + Sized {
-    type Error: From<QRenderDocJsonError>;
+pub(crate) trait PrepareQRenderDocJobRequest: Serialize + Sized {
+    type Error: From<QRenderDocJobError>;
 
     fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error>;
 }
 
 impl RenderDocInstallation {
     // Use this when the request is already normalized and ready to serialize as-is.
-    pub(crate) fn run_qrenderdoc_json_job<TReq, TResp>(
+    pub(crate) fn run_qrenderdoc_job<TReq, TResp>(
         &self,
         cwd: &Path,
-        job: QRenderDocJsonJob,
+        job: QRenderDocJob,
         request: &TReq,
-    ) -> Result<TResp, QRenderDocJsonError>
+    ) -> Result<TResp, QRenderDocJobError>
     where
         TReq: Serialize,
         TResp: DeserializeOwned,
     {
         let scripts_dir = default_scripts_dir(cwd);
-        std::fs::create_dir_all(&scripts_dir).map_err(QRenderDocJsonError::CreateScriptsDir)?;
+        std::fs::create_dir_all(&scripts_dir).map_err(QRenderDocJobError::CreateScriptsDir)?;
 
         let script_path = scripts_dir.join(job.script_file_name);
         write_script_file(&script_path, job.script_content)
-            .map_err(QRenderDocJsonError::WriteScript)?;
+            .map_err(QRenderDocJobError::WriteScript)?;
         for support_file in job.support_files {
             let support_path = scripts_dir.join(support_file.file_name);
             write_script_file(&support_path, support_file.content)
-                .map_err(QRenderDocJsonError::WriteScript)?;
+                .map_err(QRenderDocJobError::WriteScript)?;
         }
 
         let run_dir = create_qrenderdoc_run_dir(&scripts_dir, job.run_dir_prefix)
-            .map_err(QRenderDocJsonError::CreateScriptsDir)?;
+            .map_err(QRenderDocJobError::CreateScriptsDir)?;
         let job_file_stem = Path::new(job.script_file_name)
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(job.script_file_name);
         let request_path = run_dir.join(format!("{job_file_stem}.request.json"));
         let response_path = run_dir.join(format!("{job_file_stem}.response.json"));
-        remove_if_exists(&response_path).map_err(QRenderDocJsonError::WriteRequest)?;
+        remove_if_exists(&response_path).map_err(QRenderDocJobError::WriteRequest)?;
 
         std::fs::write(
             &request_path,
-            serde_json::to_vec(request).map_err(QRenderDocJsonError::ParseJson)?,
+            serde_json::to_vec(request).map_err(QRenderDocJobError::ParseJson)?,
         )
-        .map_err(QRenderDocJsonError::WriteRequest)?;
+        .map_err(QRenderDocJobError::WriteRequest)?;
 
         let _ = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path,
@@ -193,32 +193,32 @@ impl RenderDocInstallation {
             working_dir: Some(run_dir),
         })?;
 
-        let bytes = std::fs::read(&response_path).map_err(QRenderDocJsonError::ReadResponse)?;
-        let env: QRenderDocJsonEnvelope<TResp> =
-            serde_json::from_slice(&bytes).map_err(QRenderDocJsonError::ParseJson)?;
+        let bytes = std::fs::read(&response_path).map_err(QRenderDocJobError::ReadResponse)?;
+        let env: QRenderDocJobEnvelope<TResp> =
+            serde_json::from_slice(&bytes).map_err(QRenderDocJobError::ParseJson)?;
         if env.ok {
             env.result
-                .ok_or_else(|| QRenderDocJsonError::ScriptError("missing result".into()))
+                .ok_or_else(|| QRenderDocJobError::ScriptError("missing result".into()))
         } else {
-            Err(QRenderDocJsonError::ScriptError(
+            Err(QRenderDocJobError::ScriptError(
                 env.error.unwrap_or_else(|| "unknown error".into()),
             ))
         }
     }
 
     // Use this when the request depends on cwd-relative normalization or validation first.
-    pub(crate) fn run_qrenderdoc_json_job_in_cwd<TReq, TResp>(
+    pub(crate) fn run_qrenderdoc_job_in_cwd<TReq, TResp>(
         &self,
         cwd: &Path,
-        job: QRenderDocJsonJob,
+        job: QRenderDocJob,
         request: &TReq,
     ) -> Result<TResp, TReq::Error>
     where
-        TReq: PrepareQRenderDocJsonRequest,
+        TReq: PrepareQRenderDocJobRequest,
         TResp: DeserializeOwned,
     {
         let request = request.prepare_in_cwd(cwd)?;
-        self.run_qrenderdoc_json_job(cwd, job, &request)
+        self.run_qrenderdoc_job(cwd, job, &request)
             .map_err(TReq::Error::from)
     }
 

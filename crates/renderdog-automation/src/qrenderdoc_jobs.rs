@@ -1,4 +1,4 @@
-use crate::scripting::{QRenderDocJsonJob, QRenderDocScriptFile};
+use crate::scripting::{QRenderDocJob, QRenderDocScriptFile};
 
 const QRENDERDOC_RUNTIME_SUPPORT_FILE: QRenderDocScriptFile = QRenderDocScriptFile::new(
     "renderdog_qrenderdoc.py",
@@ -16,66 +16,61 @@ const QRENDERDOC_RUNTIME_SUPPORT_FILES: &[QRenderDocScriptFile] =
 const ACTION_QUERY_SUPPORT_FILES: &[QRenderDocScriptFile] =
     &[QRENDERDOC_RUNTIME_SUPPORT_FILE, ACTION_QUERY_SUPPORT_FILE];
 
-pub(crate) const EXPORT_ACTIONS_JSONL_JOB: QRenderDocJsonJob =
-    QRenderDocJsonJob::with_support_files(
-        "export_actions_jsonl",
-        "export_actions_jsonl.py",
-        include_str!("../scripts/export_actions_jsonl.py"),
-        ACTION_QUERY_SUPPORT_FILES,
-    );
+pub(crate) const EXPORT_ACTIONS_JSONL_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
+    "export_actions_jsonl",
+    "export_actions_jsonl.py",
+    include_str!("../scripts/export_actions_jsonl.py"),
+    ACTION_QUERY_SUPPORT_FILES,
+);
 
-pub(crate) const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJsonJob =
-    QRenderDocJsonJob::with_support_files(
-        "export_bindings_index_jsonl",
-        "export_bindings_index_jsonl.py",
-        include_str!("../scripts/export_bindings_index_jsonl.py"),
-        ACTION_QUERY_SUPPORT_FILES,
-    );
+pub(crate) const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
+    "export_bindings_index_jsonl",
+    "export_bindings_index_jsonl.py",
+    include_str!("../scripts/export_bindings_index_jsonl.py"),
+    ACTION_QUERY_SUPPORT_FILES,
+);
 
-pub(crate) const FIND_EVENTS_JOB: QRenderDocJsonJob = QRenderDocJsonJob::with_support_files(
+pub(crate) const FIND_EVENTS_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "find_events",
     "find_events_json.py",
     include_str!("../scripts/find_events_json.py"),
     ACTION_QUERY_SUPPORT_FILES,
 );
 
-pub(crate) const TRIGGER_CAPTURE_JOB: QRenderDocJsonJob = QRenderDocJsonJob::with_support_files(
+pub(crate) const TRIGGER_CAPTURE_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "trigger_capture",
     "trigger_capture.py",
     include_str!("../scripts/trigger_capture.py"),
     QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 
-pub(crate) const REPLAY_LIST_TEXTURES_JOB: QRenderDocJsonJob =
-    QRenderDocJsonJob::with_support_files(
-        "replay_list_textures",
-        "replay_list_textures_json.py",
-        include_str!("../scripts/replay_list_textures_json.py"),
-        QRENDERDOC_RUNTIME_SUPPORT_FILES,
-    );
+pub(crate) const REPLAY_LIST_TEXTURES_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
+    "replay_list_textures",
+    "replay_list_textures_json.py",
+    include_str!("../scripts/replay_list_textures_json.py"),
+    QRENDERDOC_RUNTIME_SUPPORT_FILES,
+);
 
-pub(crate) const REPLAY_PICK_PIXEL_JOB: QRenderDocJsonJob = QRenderDocJsonJob::with_support_files(
+pub(crate) const REPLAY_PICK_PIXEL_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "replay_pick_pixel",
     "replay_pick_pixel_json.py",
     include_str!("../scripts/replay_pick_pixel_json.py"),
     QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 
-pub(crate) const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJsonJob =
-    QRenderDocJsonJob::with_support_files(
-        "replay_save_texture_png",
-        "replay_save_texture_png_json.py",
-        include_str!("../scripts/replay_save_texture_png_json.py"),
-        QRENDERDOC_RUNTIME_SUPPORT_FILES,
-    );
+pub(crate) const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
+    "replay_save_texture_png",
+    "replay_save_texture_png_json.py",
+    include_str!("../scripts/replay_save_texture_png_json.py"),
+    QRENDERDOC_RUNTIME_SUPPORT_FILES,
+);
 
-pub(crate) const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJsonJob =
-    QRenderDocJsonJob::with_support_files(
-        "replay_save_outputs_png",
-        "replay_save_outputs_png_json.py",
-        include_str!("../scripts/replay_save_outputs_png_json.py"),
-        QRENDERDOC_RUNTIME_SUPPORT_FILES,
-    );
+pub(crate) const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
+    "replay_save_outputs_png",
+    "replay_save_outputs_png_json.py",
+    include_str!("../scripts/replay_save_outputs_png_json.py"),
+    QRENDERDOC_RUNTIME_SUPPORT_FILES,
+);
 
 #[cfg(test)]
 mod tests {

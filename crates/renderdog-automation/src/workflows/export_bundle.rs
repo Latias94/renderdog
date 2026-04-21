@@ -6,16 +6,14 @@ use super::{
     BundleExportArtifacts, CapturePostActionOutputs, CapturePostActions, ExportActionsRequest,
     ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse,
 };
-use crate::{
-    OpenCaptureUiError, QRenderDocJsonError, RenderDocInstallation, resolve_path_from_cwd,
-};
+use crate::{OpenCaptureUiError, QRenderDocJobError, RenderDocInstallation, resolve_path_from_cwd};
 
 #[derive(Debug, Error)]
 pub enum ExportBundleError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
     #[error("export job failed: {0}")]
-    Job(#[from] QRenderDocJsonError),
+    Job(#[from] QRenderDocJobError),
     #[error("save thumbnail failed: {0}")]
     SaveThumbnail(std::io::Error),
     #[error("open capture UI failed: {0}")]

@@ -33,7 +33,7 @@ pub(crate) use command::{CommandSpec, run_command_expect_success, run_command_ou
 pub use diagnostics::*;
 pub(crate) use normalize::{normalize_capture_path, prepare_export_target};
 pub use replay::*;
-pub use scripting::{QRenderDocExecutionError, QRenderDocJsonError};
+pub use scripting::{QRenderDocExecutionError, QRenderDocJobError};
 pub use toolchain::{DetectInstallationError, RenderDocInstallation, default_artifacts_dir};
 pub(crate) use toolchain::{
     default_capture_basename, default_scripts_dir, resolve_export_output_dir_from_cwd,

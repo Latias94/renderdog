@@ -25,10 +25,9 @@ use std::path::Path;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::scripting::PrepareQRenderDocJsonRequest;
+use crate::scripting::PrepareQRenderDocJobRequest;
 use crate::{
-    QRenderDocJsonError, normalize_capture_path, prepare_export_target,
-    resolve_path_string_from_cwd,
+    QRenderDocJobError, normalize_capture_path, prepare_export_target, resolve_path_string_from_cwd,
 };
 
 fn default_max_results() -> Option<u32> {
@@ -337,8 +336,8 @@ impl FindEventsRequest {
     }
 }
 
-impl PrepareQRenderDocJsonRequest for FindEventsRequest {
-    type Error = QRenderDocJsonError;
+impl PrepareQRenderDocJobRequest for FindEventsRequest {
+    type Error = QRenderDocJobError;
 
     fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error> {
         Ok(self.normalized_in_cwd(cwd))

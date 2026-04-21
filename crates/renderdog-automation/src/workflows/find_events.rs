@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use crate::qrenderdoc_jobs::FIND_EVENTS_JOB;
-use crate::{QRenderDocJsonError, RenderDocInstallation};
+use crate::{QRenderDocJobError, RenderDocInstallation};
 
 use super::{FindEventsRequest, FindEventsResponse};
 
-pub type FindEventsError = QRenderDocJsonError;
+pub type FindEventsError = QRenderDocJobError;
 
 impl RenderDocInstallation {
     pub fn find_events(
@@ -13,6 +13,6 @@ impl RenderDocInstallation {
         cwd: &Path,
         req: &FindEventsRequest,
     ) -> Result<FindEventsResponse, FindEventsError> {
-        self.run_qrenderdoc_json_job_in_cwd(cwd, FIND_EVENTS_JOB, req)
+        self.run_qrenderdoc_job_in_cwd(cwd, FIND_EVENTS_JOB, req)
     }
 }
