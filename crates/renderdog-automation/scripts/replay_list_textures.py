@@ -5,8 +5,8 @@ from renderdog_qrenderdoc import (
 )
 
 
-REQ_PATH = "replay_list_textures_json.request.json"
-RESP_PATH = "replay_list_textures_json.response.json"
+REQ_PATH = "replay_list_textures.request.json"
+RESP_PATH = "replay_list_textures.response.json"
 
 
 def handle_request(req):

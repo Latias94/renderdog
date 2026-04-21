@@ -32,8 +32,8 @@ pub(crate) const EXPORT_BINDINGS_INDEX_JSONL_JOB: QRenderDocJob = QRenderDocJob:
 
 pub(crate) const FIND_EVENTS_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "find_events",
-    "find_events_json.py",
-    include_str!("../scripts/find_events_json.py"),
+    "find_events.py",
+    include_str!("../scripts/find_events.py"),
     ACTION_QUERY_SUPPORT_FILES,
 );
 
@@ -46,29 +46,29 @@ pub(crate) const TRIGGER_CAPTURE_JOB: QRenderDocJob = QRenderDocJob::with_suppor
 
 pub(crate) const REPLAY_LIST_TEXTURES_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "replay_list_textures",
-    "replay_list_textures_json.py",
-    include_str!("../scripts/replay_list_textures_json.py"),
+    "replay_list_textures.py",
+    include_str!("../scripts/replay_list_textures.py"),
     QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 
 pub(crate) const REPLAY_PICK_PIXEL_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "replay_pick_pixel",
-    "replay_pick_pixel_json.py",
-    include_str!("../scripts/replay_pick_pixel_json.py"),
+    "replay_pick_pixel.py",
+    include_str!("../scripts/replay_pick_pixel.py"),
     QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 
 pub(crate) const REPLAY_SAVE_TEXTURE_PNG_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "replay_save_texture_png",
-    "replay_save_texture_png_json.py",
-    include_str!("../scripts/replay_save_texture_png_json.py"),
+    "replay_save_texture_png.py",
+    include_str!("../scripts/replay_save_texture_png.py"),
     QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 
 pub(crate) const REPLAY_SAVE_OUTPUTS_PNG_JOB: QRenderDocJob = QRenderDocJob::with_support_files(
     "replay_save_outputs_png",
-    "replay_save_outputs_png_json.py",
-    include_str!("../scripts/replay_save_outputs_png_json.py"),
+    "replay_save_outputs_png.py",
+    include_str!("../scripts/replay_save_outputs_png.py"),
     QRENDERDOC_RUNTIME_SUPPORT_FILES,
 );
 

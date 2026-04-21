@@ -10,8 +10,8 @@ from renderdog_qrenderdoc import (
 )
 
 
-REQ_PATH = "replay_save_outputs_png_json.request.json"
-RESP_PATH = "replay_save_outputs_png_json.response.json"
+REQ_PATH = "replay_save_outputs_png.request.json"
+RESP_PATH = "replay_save_outputs_png.response.json"
 OUTPUT_KIND_COLOR = "color"
 OUTPUT_KIND_DEPTH = "depth"
 

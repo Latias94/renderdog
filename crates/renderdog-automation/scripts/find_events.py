@@ -2,8 +2,8 @@ from renderdog_action_query import ActionFilter, walk_actions
 from renderdog_qrenderdoc import run_json_job, with_capture_controller
 
 
-REQ_PATH = "find_events_json.request.json"
-RESP_PATH = "find_events_json.response.json"
+REQ_PATH = "find_events.request.json"
+RESP_PATH = "find_events.response.json"
 
 
 def handle_request(req):

@@ -1,5 +1,3 @@
-import os
-
 import renderdoc as rd
 
 from renderdog_qrenderdoc import (
@@ -10,33 +8,36 @@ from renderdog_qrenderdoc import (
 )
 
 
-REQ_PATH = "replay_save_texture_png_json.request.json"
-RESP_PATH = "replay_save_texture_png_json.response.json"
+REQ_PATH = "replay_pick_pixel.request.json"
+RESP_PATH = "replay_pick_pixel.response.json"
 
 
 def handle_request(req):
-    out_dir = os.path.dirname(req["output_path"])
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
-
     def run(controller):
         event_id = set_frame_event_if_present(controller, req.get("event_id", None))
         idx, t = get_texture_by_index(controller, req["texture_index"])
+        pv = controller.PickPixel(
+            t.resourceId,
+            int(req["x"]),
+            int(req["y"]),
+            rd.Subresource(0, 0, 0),
+            rd.CompType.Typeless,
+        )
 
-        save = rd.TextureSave()
-        save.resourceId = t.resourceId
-        save.destType = rd.FileType.PNG
-        save.mip = 0
-
-        result = controller.SaveTexture(save, str(req["output_path"]))
-        if result != rd.ResultCode.Succeeded:
-            raise RuntimeError("SaveTexture failed: " + str(result))
+        rgba = [
+            float(pv.floatValue[0]),
+            float(pv.floatValue[1]),
+            float(pv.floatValue[2]),
+            float(pv.floatValue[3]),
+        ]
 
         return {
             "capture_path": req["capture_path"],
             "event_id": event_id,
             "texture_index": idx,
-            "output_path": str(req["output_path"]),
+            "x": int(req["x"]),
+            "y": int(req["y"]),
+            "rgba": rgba,
         }
 
     return with_capture_controller(req["capture_path"], run)
