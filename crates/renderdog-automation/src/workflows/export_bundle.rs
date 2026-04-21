@@ -37,49 +37,71 @@ fn default_thumbnail_output_path(actions_jsonl_path: &str) -> PathBuf {
         .join(format!("{basename}.thumb.png"))
 }
 
+#[derive(Debug, Clone)]
+struct PreparedBundleExport {
+    actions: ExportActionsRequest,
+    bindings: ExportBindingsIndexRequest,
+    post_actions: CapturePostActions,
+}
+
+impl PreparedBundleExport {
+    fn resolved_in_cwd(cwd: &Path, req: &ExportBundleRequest) -> Result<Self, std::io::Error> {
+        let (capture, output) = req.output.normalized_for_capture(cwd, &req.capture)?;
+
+        Ok(Self {
+            actions: ExportActionsRequest {
+                capture: capture.clone(),
+                output: output.clone(),
+                drawcall_scope: req.bundle.drawcall_scope,
+                filter: req.bundle.filter.clone(),
+            },
+            bindings: ExportBindingsIndexRequest {
+                capture,
+                output,
+                filter: req.bundle.filter.clone(),
+                bindings: req.bundle.bindings,
+            },
+            post_actions: req.bundle.post_actions.clone(),
+        })
+    }
+
+    fn capture_path(&self) -> &Path {
+        Path::new(&self.actions.capture.capture_path)
+    }
+
+    fn into_response(
+        self,
+        actions: super::ExportActionsResponse,
+        bindings: super::ExportBindingsIndexResponse,
+        post_actions: CapturePostActionOutputs,
+    ) -> ExportBundleResponse {
+        ExportBundleResponse::from_parts(
+            self.actions.capture.capture_path,
+            BundleExportArtifacts::from_parts(actions, bindings, post_actions),
+        )
+    }
+}
+
 impl RenderDocInstallation {
     pub fn export_bundle_jsonl(
         &self,
         cwd: &Path,
         req: &ExportBundleRequest,
     ) -> Result<ExportBundleResponse, ExportBundleError> {
-        let (capture, output) = req
-            .output
-            .normalized_for_capture(cwd, &req.capture)
+        let prepared = PreparedBundleExport::resolved_in_cwd(cwd, req)
             .map_err(ExportBundleError::CreateOutputDir)?;
-        let capture_path = capture.capture_path.clone();
 
-        let actions = self.export_actions_jsonl_prepared(
-            cwd,
-            &ExportActionsRequest {
-                capture: capture.clone(),
-                output: output.clone(),
-                drawcall_scope: req.bundle.drawcall_scope,
-                filter: req.bundle.filter.clone(),
-            },
-        )?;
-
-        let bindings = self.export_bindings_index_jsonl_prepared(
-            cwd,
-            &ExportBindingsIndexRequest {
-                capture,
-                output,
-                filter: req.bundle.filter.clone(),
-                bindings: req.bundle.bindings,
-            },
-        )?;
+        let actions = self.export_actions_jsonl(cwd, &prepared.actions)?;
+        let bindings = self.export_bindings_index_jsonl(cwd, &prepared.bindings)?;
 
         let post_actions = self.apply_capture_post_actions(
             cwd,
-            Path::new(&capture_path),
+            prepared.capture_path(),
             &actions.artifacts.actions_jsonl_path,
-            &req.bundle.post_actions,
+            &prepared.post_actions,
         )?;
 
-        Ok(ExportBundleResponse::from_parts(
-            capture_path,
-            BundleExportArtifacts::from_parts(actions, bindings, post_actions),
-        ))
+        Ok(prepared.into_response(actions, bindings, post_actions))
     }
 
     fn apply_capture_post_actions(

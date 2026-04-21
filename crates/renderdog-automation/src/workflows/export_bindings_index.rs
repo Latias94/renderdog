@@ -6,7 +6,7 @@ use crate::{QRenderDocJsonError, RenderDocInstallation};
 use super::{ExportBindingsIndexRequest, ExportBindingsIndexResponse};
 
 impl RenderDocInstallation {
-    pub(super) fn export_bindings_index_jsonl_prepared(
+    pub(super) fn export_bindings_index_jsonl(
         &self,
         cwd: &Path,
         req: &ExportBindingsIndexRequest,

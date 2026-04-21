@@ -96,8 +96,8 @@ impl RenderDocInstallation {
         trigger_options: &TriggerCaptureOptions,
         output: &ExportOutput,
     ) -> Result<CompletedOneShotCapture, OneShotCaptureError> {
-        let prepared_target = self.prepare_capture_target(cwd, target)?;
-        let launched_target = self.launch_prepared_capture_target(&prepared_target)?;
+        let resolved_target = target.resolved_in_cwd(cwd)?;
+        let launched_target = self.launch_capture_target(&resolved_target)?;
 
         let triggered_capture = self.trigger_capture_via_target_control(
             cwd,

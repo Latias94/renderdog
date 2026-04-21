@@ -6,7 +6,7 @@ use crate::{QRenderDocJsonError, RenderDocInstallation};
 use super::{ExportActionsRequest, ExportActionsResponse};
 
 impl RenderDocInstallation {
-    pub(super) fn export_actions_jsonl_prepared(
+    pub(super) fn export_actions_jsonl(
         &self,
         cwd: &Path,
         req: &ExportActionsRequest,

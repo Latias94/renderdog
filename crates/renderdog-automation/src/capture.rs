@@ -73,52 +73,55 @@ impl From<CommandCaptureLaunchError> for CaptureTargetError {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct PreparedCaptureTarget {
+pub(crate) struct ResolvedCaptureTarget {
     command: CommandCaptureLaunchRequest,
-    capture_file_template: Option<String>,
 }
 
-impl RenderDocInstallation {
-    pub(crate) fn prepare_capture_target(
+impl CaptureTargetRequest {
+    pub(crate) fn resolved_in_cwd(
         &self,
         cwd: &Path,
-        req: &CaptureTargetRequest,
-    ) -> Result<PreparedCaptureTarget, CaptureTargetError> {
-        let artifacts_dir = req
+    ) -> Result<ResolvedCaptureTarget, CaptureTargetError> {
+        let artifacts_dir = self
             .artifacts_dir
             .as_deref()
             .map(|path| resolve_path_from_cwd(cwd, path))
             .unwrap_or_else(|| default_artifacts_dir(cwd));
         std::fs::create_dir_all(&artifacts_dir).map_err(CaptureTargetError::CreateArtifactsDir)?;
 
-        let capture_file_template = req
+        let capture_file_template = self
             .capture_template_name
             .as_deref()
             .map(|name| artifacts_dir.join(format!("{name}.rdc")));
 
-        Ok(PreparedCaptureTarget {
+        Ok(ResolvedCaptureTarget {
             command: CommandCaptureLaunchRequest {
-                executable: resolve_path_from_cwd(cwd, &req.executable),
-                args: req.args.iter().map(OsString::from).collect(),
-                working_dir: req
+                executable: resolve_path_from_cwd(cwd, &self.executable),
+                args: self.args.iter().map(OsString::from).collect(),
+                working_dir: self
                     .working_dir
                     .as_deref()
                     .map(|path| resolve_path_from_cwd(cwd, path)),
-                capture_file_template: capture_file_template.clone(),
+                capture_file_template,
             },
-            capture_file_template: capture_file_template.map(|path| path.display().to_string()),
         })
     }
+}
 
-    pub(crate) fn launch_prepared_capture_target(
+impl RenderDocInstallation {
+    pub(crate) fn launch_capture_target(
         &self,
-        req: &PreparedCaptureTarget,
+        req: &ResolvedCaptureTarget,
     ) -> Result<CaptureLaunchReport, CaptureTargetError> {
         let res = self.launch_capture(&req.command)?;
 
         Ok(CaptureLaunchReport {
             target: TargetControlRef::new(res.target_ident),
-            capture_file_template: req.capture_file_template.clone(),
+            capture_file_template: req
+                .command
+                .capture_file_template
+                .as_ref()
+                .map(|path| path.display().to_string()),
             stdout: res.stdout,
             stderr: res.stderr,
         })
@@ -185,13 +188,8 @@ mod tests {
     }
 
     #[test]
-    fn prepare_capture_target_resolves_relative_paths() {
+    fn capture_target_request_resolves_relative_paths() {
         let cwd = make_temp_dir();
-        let install = RenderDocInstallation {
-            root_dir: PathBuf::from("/renderdoc"),
-            qrenderdoc_exe: PathBuf::from("/renderdoc/qrenderdoc"),
-            renderdoccmd_exe: PathBuf::from("/renderdoc/renderdoccmd"),
-        };
         let req = CaptureTargetRequest {
             executable: "bin/app".to_string(),
             args: vec!["--flag".to_string()],
@@ -200,21 +198,15 @@ mod tests {
             capture_template_name: Some("capture_{frame}".to_string()),
         };
 
-        let prepared = install
-            .prepare_capture_target(&cwd, &req)
-            .expect("prepare should succeed");
+        let resolved = req.resolved_in_cwd(&cwd).expect("resolve should succeed");
         let expected_template_path = cwd.join("captures").join("capture_{frame}.rdc");
 
-        assert_eq!(prepared.command.executable, cwd.join("bin/app"));
-        assert_eq!(prepared.command.args, vec![OsString::from("--flag")]);
-        assert_eq!(prepared.command.working_dir, Some(cwd.join("run")));
+        assert_eq!(resolved.command.executable, cwd.join("bin/app"));
+        assert_eq!(resolved.command.args, vec![OsString::from("--flag")]);
+        assert_eq!(resolved.command.working_dir, Some(cwd.join("run")));
         assert_eq!(
-            prepared.command.capture_file_template,
+            resolved.command.capture_file_template,
             Some(expected_template_path.clone())
-        );
-        assert_eq!(
-            prepared.capture_file_template,
-            Some(expected_template_path.display().to_string())
         );
         assert!(cwd.join("captures").is_dir());
 
@@ -222,13 +214,8 @@ mod tests {
     }
 
     #[test]
-    fn prepare_capture_target_uses_default_artifacts_dir() {
+    fn capture_target_request_uses_default_artifacts_dir() {
         let cwd = make_temp_dir();
-        let install = RenderDocInstallation {
-            root_dir: PathBuf::from("/renderdoc"),
-            qrenderdoc_exe: PathBuf::from("/renderdoc/qrenderdoc"),
-            renderdoccmd_exe: PathBuf::from("/renderdoc/renderdoccmd"),
-        };
         let req = CaptureTargetRequest {
             executable: "app".to_string(),
             args: Vec::new(),
@@ -237,14 +224,11 @@ mod tests {
             capture_template_name: None,
         };
 
-        let prepared = install
-            .prepare_capture_target(&cwd, &req)
-            .expect("prepare should succeed");
+        let resolved = req.resolved_in_cwd(&cwd).expect("resolve should succeed");
 
-        assert_eq!(prepared.command.executable, cwd.join("app"));
+        assert_eq!(resolved.command.executable, cwd.join("app"));
         assert!(default_artifacts_dir(&cwd).is_dir());
-        assert_eq!(prepared.command.capture_file_template, None);
-        assert_eq!(prepared.capture_file_template, None);
+        assert_eq!(resolved.command.capture_file_template, None);
 
         std::fs::remove_dir_all(&cwd).expect("cleanup should succeed");
     }
