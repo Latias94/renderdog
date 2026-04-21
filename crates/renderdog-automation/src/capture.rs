@@ -10,7 +10,7 @@ use crate::renderdoccmd::{
 };
 use crate::{
     CaptureInput, CaptureRef, OpenCaptureUiError, OutputFile, OutputRef, RenderDocInstallation,
-    ToolInvocationError, default_artifacts_dir, resolve_path_from_cwd,
+    TargetControlRef, ToolInvocationError, default_artifacts_dir, resolve_path_from_cwd,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -28,7 +28,8 @@ pub struct CaptureTargetRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureLaunchReport {
-    pub target_ident: u32,
+    #[serde(flatten)]
+    pub target: TargetControlRef,
     pub capture_file_template: Option<String>,
     pub stdout: String,
     pub stderr: String,
@@ -125,7 +126,7 @@ impl RenderDocInstallation {
         let res = self.launch_capture(&req.command)?;
 
         Ok(CaptureLaunchReport {
-            target_ident: res.target_ident,
+            target: TargetControlRef::new(res.target_ident),
             capture_file_template: req.capture_file_template.clone(),
             stdout: res.stdout,
             stderr: res.stderr,
@@ -354,7 +355,7 @@ mod tests {
     #[test]
     fn capture_launch_report_serializes_flat_fields() {
         let response = CaptureLaunchReport {
-            target_ident: 7,
+            target: TargetControlRef::new(7),
             capture_file_template: Some("/tmp/capture.rdc".to_string()),
             stdout: "stdout".to_string(),
             stderr: "stderr".to_string(),
@@ -379,6 +380,7 @@ mod tests {
             object.get("stderr"),
             Some(&Value::String("stderr".to_string()))
         );
+        assert!(!object.contains_key("target"));
     }
 
     #[test]

@@ -132,6 +132,17 @@ impl OutputRef {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+pub struct TargetControlRef {
+    pub target_ident: u32,
+}
+
+impl TargetControlRef {
+    pub(crate) fn new(target_ident: u32) -> Self {
+        Self { target_ident }
+    }
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CapturePostActions {
     #[serde(default)]
@@ -259,9 +270,9 @@ impl Default for TriggerCaptureOptions {
 }
 
 impl TriggerCaptureOptions {
-    pub(crate) fn for_target(&self, target_ident: u32) -> TriggerCaptureRequest {
+    pub(crate) fn for_target(&self, target: TargetControlRef) -> TriggerCaptureRequest {
         TriggerCaptureRequest {
-            target_ident,
+            target,
             trigger: self.clone(),
         }
     }
@@ -269,7 +280,8 @@ impl TriggerCaptureOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TriggerCaptureRequest {
-    pub target_ident: u32,
+    #[serde(flatten)]
+    pub target: TargetControlRef,
     #[serde(flatten)]
     pub trigger: TriggerCaptureOptions,
 }
@@ -438,8 +450,8 @@ mod tests {
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
         CapturePostActionOutputs, CapturePostActions, CaptureRef, DrawcallScope, EventFilter,
         ExportActionsResponse, ExportBindingsIndexResponse, ExportBundleRequest,
-        ExportBundleResponse, ExportOutput, FindEventsResponse, OutputFile, TriggerCaptureOptions,
-        TriggerCaptureRequest, TriggerCaptureResponse,
+        ExportBundleResponse, ExportOutput, FindEventsResponse, OutputFile, TargetControlRef,
+        TriggerCaptureOptions, TriggerCaptureRequest, TriggerCaptureResponse,
     };
 
     #[test]
@@ -490,9 +502,9 @@ mod tests {
             num_frames: 3,
             timeout_s: 90,
         }
-        .for_target(17);
+        .for_target(TargetControlRef::new(17));
 
-        assert_eq!(req.target_ident, 17);
+        assert_eq!(req.target.target_ident, 17);
         assert_eq!(req.trigger.host, "renderdoc-host");
         assert_eq!(req.trigger.num_frames, 3);
         assert_eq!(req.trigger.timeout_s, 90);
@@ -501,7 +513,7 @@ mod tests {
     #[test]
     fn trigger_capture_request_serializes_options_flattened() {
         let req = TriggerCaptureRequest {
-            target_ident: 17,
+            target: TargetControlRef::new(17),
             trigger: TriggerCaptureOptions {
                 host: "renderdoc-host".to_string(),
                 num_frames: 3,
@@ -523,6 +535,19 @@ mod tests {
         assert_eq!(object.get("num_frames"), Some(&Value::Number(3_u32.into())));
         assert_eq!(object.get("timeout_s"), Some(&Value::Number(90_u32.into())));
         assert!(!object.contains_key("trigger"));
+    }
+
+    #[test]
+    fn target_control_ref_serializes_flat_field() {
+        let target = TargetControlRef::new(17);
+
+        let json = serde_json::to_value(target).expect("serialize target");
+        let object = json.as_object().expect("target object");
+
+        assert_eq!(
+            object.get("target_ident"),
+            Some(&Value::Number(17_u32.into()))
+        );
     }
 
     #[test]

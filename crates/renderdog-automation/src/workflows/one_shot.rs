@@ -101,7 +101,7 @@ impl RenderDocInstallation {
 
         let capture = self.trigger_capture_via_target_control(
             cwd,
-            &trigger_options.for_target(launched_target.target_ident),
+            &trigger_options.for_target(launched_target.target),
         )?;
 
         let (capture, output) = output
@@ -133,14 +133,14 @@ mod tests {
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
         CaptureLaunchReport, CapturePostActionOutputs, CapturePostActions, CaptureRef,
         CaptureTargetError, CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleResponse,
-        ExportOutput, TriggerCaptureOptions,
+        ExportOutput, TargetControlRef, TriggerCaptureOptions,
     };
 
     #[test]
     fn completed_one_shot_capture_builds_export_bundle_request() {
         let capture = CompletedOneShotCapture {
             launch: CaptureLaunchReport {
-                target_ident: 7,
+                target: TargetControlRef::new(7),
                 capture_file_template: Some("/tmp/frame".to_string()),
                 stdout: "stdout".to_string(),
                 stderr: "stderr".to_string(),
@@ -201,7 +201,7 @@ mod tests {
     fn completed_one_shot_capture_merges_export_response() {
         let capture = CompletedOneShotCapture {
             launch: CaptureLaunchReport {
-                target_ident: 9,
+                target: TargetControlRef::new(9),
                 capture_file_template: Some("/tmp/frame".to_string()),
                 stdout: "stdout".to_string(),
                 stderr: "stderr".to_string(),
@@ -233,7 +233,7 @@ mod tests {
 
         let response: CaptureAndExportBundleResponse = capture.into_response(export);
 
-        assert_eq!(response.launch.target_ident, 9);
+        assert_eq!(response.launch.target.target_ident, 9);
         assert_eq!(response.capture.capture_path, "/tmp/frame.rdc");
         assert_eq!(
             response.launch.capture_file_template.as_deref(),
@@ -320,7 +320,7 @@ mod tests {
     fn capture_and_export_bundle_response_serializes_artifacts_flattened() {
         let response = CaptureAndExportBundleResponse {
             launch: CaptureLaunchReport {
-                target_ident: 9,
+                target: TargetControlRef::new(9),
                 capture_file_template: Some("/tmp/frame".to_string()),
                 stdout: "stdout".to_string(),
                 stderr: "stderr".to_string(),
