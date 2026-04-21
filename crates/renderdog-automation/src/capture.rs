@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::renderdoccmd::{
+    CaptureLaunchCommand as CommandCaptureLaunchCommand,
     CaptureLaunchError as CommandCaptureLaunchError,
-    CaptureLaunchRequest as CommandCaptureLaunchRequest,
+    CaptureLaunchOutcome as CommandCaptureLaunchOutcome,
 };
 use crate::{
     CaptureInput, CaptureRef, OpenCaptureUiError, OutputFile, OutputRef, RenderDocInstallation,
@@ -72,9 +73,20 @@ impl From<CommandCaptureLaunchError> for CaptureTargetError {
     }
 }
 
+impl From<CommandCaptureLaunchOutcome> for CaptureLaunchReport {
+    fn from(value: CommandCaptureLaunchOutcome) -> Self {
+        Self {
+            target: TargetControlRef::new(value.target_ident),
+            capture_file_template: value.capture_file_template,
+            stdout: value.stdout,
+            stderr: value.stderr,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct ResolvedCaptureTarget {
-    command: CommandCaptureLaunchRequest,
+    command: CommandCaptureLaunchCommand,
 }
 
 impl CaptureTargetRequest {
@@ -95,7 +107,7 @@ impl CaptureTargetRequest {
             .map(|name| artifacts_dir.join(format!("{name}.rdc")));
 
         Ok(ResolvedCaptureTarget {
-            command: CommandCaptureLaunchRequest {
+            command: CommandCaptureLaunchCommand {
                 executable: resolve_path_from_cwd(cwd, &self.executable),
                 args: self.args.iter().map(OsString::from).collect(),
                 working_dir: self
@@ -113,18 +125,7 @@ impl RenderDocInstallation {
         &self,
         req: &ResolvedCaptureTarget,
     ) -> Result<CaptureLaunchReport, CaptureTargetError> {
-        let res = self.launch_capture(&req.command)?;
-
-        Ok(CaptureLaunchReport {
-            target: TargetControlRef::new(res.target_ident),
-            capture_file_template: req
-                .command
-                .capture_file_template
-                .as_ref()
-                .map(|path| path.display().to_string()),
-            stdout: res.stdout,
-            stderr: res.stderr,
-        })
+        Ok(self.launch_capture(&req.command)?.into())
     }
 
     pub fn save_thumbnail_in_cwd(

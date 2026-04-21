@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct CaptureLaunchRequest {
+pub(crate) struct CaptureLaunchCommand {
     pub executable: PathBuf,
     pub args: Vec<OsString>,
     pub working_dir: Option<PathBuf>,
@@ -20,8 +20,9 @@ pub(crate) struct CaptureLaunchRequest {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct CaptureLaunchResult {
+pub(crate) struct CaptureLaunchOutcome {
     pub target_ident: u32,
+    pub capture_file_template: Option<String>,
     pub stdout: String,
     pub stderr: String,
 }
@@ -43,8 +44,8 @@ impl From<CommandError> for CaptureLaunchError {
 impl RenderDocInstallation {
     pub(crate) fn launch_capture(
         &self,
-        req: &CaptureLaunchRequest,
-    ) -> Result<CaptureLaunchResult, CaptureLaunchError> {
+        req: &CaptureLaunchCommand,
+    ) -> Result<CaptureLaunchOutcome, CaptureLaunchError> {
         let mut spec = CommandSpec::new(&self.renderdoccmd_exe).arg("capture");
 
         if let Some(working_dir) = &req.working_dir {
@@ -67,8 +68,12 @@ impl RenderDocInstallation {
         let target_ident =
             u32::try_from(code).map_err(|_| CaptureLaunchError::InvalidTargetIdent(code))?;
 
-        Ok(CaptureLaunchResult {
+        Ok(CaptureLaunchOutcome {
             target_ident,
+            capture_file_template: req
+                .capture_file_template
+                .as_ref()
+                .map(|path| path.display().to_string()),
             stdout,
             stderr,
         })
