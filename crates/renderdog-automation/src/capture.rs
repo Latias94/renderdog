@@ -26,8 +26,8 @@ pub struct CaptureTargetRequest {
     pub capture_template_name: Option<String>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct LaunchedCaptureTarget {
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CaptureLaunchReport {
     pub target_ident: u32,
     pub capture_file_template: Option<String>,
     pub stdout: String,
@@ -121,10 +121,10 @@ impl RenderDocInstallation {
     pub(crate) fn launch_prepared_capture_target(
         &self,
         req: &PreparedCaptureTarget,
-    ) -> Result<LaunchedCaptureTarget, CaptureTargetError> {
+    ) -> Result<CaptureLaunchReport, CaptureTargetError> {
         let res = self.launch_capture(&req.command)?;
 
-        Ok(LaunchedCaptureTarget {
+        Ok(CaptureLaunchReport {
             target_ident: res.target_ident,
             capture_file_template: req.capture_file_template.clone(),
             stdout: res.stdout,
@@ -349,6 +349,36 @@ mod tests {
             Some(&Value::String("/tmp/frame.png".to_string()))
         );
         assert!(!object.contains_key("output"));
+    }
+
+    #[test]
+    fn capture_launch_report_serializes_flat_fields() {
+        let response = CaptureLaunchReport {
+            target_ident: 7,
+            capture_file_template: Some("/tmp/capture.rdc".to_string()),
+            stdout: "stdout".to_string(),
+            stderr: "stderr".to_string(),
+        };
+
+        let json = serde_json::to_value(response).expect("serialize response");
+        let object = json.as_object().expect("response object");
+
+        assert_eq!(
+            object.get("target_ident"),
+            Some(&Value::Number(7_u32.into()))
+        );
+        assert_eq!(
+            object.get("capture_file_template"),
+            Some(&Value::String("/tmp/capture.rdc".to_string()))
+        );
+        assert_eq!(
+            object.get("stdout"),
+            Some(&Value::String("stdout".to_string()))
+        );
+        assert_eq!(
+            object.get("stderr"),
+            Some(&Value::String("stderr".to_string()))
+        );
     }
 
     #[test]

@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureRef, CaptureTargetError,
-    CaptureTargetRequest, ExportBundleError, ExportBundleRequest, ExportBundleResponse,
-    ExportOutput, RenderDocInstallation, TriggerCaptureError, TriggerCaptureOptions,
+    BundleExportArtifacts, BundleExportOptions, CaptureInput, CaptureLaunchReport, CaptureRef,
+    CaptureTargetError, CaptureTargetRequest, ExportBundleError, ExportBundleRequest,
+    ExportBundleResponse, ExportOutput, RenderDocInstallation, TriggerCaptureError,
+    TriggerCaptureOptions,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -24,12 +25,10 @@ pub struct CaptureAndExportBundleRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CaptureAndExportBundleResponse {
-    pub target_ident: u32,
+    #[serde(flatten)]
+    pub launch: CaptureLaunchReport,
     #[serde(flatten)]
     pub capture: CaptureRef,
-    pub capture_file_template: Option<String>,
-    pub stdout: String,
-    pub stderr: String,
     #[serde(flatten)]
     pub artifacts: BundleExportArtifacts,
 }
@@ -53,12 +52,9 @@ pub enum CaptureAndExportBundleError {
 }
 
 struct CompletedOneShotCapture {
-    target_ident: u32,
+    launch: CaptureLaunchReport,
     capture: CaptureInput,
     output: ExportOutput,
-    capture_file_template: Option<String>,
-    stdout: String,
-    stderr: String,
 }
 
 impl CompletedOneShotCapture {
@@ -74,11 +70,8 @@ impl CompletedOneShotCapture {
         let ExportBundleResponse { capture, artifacts } = export;
 
         CaptureAndExportBundleResponse {
-            target_ident: self.target_ident,
+            launch: self.launch,
             capture,
-            capture_file_template: self.capture_file_template,
-            stdout: self.stdout,
-            stderr: self.stderr,
             artifacts,
         }
     }
@@ -121,12 +114,9 @@ impl RenderDocInstallation {
             .map_err(OneShotCaptureError::CreateOutputDir)?;
 
         Ok(CompletedOneShotCapture {
-            target_ident: launched_target.target_ident,
+            launch: launched_target,
             capture,
             output,
-            capture_file_template: launched_target.capture_file_template,
-            stdout: launched_target.stdout,
-            stderr: launched_target.stderr,
         })
     }
 }
@@ -141,15 +131,20 @@ mod tests {
     };
     use crate::{
         BindingsExportOptions, BundleExportArtifacts, BundleExportOptions, CaptureInput,
-        CapturePostActionOutputs, CapturePostActions, CaptureRef, CaptureTargetError,
-        CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleResponse, ExportOutput,
-        TriggerCaptureOptions,
+        CaptureLaunchReport, CapturePostActionOutputs, CapturePostActions, CaptureRef,
+        CaptureTargetError, CaptureTargetRequest, DrawcallScope, EventFilter, ExportBundleResponse,
+        ExportOutput, TriggerCaptureOptions,
     };
 
     #[test]
     fn completed_one_shot_capture_builds_export_bundle_request() {
         let capture = CompletedOneShotCapture {
-            target_ident: 7,
+            launch: CaptureLaunchReport {
+                target_ident: 7,
+                capture_file_template: Some("/tmp/frame".to_string()),
+                stdout: "stdout".to_string(),
+                stderr: "stderr".to_string(),
+            },
             capture: CaptureInput {
                 capture_path: "/tmp/frame.rdc".to_string(),
             },
@@ -157,9 +152,6 @@ mod tests {
                 output_dir: Some("/tmp/out".to_string()),
                 basename: Some("frame".to_string()),
             },
-            capture_file_template: Some("/tmp/frame".to_string()),
-            stdout: "stdout".to_string(),
-            stderr: "stderr".to_string(),
         };
         let req = CaptureAndExportBundleRequest {
             target: CaptureTargetRequest {
@@ -208,7 +200,12 @@ mod tests {
     #[test]
     fn completed_one_shot_capture_merges_export_response() {
         let capture = CompletedOneShotCapture {
-            target_ident: 9,
+            launch: CaptureLaunchReport {
+                target_ident: 9,
+                capture_file_template: Some("/tmp/frame".to_string()),
+                stdout: "stdout".to_string(),
+                stderr: "stderr".to_string(),
+            },
             capture: CaptureInput {
                 capture_path: "/tmp/frame.rdc".to_string(),
             },
@@ -216,9 +213,6 @@ mod tests {
                 output_dir: Some("/tmp/out".to_string()),
                 basename: Some("frame".to_string()),
             },
-            capture_file_template: Some("/tmp/frame".to_string()),
-            stdout: "stdout".to_string(),
-            stderr: "stderr".to_string(),
         };
         let export = ExportBundleResponse {
             capture: CaptureRef::new("/tmp/frame.rdc"),
@@ -239,12 +233,14 @@ mod tests {
 
         let response: CaptureAndExportBundleResponse = capture.into_response(export);
 
-        assert_eq!(response.target_ident, 9);
+        assert_eq!(response.launch.target_ident, 9);
         assert_eq!(response.capture.capture_path, "/tmp/frame.rdc");
         assert_eq!(
-            response.capture_file_template.as_deref(),
+            response.launch.capture_file_template.as_deref(),
             Some("/tmp/frame")
         );
+        assert_eq!(response.launch.stdout, "stdout");
+        assert_eq!(response.launch.stderr, "stderr");
         assert_eq!(
             response.artifacts.actions_jsonl_path,
             "/tmp/out/frame.actions.jsonl"
@@ -323,11 +319,13 @@ mod tests {
     #[test]
     fn capture_and_export_bundle_response_serializes_artifacts_flattened() {
         let response = CaptureAndExportBundleResponse {
-            target_ident: 9,
+            launch: CaptureLaunchReport {
+                target_ident: 9,
+                capture_file_template: Some("/tmp/frame".to_string()),
+                stdout: "stdout".to_string(),
+                stderr: "stderr".to_string(),
+            },
             capture: CaptureRef::new("/tmp/frame.rdc"),
-            capture_file_template: Some("/tmp/frame".to_string()),
-            stdout: "stdout".to_string(),
-            stderr: "stderr".to_string(),
             artifacts: BundleExportArtifacts {
                 actions_jsonl_path: "/tmp/out/frame.actions.jsonl".to_string(),
                 actions_summary_json_path: "/tmp/out/frame.summary.json".to_string(),
@@ -355,6 +353,18 @@ mod tests {
             Some(&Value::String("/tmp/frame.rdc".to_string()))
         );
         assert_eq!(
+            object.get("capture_file_template"),
+            Some(&Value::String("/tmp/frame".to_string()))
+        );
+        assert_eq!(
+            object.get("stdout"),
+            Some(&Value::String("stdout".to_string()))
+        );
+        assert_eq!(
+            object.get("stderr"),
+            Some(&Value::String("stderr".to_string()))
+        );
+        assert_eq!(
             object.get("actions_jsonl_path"),
             Some(&Value::String("/tmp/out/frame.actions.jsonl".to_string()))
         );
@@ -366,6 +376,7 @@ mod tests {
             object.get("thumbnail_output_path"),
             Some(&Value::String("/tmp/out/frame.thumb.png".to_string()))
         );
+        assert!(!object.contains_key("launch"));
         assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("artifacts"));
     }
