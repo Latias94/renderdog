@@ -211,12 +211,12 @@ impl From<InputButton> for sys::RENDERDOC_InputButton {
 
 bitflags! {
     pub struct OverlayBits: u32 {
-        const ENABLED = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Enabled.0 as u32;
-        const FRAME_RATE = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameRate.0 as u32;
-        const FRAME_NUMBER = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameNumber.0 as u32;
-        const CAPTURE_LIST = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_CaptureList.0 as u32;
-        const DEFAULT = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Default.0 as u32;
-        const ALL = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_All.0 as u32;
+        const ENABLED = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Enabled.0;
+        const FRAME_RATE = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameRate.0;
+        const FRAME_NUMBER = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameNumber.0;
+        const CAPTURE_LIST = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_CaptureList.0;
+        const DEFAULT = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Default.0;
+        const ALL = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_All.0;
     }
 }
 

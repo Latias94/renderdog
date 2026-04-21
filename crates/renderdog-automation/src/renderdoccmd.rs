@@ -37,7 +37,7 @@ pub(crate) enum CaptureLaunchError {
 
 impl From<CommandError> for CaptureLaunchError {
     fn from(value: CommandError) -> Self {
-        Self::Tool(Box::new(value.into()))
+        Self::Tool(Box::new(value))
     }
 }
 

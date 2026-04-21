@@ -11,7 +11,9 @@ use serde::Deserialize;
 use thiserror::Error;
 
 #[cfg(any(feature = "cxx-replay", test))]
-use crate::version_policy::{renderdoc_versions_match, workspace_renderdoc_replay_version};
+use crate::version_policy::renderdoc_versions_match;
+#[cfg(feature = "cxx-replay")]
+use crate::version_policy::workspace_renderdoc_replay_version;
 
 #[derive(Debug, Error)]
 pub enum ReplayRuntimeError {

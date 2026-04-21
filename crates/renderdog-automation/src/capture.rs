@@ -142,7 +142,7 @@ impl RenderDocInstallation {
             std::fs::create_dir_all(parent)?;
         }
 
-        self.save_thumbnail(&capture_path, &output_path)?;
+        self.save_thumbnail(capture_path, output_path)?;
 
         Ok(OutputRef::new(output_path.display().to_string()))
     }
@@ -154,7 +154,7 @@ impl RenderDocInstallation {
     ) -> Result<OpenCaptureUiResponse, OpenCaptureUiError> {
         let capture = req.normalized_in_cwd(cwd);
         let capture_path = Path::new(&capture.capture_path);
-        let child = self.open_capture_in_ui(&capture_path)?;
+        let child = self.open_capture_in_ui(capture_path)?;
 
         Ok(OpenCaptureUiResponse {
             capture: CaptureRef::new(capture_path.display().to_string()),

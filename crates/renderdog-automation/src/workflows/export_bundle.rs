@@ -142,7 +142,7 @@ impl RenderDocInstallation {
                 std::fs::create_dir_all(parent).map_err(ExportBundleError::SaveThumbnail)?;
             }
 
-            self.save_thumbnail(capture_path, &output_path)
+            self.save_thumbnail(capture_path, output_path)
                 .map_err(ExportBundleError::SaveThumbnail)?;
             outputs.thumbnail_output_path = Some(output_path.display().to_string());
         }

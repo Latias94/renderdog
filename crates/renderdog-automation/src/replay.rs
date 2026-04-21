@@ -172,7 +172,6 @@ impl ReplaySaveTexturePngRequest {
         Self {
             replay: self.replay.normalized_in_cwd(cwd),
             output: self.output.resolved_in_cwd(cwd),
-            ..self.clone()
         }
     }
 }

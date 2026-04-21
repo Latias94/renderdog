@@ -65,11 +65,7 @@ impl ApplicationHandler for App {
                     self.trigger_capture();
                 }
             }
-            WindowEvent::RedrawRequested => {
-                if self.capturing {
-                    self.finish_capture();
-                }
-            }
+            WindowEvent::RedrawRequested if self.capturing => self.finish_capture(),
             _ => {}
         }
     }

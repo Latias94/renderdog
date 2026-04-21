@@ -655,7 +655,13 @@ impl RenderDocInApp {
         Self::map_annotation_status(status)
     }
 
-    pub fn set_command_annotation<'a>(
+    /// # Safety
+    ///
+    /// `queue_or_command_buffer` must point to a live queue/command-buffer object that is valid
+    /// for the active graphics API and accepted by RenderDoc's `SetCommandAnnotation` entrypoint.
+    /// Passing an invalid, stale, or mismatched pointer is undefined behavior in the underlying
+    /// RenderDoc API.
+    pub unsafe fn set_command_annotation<'a>(
         &self,
         device: Option<sys::RENDERDOC_DevicePointer>,
         queue_or_command_buffer: *mut c_void,

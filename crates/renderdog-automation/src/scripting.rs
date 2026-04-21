@@ -124,7 +124,7 @@ impl From<QRenderDocPythonError> for QRenderDocExecutionError {
     fn from(value: QRenderDocPythonError) -> Self {
         match value {
             QRenderDocPythonError::ScriptNotFound(path) => Self::ScriptNotFound(path),
-            QRenderDocPythonError::Command(err) => Self::Tool(Box::new((*err).into())),
+            QRenderDocPythonError::Command(err) => Self::Tool(Box::new(*err)),
         }
     }
 }
@@ -189,7 +189,7 @@ impl RenderDocInstallation {
         )
         .map_err(QRenderDocJobError::WriteRequest)?;
 
-        let _ = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
+        self.run_qrenderdoc_python(&QRenderDocPythonRequest {
             script_path,
             args: Vec::new(),
             working_dir: Some(run_dir),

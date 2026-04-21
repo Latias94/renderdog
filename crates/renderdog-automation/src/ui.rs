@@ -17,7 +17,7 @@ pub enum OpenCaptureUiError {
 
 impl From<CommandError> for OpenCaptureUiError {
     fn from(value: CommandError) -> Self {
-        Self::Tool(Box::new(value.into()))
+        Self::Tool(Box::new(value))
     }
 }
 
@@ -30,12 +30,12 @@ impl RenderDocInstallation {
             .arg(capture_path)
             .spawn()
             .map_err(|e| {
-                OpenCaptureUiError::Tool(Box::new(ToolInvocationError::from(CommandError::Spawn {
+                OpenCaptureUiError::Tool(Box::new(CommandError::Spawn {
                     program: self.qrenderdoc_exe.display().to_string(),
                     args: vec![capture_path.display().to_string()],
                     cwd: None,
                     source: e,
-                })))
+                }))
             })
     }
 }
