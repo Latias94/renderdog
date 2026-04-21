@@ -5,11 +5,12 @@
 //! Stable capture/export/replay workflows should prefer `renderdog-automation`.
 
 mod ffi;
+mod version_policy;
 
-use renderdog_sys::renderdoc_versions_match;
-#[cfg(feature = "cxx-replay")]
-use renderdog_sys::workspace_renderdoc_replay_version;
 use thiserror::Error;
+
+#[cfg(any(feature = "cxx-replay", test))]
+use crate::version_policy::{renderdoc_versions_match, workspace_renderdoc_replay_version};
 
 #[derive(Debug, Error)]
 pub enum ReplayRuntimeError {
@@ -42,6 +43,7 @@ pub enum ReplaySessionError {
     Cxx(#[from] cxx::Exception),
 }
 
+#[cfg(any(feature = "cxx-replay", test))]
 fn validate_runtime_version(
     runtime_version: String,
     workspace_version: Option<&str>,
@@ -150,10 +152,12 @@ impl ReplayRuntime {
 
 #[cfg(test)]
 mod tests {
+    use crate::version_policy::workspace_renderdoc_replay_version;
+
     use super::{ReplayRuntimeError, validate_runtime_version};
 
     fn workspace_replay_version() -> &'static str {
-        renderdog_sys::workspace_renderdoc_replay_version()
+        workspace_renderdoc_replay_version()
             .expect("workspace replay version should be available in tests")
     }
 

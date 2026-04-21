@@ -1441,7 +1441,6 @@ dependencies = [
  "anyhow",
  "cxx",
  "cxx-build",
- "renderdog-sys",
  "thiserror 2.0.17",
 ]
 
