@@ -1412,7 +1412,6 @@ name = "renderdog-automation"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "renderdog-sys",
  "schemars",
  "serde",
  "serde_json",

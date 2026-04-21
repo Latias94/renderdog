@@ -24,6 +24,7 @@ mod replay;
 mod scripting;
 mod toolchain;
 mod ui;
+mod version_policy;
 mod workflows;
 
 pub use capture::*;

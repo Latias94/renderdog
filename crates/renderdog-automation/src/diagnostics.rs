@@ -10,7 +10,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::RenderDocInstallation;
+use crate::{
+    RenderDocInstallation,
+    version_policy::{renderdoc_versions_match, workspace_renderdoc_replay_version},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct VulkanLayerDiagnosis {
@@ -274,8 +277,7 @@ impl RenderDocInstallation {
             Ok(version) => (Some(version.trim().to_string()), None),
             Err(err) => (None, Some(err.to_string())),
         };
-        let workspace_renderdoc_version =
-            renderdog_sys::workspace_renderdoc_replay_version().map(str::to_owned);
+        let workspace_renderdoc_version = workspace_renderdoc_replay_version().map(str::to_owned);
         let replay_version_match = compute_replay_version_match(
             renderdoccmd_version.as_deref(),
             workspace_renderdoc_version.as_deref(),
@@ -410,9 +412,7 @@ fn compute_replay_version_match(
     workspace_renderdoc_version: Option<&str>,
 ) -> Option<bool> {
     match (renderdoccmd_version, workspace_renderdoc_version) {
-        (Some(installed), Some(workspace)) => Some(renderdog_sys::renderdoc_versions_match(
-            installed, workspace,
-        )),
+        (Some(installed), Some(workspace)) => Some(renderdoc_versions_match(installed, workspace)),
         _ => None,
     }
 }
@@ -729,6 +729,8 @@ impl Drop for HandleGuard {
 
 #[cfg(test)]
 mod tests {
+    use crate::version_policy::workspace_renderdoc_replay_version;
+
     use super::{
         EnvironmentAssessmentInputs, EnvironmentVarInfo, VulkanLayerDiagnosis,
         candidate_vulkan_layer_manifest_paths, collect_environment_feedback,
@@ -755,7 +757,7 @@ mod tests {
     }
 
     fn workspace_replay_version() -> &'static str {
-        renderdog_sys::workspace_renderdoc_replay_version()
+        workspace_renderdoc_replay_version()
             .expect("workspace replay version should be available in tests")
     }
 
