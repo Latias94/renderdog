@@ -12,6 +12,18 @@ permissions:
   contents: read
 
 jobs:
+  bindings:
+    name: Bindings (bindgen sync)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: check pregenerated bindings
+        run: python3 scripts/regen_bindings.py --check
+
   lint:
     name: Lint (fmt + clippy)
     runs-on: ubuntu-latest
