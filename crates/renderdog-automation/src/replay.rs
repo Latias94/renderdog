@@ -178,12 +178,59 @@ pub struct ReplaySaveTexturePngResponse {
     pub output: OutputRef,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplayEventSelection {
+    #[default]
+    LastDrawcall,
+    EventId,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReplayEventSelector {
+    #[serde(default)]
+    pub event_selection: ReplayEventSelection,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_id: Option<u32>,
+}
+
+impl ReplayEventSelector {
+    pub const fn event_id(event_id: u32) -> Self {
+        Self {
+            event_selection: ReplayEventSelection::EventId,
+            event_id: Some(event_id),
+        }
+    }
+
+    pub const fn last_drawcall() -> Self {
+        Self {
+            event_selection: ReplayEventSelection::LastDrawcall,
+            event_id: None,
+        }
+    }
+
+    fn validate(self) -> Result<Self, ReplaySaveOutputsPngError> {
+        match (self.event_selection, self.event_id) {
+            (ReplayEventSelection::LastDrawcall, None) => Ok(self),
+            (ReplayEventSelection::LastDrawcall, Some(_)) => {
+                Err(ReplaySaveOutputsPngError::InvalidSelection(
+                    "last_drawcall selection does not accept event_id",
+                ))
+            }
+            (ReplayEventSelection::EventId, Some(_)) => Ok(self),
+            (ReplayEventSelection::EventId, None) => Err(
+                ReplaySaveOutputsPngError::InvalidSelection("event_id selection requires event_id"),
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaySaveOutputsPngRequest {
     #[serde(flatten)]
     pub capture: CaptureInput,
-    #[serde(default)]
-    pub event_id: Option<u32>,
+    #[serde(flatten, default)]
+    pub selection: ReplayEventSelector,
     #[serde(flatten)]
     pub output: ExportOutput,
     #[serde(default)]
@@ -206,8 +253,11 @@ impl PrepareQRenderDocJsonRequest for ReplaySaveOutputsPngRequest {
     type Error = ReplaySaveOutputsPngError;
 
     fn prepare_in_cwd(&self, cwd: &Path) -> Result<Self, Self::Error> {
-        self.normalized_in_cwd(cwd)
-            .map_err(ReplaySaveOutputsPngError::CreateOutputDir)
+        let normalized = self
+            .normalized_in_cwd(cwd)
+            .map_err(ReplaySaveOutputsPngError::CreateOutputDir)?;
+        normalized.selection.validate()?;
+        Ok(normalized)
     }
 }
 
@@ -242,6 +292,8 @@ pub type ReplaySaveTexturePngError = QRenderDocJsonError;
 pub enum ReplaySaveOutputsPngError {
     #[error("failed to create output dir: {0}")]
     CreateOutputDir(std::io::Error),
+    #[error("invalid replay event selection: {0}")]
+    InvalidSelection(&'static str),
     #[error("replay job failed: {0}")]
     Job(#[from] QRenderDocJsonError),
 }
@@ -286,9 +338,12 @@ mod tests {
 
     use serde_json::Value;
 
+    use crate::scripting::PrepareQRenderDocJsonRequest;
+
     use super::{
-        PixelPosition, ReplayContext, ReplayListTexturesRequest, ReplayListTexturesResponse,
-        ReplayPickPixelRequest, ReplayPickPixelResponse, ReplaySaveOutputsPngRequest,
+        PixelPosition, ReplayContext, ReplayEventSelection, ReplayEventSelector,
+        ReplayListTexturesRequest, ReplayListTexturesResponse, ReplayPickPixelRequest,
+        ReplayPickPixelResponse, ReplaySaveOutputsPngError, ReplaySaveOutputsPngRequest,
         ReplaySaveOutputsPngResponse, ReplaySaveTexturePngRequest, ReplaySaveTexturePngResponse,
         ReplaySavedImage, ReplaySavedImageKind, ReplayTextureInfo, ReplayTextureRef,
         SelectedReplayContext,
@@ -410,7 +465,7 @@ mod tests {
             capture: CaptureInput {
                 capture_path: "captures/frame.rdc".to_string(),
             },
-            event_id: Some(42),
+            selection: ReplayEventSelector::event_id(42),
             output: ExportOutput::default(),
             include_depth: true,
         };
@@ -428,7 +483,7 @@ mod tests {
             Some("/tmp/project/artifacts/renderdoc/exports")
         );
         assert_eq!(normalized.output.basename.as_deref(), Some("frame"));
-        assert_eq!(normalized.event_id, Some(42));
+        assert_eq!(normalized.selection, ReplayEventSelector::event_id(42));
         assert!(normalized.include_depth);
     }
 
@@ -438,7 +493,7 @@ mod tests {
             capture: CaptureInput {
                 capture_path: "/tmp/frame.rdc".to_string(),
             },
-            event_id: Some(42),
+            selection: ReplayEventSelector::event_id(42),
             output: ExportOutput {
                 output_dir: Some("/tmp/out".to_string()),
                 basename: Some("frame".to_string()),
@@ -453,6 +508,10 @@ mod tests {
             object.get("capture_path"),
             Some(&Value::String("/tmp/frame.rdc".to_string()))
         );
+        assert_eq!(
+            object.get("event_selection"),
+            Some(&Value::String("event_id".to_string()))
+        );
         assert_eq!(object.get("event_id"), Some(&Value::Number(42_u32.into())));
         assert_eq!(
             object.get("output_dir"),
@@ -465,6 +524,45 @@ mod tests {
         assert_eq!(object.get("include_depth"), Some(&Value::Bool(true)));
         assert!(!object.contains_key("capture"));
         assert!(!object.contains_key("output"));
+    }
+
+    #[test]
+    fn replay_save_outputs_request_defaults_to_last_drawcall_selection() {
+        let req: ReplaySaveOutputsPngRequest = serde_json::from_value(serde_json::json!({
+            "capture_path": "/tmp/frame.rdc",
+            "output_dir": "/tmp/out",
+            "basename": "frame",
+            "include_depth": false
+        }))
+        .expect("deserialize request");
+
+        assert_eq!(req.selection, ReplayEventSelector::last_drawcall());
+    }
+
+    #[test]
+    fn replay_save_outputs_request_rejects_inconsistent_event_selection() {
+        let req = ReplaySaveOutputsPngRequest {
+            capture: CaptureInput {
+                capture_path: "captures/frame.rdc".to_string(),
+            },
+            selection: ReplayEventSelector {
+                event_selection: ReplayEventSelection::LastDrawcall,
+                event_id: Some(42),
+            },
+            output: ExportOutput::default(),
+            include_depth: false,
+        };
+
+        let err = req
+            .prepare_in_cwd(Path::new("/tmp/project"))
+            .expect_err("prepare should reject inconsistent selection");
+
+        assert!(matches!(
+            err,
+            ReplaySaveOutputsPngError::InvalidSelection(
+                "last_drawcall selection does not accept event_id"
+            )
+        ));
     }
 
     #[test]

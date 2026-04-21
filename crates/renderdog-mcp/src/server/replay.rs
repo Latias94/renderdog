@@ -91,7 +91,7 @@ impl RenderdogMcpServer {
 
     #[tool(
         name = "renderdoc_replay_save_outputs_png",
-        description = "Save current pipeline output textures (color RTs + optional depth) to PNG via `qrenderdoc --python` replay (headless)."
+        description = "Save current pipeline output textures (color RTs + optional depth) to PNG via `qrenderdoc --python` replay (headless). Use `event_selection: \"last_drawcall\"` or `event_selection: \"event_id\"` plus `event_id`."
     )]
     async fn replay_save_outputs_png(
         &self,
@@ -102,7 +102,7 @@ impl RenderdogMcpServer {
             tracing::info!(
                 tool = tool,
                 capture_path = %req.inner.capture.capture_path,
-                event_id = req.inner.event_id.unwrap_or(0),
+                selection = ?req.inner.selection,
                 include_depth = req.inner.include_depth,
                 "start"
             );

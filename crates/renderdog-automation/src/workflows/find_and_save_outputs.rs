@@ -6,8 +6,8 @@ use thiserror::Error;
 
 use crate::{
     CaptureInput, DrawcallScope, EventFilter, ExportOutput, FindEventsError, FindEventsLimit,
-    FindEventsRequest, FindEventsResponse, RenderDocInstallation, ReplaySaveOutputsPngError,
-    ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse,
+    FindEventsRequest, FindEventsResponse, RenderDocInstallation, ReplayEventSelector,
+    ReplaySaveOutputsPngError, ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse,
 };
 
 fn default_true() -> bool {
@@ -94,7 +94,7 @@ impl FindEventsAndSaveOutputsPngRequest {
     ) -> ReplaySaveOutputsPngRequest {
         ReplaySaveOutputsPngRequest {
             capture: CaptureInput { capture_path },
-            event_id: Some(selected_event_id),
+            selection: ReplayEventSelector::event_id(selected_event_id),
             output: self.output.clone(),
             include_depth: self.include_depth,
         }
@@ -135,8 +135,8 @@ mod tests {
     };
     use crate::{
         CaptureInput, CaptureRef, EventFilter, ExportOutput, FindEventsSummary, OutputRef,
-        ReplaySaveOutputsPngError, ReplaySaveOutputsPngResponse, ReplaySavedImageKind,
-        SelectedReplayContext,
+        ReplayEventSelector, ReplaySaveOutputsPngError, ReplaySaveOutputsPngResponse,
+        ReplaySavedImageKind, SelectedReplayContext,
     };
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
             replay.capture.capture_path,
             "/tmp/project/captures/frame.rdc"
         );
-        assert_eq!(replay.event_id, Some(99));
+        assert_eq!(replay.selection, ReplayEventSelector::event_id(99));
         assert_eq!(
             replay.output.output_dir.as_deref(),
             Some("artifacts/replay")

@@ -87,7 +87,7 @@ Use this when you want a local/manual workflow (or your own automation) without 
 - Out-of-process automation from CLI (no MCP):
   - Capture + export bundle: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
   - Export from existing `.rdc`: `cargo run -p renderdog-automation --example export_bundle_from_capture -- <capture.rdc> [out_dir] [basename]`
-  - Headless replay outputs: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [event_id] [out_dir] [basename]`
+  - Headless replay outputs: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [last_drawcall|event:<id>] [out_dir] [basename]`
   - Note: relative paths are resolved against your current working directory.
 
 ### With MCP (AI-friendly)
@@ -136,6 +136,22 @@ Diagnostics tools:
     "capture_path": "captures/fret_capture.rdc",
     "marker_contains": "fret composite",
     "selection": "last",
+    "output_dir": "artifacts/renderdoc/exports/replay",
+    "basename": "fret_capture",
+    "include_depth": false
+  }
+}
+```
+
+`renderdoc_replay_save_outputs_png` now uses an explicit event-selection strategy:
+
+```json
+{
+  "tool": "renderdoc_replay_save_outputs_png",
+  "args": {
+    "cwd": ".",
+    "capture_path": "captures/fret_capture.rdc",
+    "event_selection": "last_drawcall",
     "output_dir": "artifacts/renderdoc/exports/replay",
     "basename": "fret_capture",
     "include_depth": false
@@ -235,7 +251,7 @@ Gemini CLI can manage MCP servers either via commands or by editing `settings.js
 - In-app options/overlay/output template: `cargo run -p renderdog --example in_app_options_overlay`
 - Automation one-shot capture + export bundle: `cargo run -p renderdog-automation --example one_shot_capture_export -- <exe> [args...]`
 - Automation export bundle from capture: `cargo run -p renderdog-automation --example export_bundle_from_capture -- <capture.rdc> [out_dir] [basename]`
-- Automation save pipeline outputs to PNG: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [event_id] [out_dir] [basename]`
+- Automation save pipeline outputs to PNG: `cargo run -p renderdog-automation --example replay_save_outputs_png -- <capture.rdc> [last_drawcall|event:<id>] [out_dir] [basename]`
 - Automation diagnose environment (installation probe + replay version match + Vulkan layer): `cargo run -p renderdog-automation --example diagnose_environment`
 - Winit hotkey capture (F12): `cargo run -p renderdog-winit --example winit_hotkey_capture`
 

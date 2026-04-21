@@ -88,3 +88,42 @@ def get_texture_by_index(controller, texture_index):
         raise RuntimeError("texture_index out of range")
 
     return texture_index, textures[texture_index]
+
+
+def flatten_actions(actions):
+    out = []
+    for action in actions:
+        out.append(action)
+        out.extend(flatten_actions(action.children))
+    return out
+
+
+def pick_last_drawcall_event_id(controller) -> int:
+    actions = flatten_actions(controller.GetRootActions())
+    if not actions:
+        return 0
+
+    drawcalls = []
+    for action in actions:
+        try:
+            if is_drawcall_like(action.flags):
+                drawcalls.append(action)
+        except Exception:
+            pass
+
+    if drawcalls:
+        return int(max(action.eventId for action in drawcalls))
+
+    return int(max(action.eventId for action in actions))
+
+
+def resolve_event_selection(controller, event_selection: str, event_id=None) -> int:
+    if event_selection == "event_id":
+        if event_id is None:
+            raise RuntimeError("event_id is required when event_selection is event_id")
+        return int(event_id)
+
+    if event_selection == "last_drawcall":
+        return pick_last_drawcall_event_id(controller)
+
+    raise RuntimeError(f"unsupported event_selection: {event_selection}")

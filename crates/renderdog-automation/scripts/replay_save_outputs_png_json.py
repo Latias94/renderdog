@@ -3,7 +3,7 @@ import os
 import renderdoc as rd
 
 from renderdog_qrenderdoc import (
-    is_drawcall_like,
+    resolve_event_selection,
     run_json_job,
     set_frame_event_if_present,
     with_capture_controller,
@@ -14,33 +14,6 @@ REQ_PATH = "replay_save_outputs_png_json.request.json"
 RESP_PATH = "replay_save_outputs_png_json.response.json"
 OUTPUT_KIND_COLOR = "color"
 OUTPUT_KIND_DEPTH = "depth"
-
-
-def flatten_actions(actions):
-    out = []
-    for a in actions:
-        out.append(a)
-        out.extend(flatten_actions(a.children))
-    return out
-
-
-def pick_default_event_id(controller) -> int:
-    actions = flatten_actions(controller.GetRootActions())
-    if not actions:
-        return 0
-
-    drawcalls = []
-    for a in actions:
-        try:
-            if is_drawcall_like(a.flags):
-                drawcalls.append(a)
-        except Exception:
-            pass
-
-    if drawcalls:
-        return int(max(a.eventId for a in drawcalls))
-
-    return int(max(a.eventId for a in actions))
 
 
 def extract_resource_id(obj):
@@ -93,10 +66,11 @@ def handle_request(req):
     os.makedirs(req["output_dir"], exist_ok=True)
 
     def run(controller):
-        event_id = req.get("event_id", None)
-        if event_id is None:
-            event_id = pick_default_event_id(controller)
-
+        event_id = resolve_event_selection(
+            controller,
+            req.get("event_selection", "last_drawcall"),
+            req.get("event_id", None),
+        )
         event_id = set_frame_event_if_present(controller, event_id)
 
         pipe = controller.GetPipelineState()
