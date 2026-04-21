@@ -44,6 +44,12 @@ struct PreparedBundleExport {
     post_actions: CapturePostActions,
 }
 
+#[derive(Debug, Clone)]
+struct PreparedCapturePostActions {
+    thumbnail_output_path: Option<PathBuf>,
+    open_capture_ui: bool,
+}
+
 impl PreparedBundleExport {
     fn resolved_in_cwd(cwd: &Path, req: &ExportBundleRequest) -> Result<Self, std::io::Error> {
         let (capture, output) = req.output.normalized_for_capture(cwd, &req.capture)?;
@@ -82,6 +88,27 @@ impl PreparedBundleExport {
     }
 }
 
+impl PreparedCapturePostActions {
+    fn resolved_in_cwd(
+        cwd: &Path,
+        actions_jsonl_path: &str,
+        post_actions: &CapturePostActions,
+    ) -> Self {
+        let thumbnail_output_path = post_actions.save_thumbnail.then(|| {
+            post_actions
+                .thumbnail_output_path
+                .as_deref()
+                .map(|path| resolve_path_from_cwd(cwd, path))
+                .unwrap_or_else(|| default_thumbnail_output_path(actions_jsonl_path))
+        });
+
+        Self {
+            thumbnail_output_path,
+            open_capture_ui: post_actions.open_capture_ui,
+        }
+    }
+}
+
 impl RenderDocInstallation {
     pub fn export_bundle_jsonl(
         &self,
@@ -94,32 +121,25 @@ impl RenderDocInstallation {
         let actions = self.export_actions_jsonl(cwd, &prepared.actions)?;
         let bindings = self.export_bindings_index_jsonl(cwd, &prepared.bindings)?;
 
-        let post_actions = self.apply_capture_post_actions(
+        let post_action_plan = PreparedCapturePostActions::resolved_in_cwd(
             cwd,
-            prepared.capture_path(),
             &actions.artifacts.actions_jsonl_path,
             &prepared.post_actions,
-        )?;
+        );
+        let post_actions =
+            self.run_capture_post_actions(prepared.capture_path(), &post_action_plan)?;
 
         Ok(prepared.into_response(actions, bindings, post_actions))
     }
 
-    fn apply_capture_post_actions(
+    fn run_capture_post_actions(
         &self,
-        cwd: &Path,
         capture_path: &Path,
-        actions_jsonl_path: &str,
-        post_actions: &CapturePostActions,
+        plan: &PreparedCapturePostActions,
     ) -> Result<CapturePostActionOutputs, ExportBundleError> {
         let mut outputs = CapturePostActionOutputs::default();
 
-        if post_actions.save_thumbnail {
-            let output_path = post_actions
-                .thumbnail_output_path
-                .as_deref()
-                .map(|path| resolve_path_from_cwd(cwd, path))
-                .unwrap_or_else(|| default_thumbnail_output_path(actions_jsonl_path));
-
+        if let Some(output_path) = &plan.thumbnail_output_path {
             if let Some(parent) = output_path.parent() {
                 std::fs::create_dir_all(parent).map_err(ExportBundleError::SaveThumbnail)?;
             }
@@ -129,11 +149,80 @@ impl RenderDocInstallation {
             outputs.thumbnail_output_path = Some(output_path.display().to_string());
         }
 
-        if post_actions.open_capture_ui {
+        if plan.open_capture_ui {
             let child = self.open_capture_in_ui(capture_path)?;
             outputs.ui_pid = Some(child.id());
         }
 
         Ok(outputs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use super::{PreparedCapturePostActions, default_thumbnail_output_path};
+    use crate::CapturePostActions;
+
+    #[test]
+    fn default_thumbnail_output_path_uses_actions_artifact_basename() {
+        let path = default_thumbnail_output_path("/tmp/out/frame.actions.jsonl");
+
+        assert_eq!(path, Path::new("/tmp/out/frame.thumb.png"));
+    }
+
+    #[test]
+    fn prepared_post_actions_resolve_explicit_thumbnail_path_in_cwd() {
+        let plan = PreparedCapturePostActions::resolved_in_cwd(
+            Path::new("/tmp/project"),
+            "/tmp/out/frame.actions.jsonl",
+            &CapturePostActions {
+                save_thumbnail: true,
+                thumbnail_output_path: Some("thumbs/frame.png".to_string()),
+                open_capture_ui: true,
+            },
+        );
+
+        assert_eq!(
+            plan.thumbnail_output_path,
+            Some(PathBuf::from("/tmp/project/thumbs/frame.png"))
+        );
+        assert!(plan.open_capture_ui);
+    }
+
+    #[test]
+    fn prepared_post_actions_default_thumbnail_path_follows_actions_output() {
+        let plan = PreparedCapturePostActions::resolved_in_cwd(
+            Path::new("/tmp/project"),
+            "/tmp/out/frame.actions.jsonl",
+            &CapturePostActions {
+                save_thumbnail: true,
+                thumbnail_output_path: None,
+                open_capture_ui: false,
+            },
+        );
+
+        assert_eq!(
+            plan.thumbnail_output_path,
+            Some(PathBuf::from("/tmp/out/frame.thumb.png"))
+        );
+        assert!(!plan.open_capture_ui);
+    }
+
+    #[test]
+    fn prepared_post_actions_ignore_thumbnail_path_when_thumbnail_disabled() {
+        let plan = PreparedCapturePostActions::resolved_in_cwd(
+            Path::new("/tmp/project"),
+            "/tmp/out/frame.actions.jsonl",
+            &CapturePostActions {
+                save_thumbnail: false,
+                thumbnail_output_path: Some("thumbs/frame.png".to_string()),
+                open_capture_ui: true,
+            },
+        );
+
+        assert_eq!(plan.thumbnail_output_path, None);
+        assert!(plan.open_capture_ui);
     }
 }
