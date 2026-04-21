@@ -63,7 +63,7 @@ pub struct ReplayTextureInfo {
     pub height: u32,
     pub depth: u32,
     pub mips: u32,
-    pub arraysize: u32,
+    pub array_size: u32,
     pub ms_samp: u32,
     pub byte_size: u64,
 }
@@ -607,7 +607,7 @@ mod tests {
                 height: 1080,
                 depth: 1,
                 mips: 1,
-                arraysize: 1,
+                array_size: 1,
                 ms_samp: 1,
                 byte_size: 1024,
             }],
@@ -615,6 +615,14 @@ mod tests {
 
         let json = serde_json::to_value(response).expect("serialize response");
         let object = json.as_object().expect("response object");
+        let textures = object
+            .get("textures")
+            .and_then(Value::as_array)
+            .expect("textures array");
+        let first = textures
+            .first()
+            .and_then(Value::as_object)
+            .expect("first texture object");
 
         assert_eq!(
             object.get("capture_path"),
@@ -622,6 +630,8 @@ mod tests {
         );
         assert_eq!(object.get("event_id"), Some(&Value::Number(42_u32.into())));
         assert!(object.get("textures").is_some());
+        assert_eq!(first.get("array_size"), Some(&Value::Number(1_u32.into())));
+        assert!(!first.contains_key("arraysize"));
         assert!(!object.contains_key("context"));
     }
 

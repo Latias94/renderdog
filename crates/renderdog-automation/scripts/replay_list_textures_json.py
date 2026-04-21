@@ -38,7 +38,7 @@ def handle_request(req):
             except Exception:
                 pass
 
-            arraysize = getattr(t, "arraysize", getattr(t, "arraySize", 1))
+            array_size = getattr(t, "arraysize", getattr(t, "arraySize", 1))
             ms_samp = getattr(t, "msSamp", getattr(t, "msSamples", 1))
             byte_size = getattr(
                 t,
@@ -54,7 +54,7 @@ def handle_request(req):
                     "height": int(t.height),
                     "depth": int(t.depth),
                     "mips": int(t.mips),
-                    "arraysize": int(arraysize),
+                    "array_size": int(array_size),
                     "ms_samp": int(ms_samp),
                     "byte_size": int(byte_size),
                 }
