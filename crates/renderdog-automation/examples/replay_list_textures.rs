@@ -13,8 +13,10 @@ fn main() -> anyhow::Result<()> {
     let res = install.replay_list_textures(
         &cwd,
         &renderdog::ReplayListTexturesRequest {
-            capture: renderdog::CaptureInput { capture_path },
-            event_id,
+            context: renderdog::ReplayRequestContext {
+                capture: renderdog::CaptureInput { capture_path },
+                event_id,
+            },
         },
     )?;
 

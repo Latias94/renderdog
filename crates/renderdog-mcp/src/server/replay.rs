@@ -16,7 +16,11 @@ impl RenderdogMcpServer {
     ) -> Result<Json<renderdog::ReplayListTexturesResponse>, String> {
         let tool = "renderdoc_replay_list_textures";
         let run = ToolRun::start(tool, || {
-            tracing::info!(tool = tool, capture_path = %req.inner.capture.capture_path, "start");
+            tracing::info!(
+                tool = tool,
+                capture_path = %req.inner.context.capture.capture_path,
+                "start"
+            );
         });
         let res = run.with_install_and_cwd("replay list textures", req, |install, cwd, req| {
             install.replay_list_textures(&cwd, &req)
@@ -43,10 +47,10 @@ impl RenderdogMcpServer {
         let run = ToolRun::start(tool, || {
             tracing::info!(
                 tool = tool,
-                capture_path = %req.inner.capture.capture_path,
-                texture_index = req.inner.texture_index,
-                x = req.inner.x,
-                y = req.inner.y,
+                capture_path = %req.inner.replay.context.capture.capture_path,
+                texture_index = req.inner.replay.texture.texture_index,
+                x = req.inner.pixel.x,
+                y = req.inner.pixel.y,
                 "start"
             );
         });
@@ -70,8 +74,8 @@ impl RenderdogMcpServer {
         let run = ToolRun::start(tool, || {
             tracing::info!(
                 tool = tool,
-                capture_path = %req.inner.capture.capture_path,
-                texture_index = req.inner.texture_index,
+                capture_path = %req.inner.replay.context.capture.capture_path,
+                texture_index = req.inner.replay.texture.texture_index,
                 "start"
             );
         });

@@ -27,11 +27,14 @@ fn main() -> anyhow::Result<()> {
     let res = install.replay_pick_pixel(
         &cwd,
         &renderdog::ReplayPickPixelRequest {
-            capture: renderdog::CaptureInput { capture_path },
-            event_id,
-            texture_index,
-            x,
-            y,
+            replay: renderdog::ReplayTextureRequest {
+                context: renderdog::ReplayRequestContext {
+                    capture: renderdog::CaptureInput { capture_path },
+                    event_id,
+                },
+                texture: renderdog::ReplayTextureRef { texture_index },
+            },
+            pixel: renderdog::PixelPosition { x, y },
         },
     )?;
 

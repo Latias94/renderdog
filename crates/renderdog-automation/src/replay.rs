@@ -13,17 +13,31 @@ use crate::scripting::PrepareQRenderDocJsonRequest;
 use crate::{CaptureInput, CaptureRef, ExportOutput, OutputFile, OutputRef, RenderDocInstallation};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ReplayListTexturesRequest {
+pub struct ReplayRequestContext {
     #[serde(flatten)]
     pub capture: CaptureInput,
     pub event_id: Option<u32>,
 }
 
-impl ReplayListTexturesRequest {
+impl ReplayRequestContext {
     pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
         Self {
             capture: self.capture.normalized_in_cwd(cwd),
             ..self.clone()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ReplayListTexturesRequest {
+    #[serde(flatten)]
+    pub context: ReplayRequestContext,
+}
+
+impl ReplayListTexturesRequest {
+    pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            context: self.context.normalized_in_cwd(cwd),
         }
     }
 }
@@ -89,6 +103,23 @@ pub struct ReplayTextureRef {
     pub texture_index: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ReplayTextureRequest {
+    #[serde(flatten)]
+    pub context: ReplayRequestContext,
+    #[serde(flatten)]
+    pub texture: ReplayTextureRef,
+}
+
+impl ReplayTextureRequest {
+    pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
+        Self {
+            context: self.context.normalized_in_cwd(cwd),
+            ..self.clone()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 pub struct PixelPosition {
     pub x: u32,
@@ -105,17 +136,15 @@ pub struct ReplayListTexturesResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplayPickPixelRequest {
     #[serde(flatten)]
-    pub capture: CaptureInput,
-    pub event_id: Option<u32>,
-    pub texture_index: u32,
-    pub x: u32,
-    pub y: u32,
+    pub replay: ReplayTextureRequest,
+    #[serde(flatten)]
+    pub pixel: PixelPosition,
 }
 
 impl ReplayPickPixelRequest {
     pub(crate) fn normalized_in_cwd(&self, cwd: &Path) -> Self {
         Self {
-            capture: self.capture.normalized_in_cwd(cwd),
+            replay: self.replay.normalized_in_cwd(cwd),
             ..self.clone()
         }
     }
@@ -143,9 +172,7 @@ pub struct ReplayPickPixelResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaySaveTexturePngRequest {
     #[serde(flatten)]
-    pub capture: CaptureInput,
-    pub event_id: Option<u32>,
-    pub texture_index: u32,
+    pub replay: ReplayTextureRequest,
     #[serde(flatten)]
     pub output: OutputFile,
 }
@@ -153,7 +180,7 @@ pub struct ReplaySaveTexturePngRequest {
 impl ReplaySaveTexturePngRequest {
     pub(crate) fn resolved_in_cwd(&self, cwd: &Path) -> Self {
         Self {
-            capture: self.capture.normalized_in_cwd(cwd),
+            replay: self.replay.normalized_in_cwd(cwd),
             output: self.output.resolved_in_cwd(cwd),
             ..self.clone()
         }
@@ -343,21 +370,25 @@ mod tests {
     use super::{
         PixelPosition, ReplayContext, ReplayEventSelection, ReplayEventSelector,
         ReplayListTexturesRequest, ReplayListTexturesResponse, ReplayPickPixelRequest,
-        ReplayPickPixelResponse, ReplaySaveOutputsPngError, ReplaySaveOutputsPngRequest,
-        ReplaySaveOutputsPngResponse, ReplaySaveTexturePngRequest, ReplaySaveTexturePngResponse,
-        ReplaySavedImage, ReplaySavedImageKind, ReplayTextureInfo, ReplayTextureRef,
-        SelectedReplayContext,
+        ReplayPickPixelResponse, ReplayRequestContext, ReplaySaveOutputsPngError,
+        ReplaySaveOutputsPngRequest, ReplaySaveOutputsPngResponse, ReplaySaveTexturePngRequest,
+        ReplaySaveTexturePngResponse, ReplaySavedImage, ReplaySavedImageKind, ReplayTextureInfo,
+        ReplayTextureRef, ReplayTextureRequest, SelectedReplayContext,
     };
     use crate::{CaptureInput, ExportOutput, OutputFile, OutputRef};
 
     #[test]
     fn replay_save_texture_request_resolves_capture_and_output_paths() {
         let req = ReplaySaveTexturePngRequest {
-            capture: CaptureInput {
-                capture_path: "captures/frame.rdc".to_string(),
+            replay: ReplayTextureRequest {
+                context: ReplayRequestContext {
+                    capture: CaptureInput {
+                        capture_path: "captures/frame.rdc".to_string(),
+                    },
+                    event_id: Some(42),
+                },
+                texture: ReplayTextureRef { texture_index: 3 },
             },
-            event_id: Some(42),
-            texture_index: 3,
             output: OutputFile {
                 output_path: "artifacts/frame.png".to_string(),
             },
@@ -366,11 +397,11 @@ mod tests {
         let resolved = req.resolved_in_cwd(Path::new("/tmp/project"));
 
         assert_eq!(
-            resolved.capture.capture_path,
+            resolved.replay.context.capture.capture_path,
             "/tmp/project/captures/frame.rdc"
         );
-        assert_eq!(resolved.event_id, Some(42));
-        assert_eq!(resolved.texture_index, 3);
+        assert_eq!(resolved.replay.context.event_id, Some(42));
+        assert_eq!(resolved.replay.texture.texture_index, 3);
         assert_eq!(
             resolved.output.output_path,
             "/tmp/project/artifacts/frame.png"
@@ -380,11 +411,15 @@ mod tests {
     #[test]
     fn replay_save_texture_request_serializes_capture_and_output_flattened() {
         let req = ReplaySaveTexturePngRequest {
-            capture: CaptureInput {
-                capture_path: "/tmp/frame.rdc".to_string(),
+            replay: ReplayTextureRequest {
+                context: ReplayRequestContext {
+                    capture: CaptureInput {
+                        capture_path: "/tmp/frame.rdc".to_string(),
+                    },
+                    event_id: Some(42),
+                },
+                texture: ReplayTextureRef { texture_index: 3 },
             },
-            event_id: Some(42),
-            texture_index: 3,
             output: OutputFile {
                 output_path: "/tmp/frame.png".to_string(),
             },
@@ -413,10 +448,12 @@ mod tests {
     #[test]
     fn replay_list_textures_request_serializes_capture_flattened() {
         let req = ReplayListTexturesRequest {
-            capture: CaptureInput {
-                capture_path: "/tmp/frame.rdc".to_string(),
+            context: ReplayRequestContext {
+                capture: CaptureInput {
+                    capture_path: "/tmp/frame.rdc".to_string(),
+                },
+                event_id: Some(42),
             },
-            event_id: Some(42),
         };
 
         let json = serde_json::to_value(req).expect("serialize request");
@@ -433,13 +470,16 @@ mod tests {
     #[test]
     fn replay_pick_pixel_request_serializes_capture_flattened() {
         let req = ReplayPickPixelRequest {
-            capture: CaptureInput {
-                capture_path: "/tmp/frame.rdc".to_string(),
+            replay: ReplayTextureRequest {
+                context: ReplayRequestContext {
+                    capture: CaptureInput {
+                        capture_path: "/tmp/frame.rdc".to_string(),
+                    },
+                    event_id: Some(42),
+                },
+                texture: ReplayTextureRef { texture_index: 3 },
             },
-            event_id: Some(42),
-            texture_index: 3,
-            x: 10,
-            y: 20,
+            pixel: PixelPosition { x: 10, y: 20 },
         };
 
         let json = serde_json::to_value(req).expect("serialize request");
