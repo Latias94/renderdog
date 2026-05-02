@@ -184,8 +184,31 @@ fn sanitize_bindings_string(content: &str) -> String {
             }
             skip_next_blank = false;
         }
-        out.push_str(line);
+        out.push_str(&normalize_enum_wrapper_signedness(line));
         out.push('\n');
     }
     out
+}
+
+fn normalize_enum_wrapper_signedness(line: &str) -> String {
+    const ENUM_WRAPPERS: [&str; 5] = [
+        "RENDERDOC_CaptureOption",
+        "RENDERDOC_InputButton",
+        "RENDERDOC_OverlayBits",
+        "RENDERDOC_AnnotationType",
+        "RENDERDOC_Version",
+    ];
+
+    for wrapper in ENUM_WRAPPERS {
+        let signed = format!("pub struct {wrapper}(pub ::std::os::raw::c_int);");
+        if line.trim() == signed {
+            let indent_len = line.len() - line.trim_start().len();
+            return format!(
+                "{}pub struct {wrapper}(pub ::std::os::raw::c_uint);",
+                &line[..indent_len]
+            );
+        }
+    }
+
+    line.to_string()
 }
