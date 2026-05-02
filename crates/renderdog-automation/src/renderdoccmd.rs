@@ -8,7 +8,8 @@ use thiserror::Error;
 use crate::RenderDocInstallation;
 use crate::command::CommandError;
 use crate::{
-    CommandSpec, ToolInvocationError, run_command_expect_success, run_command_output_text,
+    CommandSpec, ToolInvocationError, path_to_api_string, run_command_expect_success,
+    run_command_output_text,
 };
 
 #[derive(Debug, Clone)]
@@ -73,7 +74,7 @@ impl RenderDocInstallation {
             capture_file_template: req
                 .capture_file_template
                 .as_ref()
-                .map(|path| path.display().to_string()),
+                .map(|path| path_to_api_string(path)),
             stdout,
             stderr,
         })

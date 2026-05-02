@@ -4,7 +4,7 @@ import os
 import renderdoc as rd
 
 from renderdog_action_query import ActionFilter, walk_actions
-from renderdog_qrenderdoc import run_job, with_capture_controller
+from renderdog_qrenderdoc import response_path, run_job, with_capture_controller
 
 
 REQUEST_PATH = "export_bindings_index.request"
@@ -259,18 +259,18 @@ def handle_request(req):
         api = str(controller.GetAPIProperties().pipelineType)
 
         summary = {
-            "capture_path": req["capture_path"],
+            "capture_path": response_path(req["capture_path"]),
             "api": api,
             "total_drawcalls": int(counters["total_drawcalls"]),
-            "bindings_jsonl_path": bindings_path,
+            "bindings_jsonl_path": response_path(bindings_path),
         }
 
         with open(summary_path, "w", encoding="utf-8") as fp:
             json.dump(summary, fp, ensure_ascii=False, indent=2)
 
         return {
-            "bindings_jsonl_path": bindings_path,
-            "bindings_summary_json_path": summary_path,
+            "bindings_jsonl_path": response_path(bindings_path),
+            "bindings_summary_json_path": response_path(summary_path),
             "total_drawcalls": int(counters["total_drawcalls"]),
         }
 

@@ -38,7 +38,7 @@ impl RENDERDOC_CaptureOption {
 }
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct RENDERDOC_CaptureOption(pub ::std::os::raw::c_uint);
+pub struct RENDERDOC_CaptureOption(pub ::std::os::raw::c_int);
 pub type pRENDERDOC_SetCaptureOptionU32 = ::std::option::Option<
     unsafe extern "C" fn(opt: RENDERDOC_CaptureOption, val: u32) -> ::std::os::raw::c_int,
 >;
@@ -117,7 +117,7 @@ impl RENDERDOC_InputButton {
 }
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct RENDERDOC_InputButton(pub ::std::os::raw::c_uint);
+pub struct RENDERDOC_InputButton(pub ::std::os::raw::c_int);
 pub type pRENDERDOC_SetFocusToggleKeys = ::std::option::Option<
     unsafe extern "C" fn(keys: *mut RENDERDOC_InputButton, num: ::std::os::raw::c_int),
 >;
@@ -135,7 +135,7 @@ impl RENDERDOC_OverlayBits {
 }
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct RENDERDOC_OverlayBits(pub ::std::os::raw::c_uint);
+pub struct RENDERDOC_OverlayBits(pub ::std::os::raw::c_int);
 pub type pRENDERDOC_GetOverlayBits = ::std::option::Option<unsafe extern "C" fn() -> u32>;
 pub type pRENDERDOC_MaskOverlayBits =
     ::std::option::Option<unsafe extern "C" fn(And: u32, Or: u32)>;
@@ -212,7 +212,7 @@ impl RENDERDOC_AnnotationType {
 }
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct RENDERDOC_AnnotationType(pub ::std::os::raw::c_uint);
+pub struct RENDERDOC_AnnotationType(pub ::std::os::raw::c_int);
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union RENDERDOC_AnnotationVectorValue {
@@ -300,7 +300,7 @@ impl RENDERDOC_Version {
 }
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct RENDERDOC_Version(pub ::std::os::raw::c_uint);
+pub struct RENDERDOC_Version(pub ::std::os::raw::c_int);
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct RENDERDOC_API_1_7_0 {

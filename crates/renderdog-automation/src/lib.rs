@@ -36,8 +36,8 @@ pub use replay::*;
 pub use scripting::{QRenderDocExecutionError, QRenderDocJobError};
 pub use toolchain::{DetectInstallationError, RenderDocInstallation, default_artifacts_dir};
 pub(crate) use toolchain::{
-    default_capture_basename, default_scripts_dir, resolve_export_output_dir_from_cwd,
-    resolve_path_from_cwd, resolve_path_string_from_cwd,
+    default_capture_basename, default_scripts_dir, path_to_api_string,
+    resolve_export_output_dir_from_cwd, resolve_path_from_cwd, resolve_path_string_from_cwd,
 };
 pub use ui::*;
 pub use workflows::*;

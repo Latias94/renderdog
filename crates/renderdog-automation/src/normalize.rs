@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use crate::{
-    default_capture_basename, resolve_export_output_dir_from_cwd, resolve_path_string_from_cwd,
+    default_capture_basename, path_to_api_string, resolve_export_output_dir_from_cwd,
+    resolve_path_string_from_cwd,
 };
 
 #[derive(Debug, Clone)]
@@ -30,6 +31,6 @@ pub(crate) fn prepare_export_target(
             .map(str::to_owned)
             .unwrap_or_else(|| default_capture_basename(&capture_path)),
         capture_path,
-        output_dir: output_dir.display().to_string(),
+        output_dir: path_to_api_string(&output_dir),
     })
 }

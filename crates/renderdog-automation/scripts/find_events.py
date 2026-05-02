@@ -1,5 +1,5 @@
 from renderdog_action_query import ActionFilter, walk_actions
-from renderdog_qrenderdoc import run_job, with_capture_controller
+from renderdog_qrenderdoc import response_path, run_job, with_capture_controller
 
 
 REQUEST_PATH = "find_events.request"
@@ -46,7 +46,7 @@ def handle_request(req):
         walk_actions(structured_file, roots, action_filter, handle_action)
 
         return {
-            "capture_path": req["capture_path"],
+            "capture_path": response_path(req["capture_path"]),
             "summary": {
                 "total_matches": int(counters["total_matches"]),
                 "truncated": bool(counters["truncated"]),

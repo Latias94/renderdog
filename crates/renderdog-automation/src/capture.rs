@@ -11,7 +11,8 @@ use crate::renderdoccmd::{
 };
 use crate::{
     CaptureInput, CaptureRef, OpenCaptureUiError, OutputFile, OutputRef, RenderDocInstallation,
-    TargetControlRef, ToolInvocationError, default_artifacts_dir, resolve_path_from_cwd,
+    TargetControlRef, ToolInvocationError, default_artifacts_dir, path_to_api_string,
+    resolve_path_from_cwd,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -144,7 +145,7 @@ impl RenderDocInstallation {
 
         self.save_thumbnail(capture_path, output_path)?;
 
-        Ok(OutputRef::new(output_path.display().to_string()))
+        Ok(OutputRef::new(path_to_api_string(output_path)))
     }
 
     pub fn open_capture_ui_in_cwd(
@@ -157,7 +158,7 @@ impl RenderDocInstallation {
         let child = self.open_capture_in_ui(capture_path)?;
 
         Ok(OpenCaptureUiResponse {
-            capture: CaptureRef::new(capture_path.display().to_string()),
+            capture: CaptureRef::new(path_to_api_string(capture_path)),
             pid: child.id(),
         })
     }

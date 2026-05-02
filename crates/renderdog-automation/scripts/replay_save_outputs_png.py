@@ -3,6 +3,7 @@ import os
 import renderdoc as rd
 
 from renderdog_qrenderdoc import (
+    response_path,
     resolve_event_selection,
     run_job,
     set_frame_event_if_present,
@@ -100,7 +101,7 @@ def handle_request(req):
                     "kind": OUTPUT_KIND_COLOR,
                     "index": int(i),
                     "resource_id": int(rid),
-                    "output_path": out_path,
+                    "output_path": response_path(out_path),
                 }
             )
 
@@ -127,12 +128,12 @@ def handle_request(req):
                         "kind": OUTPUT_KIND_DEPTH,
                         "index": None,
                         "resource_id": int(rid),
-                        "output_path": out_path,
+                        "output_path": response_path(out_path),
                     }
                 )
 
         return {
-            "capture_path": req["capture_path"],
+            "capture_path": response_path(req["capture_path"]),
             "event_id": int(event_id),
             "outputs": outputs,
         }

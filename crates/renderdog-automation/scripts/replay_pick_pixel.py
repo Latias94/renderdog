@@ -2,6 +2,7 @@ import renderdoc as rd
 
 from renderdog_qrenderdoc import (
     get_texture_by_index,
+    response_path,
     run_job,
     set_frame_event_if_present,
     with_capture_controller,
@@ -32,7 +33,7 @@ def handle_request(req):
         ]
 
         return {
-            "capture_path": req["capture_path"],
+            "capture_path": response_path(req["capture_path"]),
             "event_id": event_id,
             "texture_index": idx,
             "x": int(req["x"]),

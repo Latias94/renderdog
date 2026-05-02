@@ -6,7 +6,10 @@ use super::{
     BundleExportArtifacts, CapturePostActionOutputs, CapturePostActions, ExportActionsRequest,
     ExportBindingsIndexRequest, ExportBundleRequest, ExportBundleResponse,
 };
-use crate::{OpenCaptureUiError, QRenderDocJobError, RenderDocInstallation, resolve_path_from_cwd};
+use crate::{
+    OpenCaptureUiError, QRenderDocJobError, RenderDocInstallation, path_to_api_string,
+    resolve_path_from_cwd,
+};
 
 #[derive(Debug, Error)]
 pub enum ExportBundleError {
@@ -144,7 +147,7 @@ impl RenderDocInstallation {
 
             self.save_thumbnail(capture_path, output_path)
                 .map_err(ExportBundleError::SaveThumbnail)?;
-            outputs.thumbnail_output_path = Some(output_path.display().to_string());
+            outputs.thumbnail_output_path = Some(path_to_api_string(output_path));
         }
 
         if plan.open_capture_ui {

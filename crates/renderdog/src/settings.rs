@@ -209,14 +209,18 @@ impl From<InputButton> for sys::RENDERDOC_InputButton {
     }
 }
 
+const fn overlay_bits(value: sys::RENDERDOC_OverlayBits) -> u32 {
+    value.0 as u32
+}
+
 bitflags! {
     pub struct OverlayBits: u32 {
-        const ENABLED = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Enabled.0;
-        const FRAME_RATE = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameRate.0;
-        const FRAME_NUMBER = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameNumber.0;
-        const CAPTURE_LIST = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_CaptureList.0;
-        const DEFAULT = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Default.0;
-        const ALL = sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_All.0;
+        const ENABLED = overlay_bits(sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Enabled);
+        const FRAME_RATE = overlay_bits(sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameRate);
+        const FRAME_NUMBER = overlay_bits(sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_FrameNumber);
+        const CAPTURE_LIST = overlay_bits(sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_CaptureList);
+        const DEFAULT = overlay_bits(sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Default);
+        const ALL = overlay_bits(sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_All);
     }
 }
 
@@ -237,5 +241,17 @@ mod tests {
     fn input_button_maps_to_sys() {
         let sys_btn: sys::RENDERDOC_InputButton = InputButton::F12.into();
         assert_eq!(sys_btn, sys::RENDERDOC_InputButton::eRENDERDOC_Key_F12);
+    }
+
+    #[test]
+    fn overlay_bits_map_to_sys_mask_values() {
+        assert_eq!(
+            OverlayBits::DEFAULT.bits(),
+            sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Default.0 as u32
+        );
+        assert_eq!(
+            OverlayBits::ALL.bits(),
+            sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_All.0 as u32
+        );
     }
 }

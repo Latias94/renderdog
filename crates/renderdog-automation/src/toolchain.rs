@@ -146,7 +146,21 @@ pub(crate) fn resolve_path_from_cwd(cwd: &Path, value: &str) -> PathBuf {
 }
 
 pub(crate) fn resolve_path_string_from_cwd(cwd: &Path, value: &str) -> String {
-    resolve_path_from_cwd(cwd, value).display().to_string()
+    path_to_api_string(&resolve_path_from_cwd(cwd, value))
+}
+
+pub(crate) fn path_to_api_string(path: &Path) -> String {
+    let value = path.display().to_string();
+
+    #[cfg(windows)]
+    {
+        value.replace('\\', "/")
+    }
+
+    #[cfg(not(windows))]
+    {
+        value
+    }
 }
 
 fn find_in_path(exe_name: &str) -> Option<PathBuf> {

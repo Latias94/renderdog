@@ -2,7 +2,7 @@ import time
 
 import renderdoc as rd
 
-from renderdog_qrenderdoc import run_job, with_replay
+from renderdog_qrenderdoc import response_path, run_job, with_replay
 
 
 REQUEST_PATH = "trigger_capture.request"
@@ -33,7 +33,7 @@ def handle_request(req):
                 if msg.type == rd.TargetControlMessageType.NewCapture:
                     cap = msg.newCapture
                     return {
-                        "capture_path": cap.path,
+                        "capture_path": response_path(cap.path),
                         "frame_number": int(cap.frameNumber),
                         "api": str(cap.api),
                     }

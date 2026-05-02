@@ -1,4 +1,5 @@
 import json
+import os
 import traceback
 
 import renderdoc as rd
@@ -12,6 +13,13 @@ def load_job_request(request_path):
 def write_job_response(response_path, ok: bool, result=None, error=None) -> None:
     with open(response_path, "w", encoding="utf-8") as f:
         json.dump({"ok": ok, "result": result, "error": error}, f, ensure_ascii=False)
+
+
+def response_path(path) -> str:
+    value = os.fspath(path)
+    if os.sep == "\\":
+        return value.replace("\\", "/")
+    return value
 
 
 def run_job(request_path, response_path, handler) -> None:
