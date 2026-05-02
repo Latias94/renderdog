@@ -210,7 +210,7 @@ impl From<InputButton> for sys::RENDERDOC_InputButton {
 }
 
 const fn overlay_bits(value: sys::RENDERDOC_OverlayBits) -> u32 {
-    value.0 as u32
+    value.0
 }
 
 bitflags! {
@@ -247,11 +247,11 @@ mod tests {
     fn overlay_bits_map_to_sys_mask_values() {
         assert_eq!(
             OverlayBits::DEFAULT.bits(),
-            sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Default.0 as u32
+            sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_Default.0
         );
         assert_eq!(
             OverlayBits::ALL.bits(),
-            sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_All.0 as u32
+            sys::RENDERDOC_OverlayBits::eRENDERDOC_Overlay_All.0
         );
     }
 }
