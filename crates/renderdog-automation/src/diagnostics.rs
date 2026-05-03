@@ -830,6 +830,15 @@ administrator privileges required"
             Some(true)
         );
         assert_eq!(
+            compute_replay_version_match(
+                Some(&format!(
+                    "renderdoccmd x64 v{workspace_version} built from 050034a"
+                )),
+                workspace_version
+            ),
+            Some(true)
+        );
+        assert_eq!(
             compute_replay_version_match(Some(mismatched_version), workspace_version),
             Some(false)
         );

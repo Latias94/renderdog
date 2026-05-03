@@ -197,6 +197,11 @@ mod tests {
             .expect("version should match");
 
         assert_eq!(runtime_version, runtime_label);
+
+        let renderdoccmd_label =
+            format!("renderdoccmd x64 v{workspace_version} built from 050034a");
+        validate_runtime_version(renderdoccmd_label, workspace_version)
+            .expect("renderdoccmd version label should match");
     }
 
     #[test]

@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::RenderDocInstallation;
 use crate::command::CommandError;
 use crate::default_scripts_dir;
-use crate::{CommandSpec, ToolInvocationError, run_command_expect_success};
+use crate::{CommandSpec, ToolInvocationError, path_to_api_string, run_command_expect_success};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct QRenderDocJobResponse<T> {
@@ -175,6 +175,21 @@ impl RenderDocInstallation {
 
         let run_dir = create_qrenderdoc_run_dir(&scripts_dir, job.run_dir_prefix)
             .map_err(QRenderDocJobError::CreateScriptsDir)?;
+        let run_script_path = run_dir.join(job.script_file_name);
+        write_script_file(&run_script_path, job.script_content)
+            .map_err(QRenderDocJobError::WriteScript)?;
+        for support_file in job.support_files {
+            let support_path = run_dir.join(support_file.file_name);
+            write_script_file(&support_path, support_file.content)
+                .map_err(QRenderDocJobError::WriteScript)?;
+        }
+        let bootstrap_path = run_dir.join("_renderdog_qrenderdoc_bootstrap.py");
+        write_script_file(
+            &bootstrap_path,
+            &qrenderdoc_bootstrap_script(&run_dir, job.script_file_name),
+        )
+        .map_err(QRenderDocJobError::WriteScript)?;
+
         let job_file_stem = Path::new(job.script_file_name)
             .file_stem()
             .and_then(|stem| stem.to_str())
@@ -189,13 +204,21 @@ impl RenderDocInstallation {
         )
         .map_err(QRenderDocJobError::WriteRequest)?;
 
-        self.run_qrenderdoc_python(&QRenderDocPythonRequest {
-            script_path,
+        let execution_result = self.run_qrenderdoc_python(&QRenderDocPythonRequest {
+            script_path: bootstrap_path,
             args: Vec::new(),
             working_dir: Some(run_dir),
-        })?;
+        });
 
-        let bytes = std::fs::read(&response_path).map_err(QRenderDocJobError::ReadResponse)?;
+        let bytes = match std::fs::read(&response_path) {
+            Ok(bytes) => bytes,
+            Err(read_err) => {
+                if let Err(err) = execution_result {
+                    return Err(QRenderDocJobError::from(err));
+                }
+                return Err(QRenderDocJobError::ReadResponse(read_err));
+            }
+        };
         let response: QRenderDocJobResponse<TResp> =
             serde_json::from_slice(&bytes).map_err(QRenderDocJobError::DeserializeResponse)?;
         if response.ok {
@@ -262,4 +285,18 @@ fn remove_if_exists(path: &Path) -> Result<(), std::io::Error> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),
     }
+}
+
+fn qrenderdoc_bootstrap_script(run_dir: &Path, script_file_name: &str) -> String {
+    let run_dir = path_to_api_string(run_dir);
+    format!(
+        "import os\n\
+         import sys\n\
+         run_dir = {run_dir:?}\n\
+         script_path = os.path.join(run_dir, {script_file_name:?})\n\
+         sys.path.insert(0, run_dir)\n\
+         with open(script_path, 'r', encoding='utf-8') as script_file:\n\
+         \tcode = compile(script_file.read(), script_path, 'exec')\n\
+         exec(code, {{'__name__': '__main__'}})\n"
+    )
 }

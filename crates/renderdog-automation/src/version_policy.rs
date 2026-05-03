@@ -7,6 +7,61 @@ pub(crate) fn workspace_renderdoc_replay_version() -> &'static str {
 }
 
 pub(crate) fn normalize_renderdoc_version(value: &str) -> Option<String> {
+    if let Some(version) = find_v_prefixed_version(value) {
+        return Some(version);
+    }
+
+    first_two_numeric_components(value)
+}
+
+fn find_v_prefixed_version(value: &str) -> Option<String> {
+    for (idx, ch) in value.char_indices() {
+        if ch != 'v' && ch != 'V' {
+            continue;
+        }
+
+        if let Some(version) = parse_major_minor_prefix(&value[idx + ch.len_utf8()..]) {
+            return Some(version);
+        }
+    }
+
+    None
+}
+
+fn parse_major_minor_prefix(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    let mut cursor = 0;
+
+    while bytes
+        .get(cursor)
+        .is_some_and(std::primitive::u8::is_ascii_digit)
+    {
+        cursor += 1;
+    }
+
+    if cursor == 0 || bytes.get(cursor) != Some(&b'.') {
+        return None;
+    }
+
+    let major = &value[..cursor];
+    cursor += 1;
+    let minor_start = cursor;
+
+    while bytes
+        .get(cursor)
+        .is_some_and(std::primitive::u8::is_ascii_digit)
+    {
+        cursor += 1;
+    }
+
+    if cursor == minor_start {
+        return None;
+    }
+
+    Some(format!("{major}.{}", &value[minor_start..cursor]))
+}
+
+fn first_two_numeric_components(value: &str) -> Option<String> {
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
 
