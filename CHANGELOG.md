@@ -6,28 +6,40 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+- None.
+
+## [0.3.0] - 2026-05-03
+
+### Breaking Changes
+
+- RenderDoc: Updated the bundled API snapshot to RenderDoc 1.44. Replay sessions and diagnostics now expect a matching RenderDoc 1.44 runtime and report version mismatches explicitly.
+- `renderdog-sys`: If you regenerate bindings yourself, provide the workspace RenderDoc submodule or `RENDERDOG_SYS_HEADER`; the published crate now relies on pregenerated bindings instead of shipping a fallback header.
+- Automation/MCP: Simplified capture/export/find/replay request and response JSON into flatter workflow-oriented payloads. If you construct MCP requests by hand or deserialize tool output, review the updated examples before upgrading.
+- In-app: Removed the deprecated `RenderDog` alias. Use `RenderDocInApp`.
+- Automation/MCP: Removed obsolete low-level capture and command entrypoints. Use the bundle, replay, and diagnostics workflows instead.
+
 ### Added
 
-- (TBD)
-
-## [0.3.0] - 2026-04-21
-
-### Added
-
-- Experimental `renderdog-replay` crate for stateful replay sessions, including texture listing, pixel picking, and texture PNG export.
-- Structured RenderDoc diagnostics in `renderdog-automation` and `renderdog-mcp`, including installation detection, replay-version compatibility checks, Vulkan layer analysis, and suggested remediation commands.
+- In-app: Richer object and command annotation helpers when RenderDoc API 1.7.0 is available.
+- Linux: In-app helpers that can connect to an already-loaded RenderDoc library without loading a new one first.
+- Replay: Experimental `renderdog-replay` crate for stateful replay sessions, currently covering texture listing, pixel picking, and texture PNG export.
+- Diagnostics: Structured RenderDoc environment reports in `renderdog-automation` and `renderdog-mcp`, including installation discovery, `renderdoccmd` version probing, Vulkan layer analysis, warnings, and suggested fix commands.
 
 ### Changed
 
-- Vendored RenderDoc headers and replay metadata now target RenderDoc 1.44. The experimental replay runtime now checks for an exact runtime/header match, and diagnostics surface mismatches explicitly.
-- `renderdog-automation` now centers on typed bundle/replay workflows via `RenderDocInstallation`; low-level command and qrenderdoc scripting helpers are no longer part of the public API.
-- Bundle/find/replay request and response payloads were simplified around flatter workflow models. If you construct JSON manually or deserialize tool outputs, review the updated examples before upgrading.
-- Replay output export now uses explicit event selection (`last_drawcall` or `event:<id>`), with `last_drawcall` as the default.
+- Automation: `RenderDocInstallation` is now the main entrypoint for typed bundle and replay workflows.
+- Capture/export: Actions and bindings JSONL are now handled as a single bundle workflow, with optional thumbnail saving and opening the capture in the UI.
+- Replay: Output export now uses explicit event selection (`last_drawcall` or `event:<id>`), with `last_drawcall` as the default.
+- Replay: Texture and output metadata now use typed, flatter fields that are easier to compare across Rust APIs and MCP tool results.
+- Paths: Relative capture and output paths are normalized against the caller's working directory across automation and MCP workflows.
 
-### Removed
+### Fixed
 
-- Deprecated in-app alias `RenderDog`; use `RenderDocInApp`.
-- Obsolete low-level automation/MCP capture entrypoints in favor of the bundle/replay/diagnostics workflows.
+- qrenderdoc: Fixed headless `qrenderdoc --python` workflows with RenderDoc's embedded Python runtime.
+- Windows: Fixed replay output serialization so normalized paths do not mix slash styles in generated requests.
+- Diagnostics: Fixed RenderDoc version parsing for CLI strings such as `renderdoccmd x64 v1.44 ...`.
+- Bindings: Fixed pregenerated binding checks across platforms where bindgen may choose different C integer aliases for RenderDoc enum wrappers.
+- CI: Fixed clippy, binding regeneration, and workspace crate publish-order checks.
 
 ## [0.2.0] - 2026-01-10
 
